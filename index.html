@@ -10,9 +10,14 @@
   <link rel="stylesheet" href="assets/style.css">
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+  <!-- App modules — load order matters -->
+  <script src="assets/config.js" defer></script>
+  <script src="assets/nav.js" defer></script>
+  <script src="assets/runner.js" defer></script>
+  <script src="assets/table.js" defer></script>
   <script src="assets/charts.js" defer></script>
   <script src="assets/insights.js" defer></script>
-  <script src="assets/app.js" defer></script>
+  <script src="assets/ui.js" defer></script>
 </head>
 <body>
 
@@ -284,14 +289,13 @@
       </div>
     </div>
 
-    <!-- ═══════════════ INSIGHTS (Part 3) ═══════════════ -->
+    <!-- ═══════════════ INSIGHTS ═══════════════ -->
     <div class="page" id="page-insights">
       <div class="section-header">
         <h2>Insights</h2>
         <p>Customer behaviour analysis, reorder risk, and interval distributions</p>
       </div>
 
-      <!-- Filter bar -->
       <div class="insights-filters" id="insights-filters">
         <button class="filter-chip active" data-filter="all">All Customers</button>
         <button class="filter-chip" data-filter="eligible">Frequency Eligible</button>
@@ -301,7 +305,6 @@
         <span class="filter-count" id="insights-count">— customers</span>
       </div>
 
-      <!-- KPIs -->
       <div class="kpi-grid" style="margin-bottom:var(--space-6)">
         <div class="kpi-card">
           <div class="kpi-label">Avg Reorder Cycle</div>
@@ -325,60 +328,47 @@
         </div>
       </div>
 
-      <!-- Charts row 1 -->
       <div class="charts-grid charts-grid--3">
         <div class="chart-card">
-          <div class="chart-card-header">
-            <div>
-              <div class="chart-title">Priority Breakdown</div>
-              <div class="chart-subtitle">Distribution across priority tiers</div>
-            </div>
-          </div>
+          <div class="chart-card-header"><div>
+            <div class="chart-title">Priority Breakdown</div>
+            <div class="chart-subtitle">Distribution across priority tiers</div>
+          </div></div>
           <div class="chart-wrap chart-wrap--sm"><canvas id="chart-priority"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-card-header">
-            <div>
-              <div class="chart-title">Reorder Interval Distribution</div>
-              <div class="chart-subtitle">How often do customers reorder?</div>
-            </div>
-          </div>
+          <div class="chart-card-header"><div>
+            <div class="chart-title">Reorder Interval Distribution</div>
+            <div class="chart-subtitle">How often do customers reorder?</div>
+          </div></div>
           <div class="chart-wrap chart-wrap--sm"><canvas id="chart-interval"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-card-header">
-            <div>
-              <div class="chart-title">Days Since Last Order</div>
-              <div class="chart-subtitle">Recency distribution (all customers)</div>
-            </div>
-          </div>
+          <div class="chart-card-header"><div>
+            <div class="chart-title">Days Since Last Order</div>
+            <div class="chart-subtitle">Recency distribution (all customers)</div>
+          </div></div>
           <div class="chart-wrap chart-wrap--sm"><canvas id="chart-recency"></canvas></div>
         </div>
       </div>
 
-      <!-- Charts row 2 -->
       <div class="charts-grid" style="margin-top:var(--space-6)">
         <div class="chart-card">
-          <div class="chart-card-header">
-            <div>
-              <div class="chart-title">Reorder Risk View</div>
-              <div class="chart-subtitle">Days overdue vs. total order value — bubble = order count</div>
-            </div>
-          </div>
+          <div class="chart-card-header"><div>
+            <div class="chart-title">Reorder Risk View</div>
+            <div class="chart-subtitle">Days overdue vs. total order value — bubble = order count</div>
+          </div></div>
           <div class="chart-wrap chart-wrap--lg"><canvas id="chart-risk"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-card-header">
-            <div>
-              <div class="chart-title">Top Customers by Order Count</div>
-              <div class="chart-subtitle">Most active reorderers</div>
-            </div>
-          </div>
+          <div class="chart-card-header"><div>
+            <div class="chart-title">Top Customers by Order Count</div>
+            <div class="chart-subtitle">Most active reorderers</div>
+          </div></div>
           <div class="chart-wrap chart-wrap--lg"><canvas id="chart-top"></canvas></div>
         </div>
       </div>
 
-      <!-- Customer risk table -->
       <div class="data-table-wrap" style="margin-top:var(--space-6)" id="insights-risk-table-wrap">
         <div class="data-table-header">
           <div>
