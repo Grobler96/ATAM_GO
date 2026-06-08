@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (!sb) {
     status('Missing config');
-    toast('Copy config.example.js to config.js and add Supabase details.');
+    toast('Missing Supabase config. Check config.js.');
     return;
   }
 
@@ -110,9 +110,7 @@ function bind() {
   }
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      closeOrderModal();
-    }
+    if (e.key === 'Escape') closeOrderModal();
   });
 }
 
@@ -120,16 +118,26 @@ async function refresh() {
   try {
     status('Loading...');
 
-    await Promise.all([
-      overview(),
-      deco(),
-      process(),
-      customers(),
-      stores(),
-      ready(),
-      risk(),
-      activity()
-    ]);
+    await overview();
+    await deco();
+    await process();
+    await customers();
+    await stores();
+    await activity();
+
+    try {
+      await ready();
+    } catch (e) {
+      console.warn('Ready view failed:', e.message);
+      state.data.ready = [];
+    }
+
+    try {
+      await risk();
+    } catch (e) {
+      console.warn('Risk view failed:', e.message);
+      state.data.risk = [];
+    }
 
     storesFilter();
     render();
@@ -142,16 +150,21 @@ async function refresh() {
   }
 }
 
-async function overview() {
+function baseRecordsQuery() {
   let q = sb
-    .from('recent_decoration_activity')
+    .from('decoration_records')
     .select('*')
     .eq('report_date', state.date);
 
   if (state.store) q = q.eq('store_name', state.store);
   if (state.type) q = q.eq('decoration_type', state.type);
 
-  const { data, error } = await q;
+  return q;
+}
+
+async function overview() {
+  const { data, error } = await baseRecordsQuery();
+
   if (error) throw error;
 
   const rows = data || [];
@@ -180,15 +193,8 @@ async function overview() {
 }
 
 async function deco() {
-  let q = sb
-    .from('recent_decoration_activity')
-    .select('*')
-    .eq('report_date', state.date);
+  const { data, error } = await baseRecordsQuery();
 
-  if (state.store) q = q.eq('store_name', state.store);
-  if (state.type) q = q.eq('decoration_type', state.type);
-
-  const { data, error } = await q;
   if (error) throw error;
 
   const grouped = {};
@@ -216,15 +222,8 @@ async function deco() {
 }
 
 async function process() {
-  let q = sb
-    .from('recent_decoration_activity')
-    .select('*')
-    .eq('report_date', state.date);
+  const { data, error } = await baseRecordsQuery();
 
-  if (state.store) q = q.eq('store_name', state.store);
-  if (state.type) q = q.eq('decoration_type', state.type);
-
-  const { data, error } = await q;
   if (error) throw error;
 
   const grouped = {};
@@ -254,15 +253,8 @@ async function process() {
 }
 
 async function customers() {
-  let q = sb
-    .from('recent_decoration_activity')
-    .select('*')
-    .eq('report_date', state.date);
+  const { data, error } = await baseRecordsQuery();
 
-  if (state.store) q = q.eq('store_name', state.store);
-  if (state.type) q = q.eq('decoration_type', state.type);
-
-  const { data, error } = await q;
   if (error) throw error;
 
   const grouped = {};
@@ -295,15 +287,8 @@ async function customers() {
 }
 
 async function stores() {
-  let q = sb
-    .from('recent_decoration_activity')
-    .select('*')
-    .eq('report_date', state.date);
+  const { data, error } = await baseRecordsQuery();
 
-  if (state.store) q = q.eq('store_name', state.store);
-  if (state.type) q = q.eq('decoration_type', state.type);
-
-  const { data, error } = await q;
   if (error) throw error;
 
   const grouped = {};
@@ -321,6 +306,7 @@ async function stores() {
     }
 
     grouped[key].total_quantity += Number(row.quantity || 0);
+
     if (row.order_id) grouped[key].unique_orders_set.add(row.order_id);
 
     if (row.customer_id || row.customer_name) {
@@ -348,6 +334,7 @@ async function ready() {
   if (state.store) q = q.eq('store_name', state.store);
 
   const { data, error } = await q;
+
   if (error) throw error;
 
   state.data.ready = data || [];
@@ -363,6 +350,7 @@ async function risk() {
   if (state.store) q = q.eq('store_name', state.store);
 
   const { data, error } = await q;
+
   if (error) throw error;
 
   state.data.risk = data || [];
@@ -370,16 +358,17 @@ async function risk() {
 
 async function activity() {
   let q = sb
-    .from('recent_decoration_activity')
+    .from('decoration_records')
     .select('*')
     .eq('report_date', state.date)
     .order('counted_at', { ascending: false })
-    .limit(200);
+    .limit(300);
 
   if (state.store) q = q.eq('store_name', state.store);
   if (state.type) q = q.eq('decoration_type', state.type);
 
   const { data, error } = await q;
+
   if (error) throw error;
 
   state.data.activity = data || [];
@@ -648,7 +637,8 @@ function filterRowsBySearch(rows) {
       r.process_code,
       r.area_name,
       r.view_name,
-      r.assigned_to
+      r.assigned_to,
+      r.shipping_method
     ]
       .join(' ')
       .toLowerCase()
