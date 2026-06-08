@@ -114,171 +114,221 @@ function bind() {
   });
 }
 
-async function refresh() {
-  try {
-    status('Loading...');
-
-    await Promise.all([
-      overview(),
-      deco(),
-      process(),
-      customers(),
-      stores(),
-      ready(),
-      risk(),
-      activity()
-    ]);
-
-    storesFilter();
-    render();
-    status('Connected');
-  } catch (e) {
-    console.error(e);
-    status('Error');
-    toast(e.message || 'Load failed');
-  }
-}
-
-function qStore(q) {
-  return state.store ? q.eq('store_name', state.store) : q;
-}
-
-function qType(q) {
-  return state.type ? q.eq('decoration_type', state.type) : q;
-}
-
 async function overview() {
   let q = sb
-    .from('daily_dashboard_overview')
+    .from('recent_decoration_activity')
     .select('*')
     .eq('report_date', state.date);
 
   if (state.store) q = q.eq('store_name', state.store);
+  if (state.type) q = q.eq('decoration_type', state.type);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
-  state.data.overview = data || [];
+  const rows = data || [];
+  const orders = new Set(rows.map(r => r.order_id).filter(Boolean));
+  const customers = new Set(rows.map(r => r.customer_id || r.customer_name).filter(Boolean));
+
+  state.data.overview = [{
+    total_decorations: rows.reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+    embroidery_total: rows
+      .filter(r => r.decoration_type === 'embroidery')
+      .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+    print_total: rows
+      .filter(r => r.decoration_type === 'print')
+      .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+    unique_orders: orders.size,
+    unique_customers: customers.size,
+    decoration_lines: rows.length
+  }];
 }
 
 async function deco() {
   let q = sb
-    .from('daily_decoration_summary')
+    .from('recent_decoration_activity')
     .select('*')
     .eq('report_date', state.date);
 
-  q = qStore(q);
-  q = qType(q);
+  if (state.store) q = q.eq('store_name', state.store);
+  if (state.type) q = q.eq('decoration_type', state.type);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
-  state.data.deco = data || [];
+  const grouped = {};
+
+  for (const row of data || []) {
+    const key = row.decoration_type || 'unknown';
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        decoration_type: key,
+        total_quantity: 0,
+        unique_orders_set: new Set()
+      };
+    }
+
+    grouped[key].total_quantity += Number(row.quantity || 0);
+    if (row.order_id) grouped[key].unique_orders_set.add(row.order_id);
+  }
+
+  state.data.deco = Object.values(grouped).map(r => ({
+    decoration_type: r.decoration_type,
+    total_quantity: r.total_quantity,
+    unique_orders: r.unique_orders_set.size
+  }));
 }
 
 async function process() {
   let q = sb
-    .from('daily_process_code_summary')
+    .from('recent_decoration_activity')
     .select('*')
     .eq('report_date', state.date);
 
-  q = qStore(q);
-  q = qType(q);
+  if (state.store) q = q.eq('store_name', state.store);
+  if (state.type) q = q.eq('decoration_type', state.type);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
-  state.data.process = data || [];
+  const grouped = {};
+
+  for (const row of data || []) {
+    const key = row.process_code || 'UNKNOWN';
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        process_code: key,
+        total_quantity: 0,
+        unique_orders_set: new Set()
+      };
+    }
+
+    grouped[key].total_quantity += Number(row.quantity || 0);
+    if (row.order_id) grouped[key].unique_orders_set.add(row.order_id);
+  }
+
+  state.data.process = Object.values(grouped)
+    .map(r => ({
+      process_code: r.process_code,
+      total_quantity: r.total_quantity,
+      unique_orders: r.unique_orders_set.size
+    }))
+    .sort((a, b) => b.total_quantity - a.total_quantity);
 }
 
 async function customers() {
   let q = sb
-    .from('daily_customer_summary')
+    .from('recent_decoration_activity')
     .select('*')
-    .eq('report_date', state.date)
-    .order('total_quantity', { ascending: false })
-    .limit(10);
+    .eq('report_date', state.date);
 
-  q = qStore(q);
-  q = qType(q);
+  if (state.store) q = q.eq('store_name', state.store);
+  if (state.type) q = q.eq('decoration_type', state.type);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
-  state.data.customers = data || [];
+  const grouped = {};
+
+  for (const row of data || []) {
+    const key = row.customer_name || 'Unknown';
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        customer_name: key,
+        store_name: row.store_name || '—',
+        total_quantity: 0,
+        unique_orders_set: new Set()
+      };
+    }
+
+    grouped[key].total_quantity += Number(row.quantity || 0);
+    if (row.order_id) grouped[key].unique_orders_set.add(row.order_id);
+  }
+
+  state.data.customers = Object.values(grouped)
+    .map(r => ({
+      customer_name: r.customer_name,
+      store_name: r.store_name,
+      total_quantity: r.total_quantity,
+      unique_orders: r.unique_orders_set.size
+    }))
+    .sort((a, b) => b.total_quantity - a.total_quantity)
+    .slice(0, 10);
 }
 
 async function stores() {
   let q = sb
-    .from('daily_store_summary')
+    .from('recent_decoration_activity')
     .select('*')
-    .eq('report_date', state.date)
-    .order('total_quantity', { ascending: false });
+    .eq('report_date', state.date);
 
-  if (state.store) {
-    q = q.eq('store_name', state.store);
+  if (state.store) q = q.eq('store_name', state.store);
+  if (state.type) q = q.eq('decoration_type', state.type);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const grouped = {};
+
+  for (const row of data || []) {
+    const key = row.store_name || 'Unknown';
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        store_name: key,
+        total_quantity: 0,
+        unique_orders_set: new Set(),
+        unique_customers_set: new Set()
+      };
+    }
+
+    grouped[key].total_quantity += Number(row.quantity || 0);
+    if (row.order_id) grouped[key].unique_orders_set.add(row.order_id);
+    if (row.customer_id || row.customer_name) {
+      grouped[key].unique_customers_set.add(row.customer_id || row.customer_name);
+    }
   }
 
-  const { data, error } = await q;
-
-  if (error) throw error;
-
-  state.data.stores = data || [];
-}
-
-async function ready() {
-  let q = sb
-    .from('ready_to_ship_orders')
-    .select('*')
-    .order('date_due', { ascending: true, nullsFirst: false })
-    .limit(50);
-
-  q = qStore(q);
-
-  const { data, error } = await q;
-
-  if (error) throw error;
-
-  state.data.ready = data || [];
-}
-
-async function risk() {
-  let q = sb
-    .from('late_or_at_risk_orders')
-    .select('*')
-    .order('date_due', { ascending: true, nullsFirst: false })
-    .limit(50);
-
-  q = qStore(q);
-
-  const { data, error } = await q;
-
-  if (error) throw error;
-
-  state.data.risk = data || [];
+  state.data.stores = Object.values(grouped)
+    .map(r => ({
+      store_name: r.store_name,
+      total_quantity: r.total_quantity,
+      unique_orders: r.unique_orders_set.size,
+      unique_customers: r.unique_customers_set.size
+    }))
+    .sort((a, b) => b.total_quantity - a.total_quantity);
 }
 
 async function activity() {
   let q = sb
     .from('recent_decoration_activity')
     .select('*')
+    .eq('report_date', state.date)
     .order('counted_at', { ascending: false })
-    .limit(120);
+    .limit(200);
 
-  q = qStore(q);
-  q = qType(q);
+  if (state.store) q = q.eq('store_name', state.store);
+  if (state.type) q = q.eq('decoration_type', state.type);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
   state.data.activity = data || [];
 }
 
+function renderKpis() {
+  const o = state.data.overview[0] || {};
+
+  $('totalDecorations').textContent = num(o.total_decorations);
+  $('embroideryTotal').textContent = num(o.embroidery_total);
+  $('printTotal').textContent = num(o.print_total);
+  $('uniqueOrders').textContent = num(o.unique_orders);
+  $('uniqueCustomers').textContent = num(o.unique_customers);
+  $('decorationLines').textContent = num(o.decoration_lines);
+}
 function render() {
   renderKpis();
   chartDeco();
