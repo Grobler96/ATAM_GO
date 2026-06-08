@@ -59,19 +59,26 @@ function bind() {
   $('searchInput').oninput = (e) => {
     state.search = e.target.value.toLowerCase();
     renderActivity();
+    renderProductionActivity();
   };
 
-  $('triggerReadyShipWorkflow').onclick = () =>
-    hook('readyShipAlert', {
-      action: 'ready_to_ship_alert',
-      date: state.date
-    });
+  const readyBtn = $('triggerReadyShipWorkflow');
+  if (readyBtn) {
+    readyBtn.onclick = () =>
+      hook('readyShipAlert', {
+        action: 'ready_to_ship_alert',
+        date: state.date
+      });
+  }
 
-  $('triggerRiskWorkflow').onclick = () =>
-    hook('sendRiskAlert', {
-      action: 'risk_alert',
-      date: state.date
-    });
+  const riskBtn = $('triggerRiskWorkflow');
+  if (riskBtn) {
+    riskBtn.onclick = () =>
+      hook('sendRiskAlert', {
+        action: 'risk_alert',
+        date: state.date
+      });
+  }
 
   document.querySelectorAll('[data-action]').forEach((button) => {
     button.onclick = () =>
@@ -80,6 +87,33 @@ function bind() {
         date: state.date,
         source: 'ATAM GO'
       });
+  });
+
+  bindPageNavigation();
+}
+
+function bindPageNavigation() {
+  document.querySelectorAll('.nav-link').forEach((button) => {
+    button.addEventListener('click', () => {
+      const pageId = button.dataset.page;
+
+      document.querySelectorAll('.nav-link').forEach((nav) => {
+        nav.classList.remove('active');
+      });
+
+      document.querySelectorAll('.dashboard-page').forEach((page) => {
+        page.classList.remove('active');
+      });
+
+      button.classList.add('active');
+
+      const page = document.getElementById(pageId);
+      if (page) {
+        page.classList.add('active');
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   });
 }
 
@@ -230,8 +264,10 @@ async function activity() {
 
 function render() {
   renderKpis();
-  chartDeco();
-  chartProcess();
+  chartDeco('decorationChart');
+  chartProcess('processChart');
+  chartDeco('decorationChartProduction');
+  chartProcess('processChartProduction');
 
   table(
     'customerTable',
@@ -293,6 +329,7 @@ function render() {
   );
 
   renderActivity();
+  renderProductionActivity();
 }
 
 function renderKpis() {
@@ -329,7 +366,7 @@ function renderKpis() {
   $('decorationLines').textContent = num(decorationLines);
 }
 
-function chartDeco() {
+function chartDeco(chartId) {
   const rows = getFilteredActivityRows();
 
   const totals = rows.reduce((acc, row) => {
@@ -341,10 +378,10 @@ function chartDeco() {
   const labels = Object.keys(totals).map(title);
   const values = Object.values(totals);
 
-  upchart('decorationChart', 'doughnut', labels, values, true);
+  upchart(chartId, 'doughnut', labels, values, true);
 }
 
-function chartProcess() {
+function chartProcess(chartId) {
   const rows = getFilteredActivityRows();
 
   const totals = rows.reduce((acc, row) => {
@@ -356,10 +393,13 @@ function chartProcess() {
   const labels = Object.keys(totals);
   const values = Object.values(totals);
 
-  upchart('processChart', 'bar', labels, values, false);
+  upchart(chartId, 'bar', labels, values, false);
 }
 
 function upchart(id, type, labels, data, legend) {
+  const canvas = $(id);
+  if (!canvas) return;
+
   if (state.charts[id]) {
     state.charts[id].destroy();
   }
@@ -378,7 +418,7 @@ function upchart(id, type, labels, data, legend) {
           }
         };
 
-  state.charts[id] = new Chart($(id), {
+  state.charts[id] = new Chart(canvas, {
     type,
     data: {
       labels,
@@ -408,6 +448,14 @@ function upchart(id, type, labels, data, legend) {
 }
 
 function renderActivity() {
+  renderActivityIntoTable('activityTable');
+}
+
+function renderProductionActivity() {
+  renderActivityIntoTable('productionActivityTable');
+}
+
+function renderActivityIntoTable(tableId) {
   let rows = getFilteredActivityRows();
 
   if (state.search) {
@@ -429,7 +477,7 @@ function renderActivity() {
   }
 
   table(
-    'activityTable',
+    tableId,
     rows,
     (r) => `
       <tr>
@@ -469,7 +517,10 @@ function getFilteredStores() {
 }
 
 function table(id, rows, fn, cols) {
-  $(id).innerHTML = rows.length
+  const target = $(id);
+  if (!target) return;
+
+  target.innerHTML = rows.length
     ? rows.map(fn).join('')
     : `<tr><td colspan="${cols}">No data found.</td></tr>`;
 }
@@ -477,19 +528,23 @@ function table(id, rows, fn, cols) {
 function storesFilter() {
   const current = $('storeFilter').value || state.store;
 
-  const storeNames = new Set([
-    ...state.data.stores.map((r) => r.store_name),
-    ...state.data.customers.map((r) => r.store_name),
-    ...state.data.ready.map((r) => r.store_name),
-    ...state.data.risk.map((r) => r.store_name),
-    ...state.data.activity.map((r) => r.store_name)
-  ].filter(Boolean));
+  const storeNames = new Set(
+    [
+      ...state.data.stores.map((r) => r.store_name),
+      ...state.data.customers.map((r) => r.store_name),
+      ...state.data.ready.map((r) => r.store_name),
+      ...state.data.risk.map((r) => r.store_name),
+      ...state.data.activity.map((r) => r.store_name)
+    ].filter(Boolean)
+  );
 
   const stores = [...storeNames].sort();
 
   $('storeFilter').innerHTML =
     '<option value="">All stores</option>' +
-    stores.map((store) => `<option value="${esc(store)}">${esc(store)}</option>`).join('');
+    stores
+      .map((store) => `<option value="${esc(store)}">${esc(store)}</option>`)
+      .join('');
 
   $('storeFilter').value = stores.includes(current) ? current : '';
   state.store = $('storeFilter').value;
