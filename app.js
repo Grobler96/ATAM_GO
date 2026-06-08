@@ -1,7 +1,11 @@
 const cfg = window.ATAM_GO_CONFIG || {};
 
+const todayIso = new Date().toISOString().slice(0, 10);
+
 const state = {
-  date: new Date().toISOString().slice(0, 10),
+  dateFrom: todayIso,
+  dateTo: todayIso,
+  range: 'today',
   store: '',
   type: '',
   search: '',
@@ -26,10 +30,12 @@ const sb =
     : null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  if ($('dateInput')) $('dateInput').value = state.date;
+  if ($('dateFromInput')) $('dateFromInput').value = state.dateFrom;
+  if ($('dateToInput')) $('dateToInput').value = state.dateTo;
 
   bind();
   bindPageNavigation();
+  updateCustomRangeUi();
 
   if (!sb) {
     status('Missing config');
@@ -43,9 +49,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 function bind() {
   if ($('refreshBtn')) $('refreshBtn').onclick = refresh;
 
-  if ($('dateInput')) {
-    $('dateInput').onchange = e => {
-      state.date = e.target.value;
+  document.querySelectorAll('.range-btn').forEach(button => {
+    button.onclick = () => {
+      setDateRange(button.dataset.range);
+      refresh();
+    };
+  });
+
+  if ($('dateFromInput')) {
+    $('dateFromInput').onchange = e => {
+      state.dateFrom = e.target.value;
+      state.range = 'custom';
+      updateCustomRangeUi();
+      refresh();
+    };
+  }
+
+  if ($('dateToInput')) {
+    $('dateToInput').onchange = e => {
+      state.dateTo = e.target.value;
+      state.range = 'custom';
+      updateCustomRangeUi();
       refresh();
     };
   }
@@ -76,7 +100,8 @@ function bind() {
     $('triggerReadyShipWorkflow').onclick = () =>
       hook('readyShipAlert', {
         action: 'ready_to_ship_alert',
-        date: state.date
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo
       });
   }
 
@@ -84,7 +109,8 @@ function bind() {
     $('triggerRiskWorkflow').onclick = () =>
       hook('sendRiskAlert', {
         action: 'risk_alert',
-        date: state.date
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo
       });
   }
 
@@ -92,7 +118,8 @@ function bind() {
     button.onclick = () =>
       hook(button.dataset.action, {
         action: button.dataset.action,
-        date: state.date,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
         source: 'ATAM GO'
       });
   });
@@ -154,7 +181,8 @@ function baseRecordsQuery() {
   let q = sb
     .from('decoration_records')
     .select('*')
-    .eq('report_date', state.date);
+    .gte('report_date', state.dateFrom)
+    .lte('report_date', state.dateTo);
 
   if (state.store) q = q.eq('store_name', state.store);
   if (state.type) q = q.eq('decoration_type', state.type);
@@ -360,9 +388,10 @@ async function activity() {
   let q = sb
     .from('decoration_records')
     .select('*')
-    .eq('report_date', state.date)
+    .gte('report_date', state.dateFrom)
+    .lte('report_date', state.dateTo)
     .order('counted_at', { ascending: false })
-    .limit(300);
+    .limit(500);
 
   if (state.store) q = q.eq('store_name', state.store);
   if (state.type) q = q.eq('decoration_type', state.type);
@@ -824,6 +853,71 @@ function bindPageNavigation() {
       }
     };
   });
+}
+
+function setDateRange(range) {
+  const today = new Date();
+  const start = new Date(today);
+  const end = new Date(today);
+
+  state.range = range;
+
+  if (range === 'today') {
+    state.dateFrom = formatDate(today);
+    state.dateTo = formatDate(today);
+  }
+
+  if (range === 'yesterday') {
+    start.setDate(today.getDate() - 1);
+    end.setDate(today.getDate() - 1);
+
+    state.dateFrom = formatDate(start);
+    state.dateTo = formatDate(end);
+  }
+
+  if (range === 'last7') {
+    start.setDate(today.getDate() - 6);
+
+    state.dateFrom = formatDate(start);
+    state.dateTo = formatDate(today);
+  }
+
+  if (range === 'month') {
+    start.setDate(1);
+
+    state.dateFrom = formatDate(start);
+    state.dateTo = formatDate(today);
+  }
+
+  if (range === 'custom') {
+    if (!state.dateFrom) state.dateFrom = formatDate(today);
+    if (!state.dateTo) state.dateTo = formatDate(today);
+  }
+
+  if ($('dateFromInput')) $('dateFromInput').value = state.dateFrom;
+  if ($('dateToInput')) $('dateToInput').value = state.dateTo;
+
+  updateCustomRangeUi();
+}
+
+function updateCustomRangeUi() {
+  const customBox = $('customDateRange');
+
+  if (customBox) {
+    if (state.range === 'custom') {
+      customBox.classList.add('show');
+    } else {
+      customBox.classList.remove('show');
+    }
+  }
+
+  document.querySelectorAll('.range-btn').forEach(button => {
+    button.classList.toggle('active', button.dataset.range === state.range);
+  });
+}
+
+function formatDate(dateObj) {
+  return dateObj.toISOString().slice(0, 10);
 }
 
 async function hook(key, payload) {
