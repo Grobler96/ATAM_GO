@@ -495,5 +495,145 @@ td {
   .filters select,
   .filters button {
     width: 100%;
+
+    .modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(12px);
+  z-index: 80;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-backdrop.show {
+  display: flex;
+}
+
+.order-modal {
+  width: min(1050px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 36%),
+    rgba(15, 23, 42, 0.96);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55);
+  padding: 24px;
+  animation: modalIn 0.22s ease;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  margin: 4px 0 0;
+  font-size: 34px;
+  letter-spacing: -0.04em;
+}
+
+.modal-close {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.order-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.order-meta-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 14px;
+}
+
+.order-meta-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.order-meta-card strong {
+  display: block;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.modal-section {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 18px;
+}
+
+.order-link {
+  border: 0;
+  background: transparent;
+  color: #bae6fd;
+  font-weight: 950;
+  cursor: pointer;
+  padding: 0;
+}
+
+.order-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 850px) {
+  .order-meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .order-modal {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .order-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
   }
 }
