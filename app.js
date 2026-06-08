@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('dateInput')) $('dateInput').value = state.date;
 
   bind();
+  bindPageNavigation();
 
   if (!sb) {
     status('Missing config');
@@ -67,6 +68,7 @@ function bind() {
     $('searchInput').oninput = e => {
       state.search = e.target.value.toLowerCase();
       renderActivity();
+      renderProductionActivity();
     };
   }
 
@@ -114,6 +116,32 @@ function bind() {
   });
 }
 
+async function refresh() {
+  try {
+    status('Loading...');
+
+    await Promise.all([
+      overview(),
+      deco(),
+      process(),
+      customers(),
+      stores(),
+      ready(),
+      risk(),
+      activity()
+    ]);
+
+    storesFilter();
+    render();
+
+    status('Connected');
+  } catch (error) {
+    console.error(error);
+    status('Error');
+    toast(error.message || 'Load failed');
+  }
+}
+
 async function overview() {
   let q = sb
     .from('recent_decoration_activity')
@@ -128,20 +156,27 @@ async function overview() {
 
   const rows = data || [];
   const orders = new Set(rows.map(r => r.order_id).filter(Boolean));
-  const customers = new Set(rows.map(r => r.customer_id || r.customer_name).filter(Boolean));
+  const customers = new Set(
+    rows.map(r => r.customer_id || r.customer_name).filter(Boolean)
+  );
 
-  state.data.overview = [{
-    total_decorations: rows.reduce((sum, r) => sum + Number(r.quantity || 0), 0),
-    embroidery_total: rows
-      .filter(r => r.decoration_type === 'embroidery')
-      .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
-    print_total: rows
-      .filter(r => r.decoration_type === 'print')
-      .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
-    unique_orders: orders.size,
-    unique_customers: customers.size,
-    decoration_lines: rows.length
-  }];
+  state.data.overview = [
+    {
+      total_decorations: rows.reduce(
+        (sum, r) => sum + Number(r.quantity || 0),
+        0
+      ),
+      embroidery_total: rows
+        .filter(r => r.decoration_type === 'embroidery')
+        .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+      print_total: rows
+        .filter(r => r.decoration_type === 'print')
+        .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+      unique_orders: orders.size,
+      unique_customers: customers.size,
+      decoration_lines: rows.length
+    }
+  ];
 }
 
 async function deco() {
@@ -287,6 +322,7 @@ async function stores() {
 
     grouped[key].total_quantity += Number(row.quantity || 0);
     if (row.order_id) grouped[key].unique_orders_set.add(row.order_id);
+
     if (row.customer_id || row.customer_name) {
       grouped[key].unique_customers_set.add(row.customer_id || row.customer_name);
     }
@@ -300,6 +336,36 @@ async function stores() {
       unique_customers: r.unique_customers_set.size
     }))
     .sort((a, b) => b.total_quantity - a.total_quantity);
+}
+
+async function ready() {
+  let q = sb
+    .from('ready_to_ship_orders')
+    .select('*')
+    .order('date_due', { ascending: true, nullsFirst: false })
+    .limit(50);
+
+  if (state.store) q = q.eq('store_name', state.store);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  state.data.ready = data || [];
+}
+
+async function risk() {
+  let q = sb
+    .from('late_or_at_risk_orders')
+    .select('*')
+    .order('date_due', { ascending: true, nullsFirst: false })
+    .limit(50);
+
+  if (state.store) q = q.eq('store_name', state.store);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  state.data.risk = data || [];
 }
 
 async function activity() {
@@ -319,20 +385,12 @@ async function activity() {
   state.data.activity = data || [];
 }
 
-function renderKpis() {
-  const o = state.data.overview[0] || {};
-
-  $('totalDecorations').textContent = num(o.total_decorations);
-  $('embroideryTotal').textContent = num(o.embroidery_total);
-  $('printTotal').textContent = num(o.print_total);
-  $('uniqueOrders').textContent = num(o.unique_orders);
-  $('uniqueCustomers').textContent = num(o.unique_customers);
-  $('decorationLines').textContent = num(o.decoration_lines);
-}
 function render() {
   renderKpis();
   chartDeco();
   chartProcess();
+  chartDecoProduction();
+  chartProcessProduction();
 
   table(
     'customerTable',
@@ -394,104 +452,35 @@ function render() {
   );
 
   renderActivity();
+  renderProductionActivity();
   bindOrderButtons();
 }
 
 function renderKpis() {
-  const overviewRows = state.data.overview || [];
-
-  const overviewTotals = overviewRows.reduce(
-    (acc, row) => {
-      acc.totalDecorations += Number(row.total_decorations || 0);
-      acc.embroideryTotal += Number(row.embroidery_total || 0);
-      acc.printTotal += Number(row.print_total || 0);
-      acc.uniqueOrders += Number(row.unique_orders || 0);
-      acc.uniqueCustomers += Number(row.unique_customers || 0);
-      acc.decorationLines += Number(row.decoration_lines || 0);
-      return acc;
-    },
-    {
-      totalDecorations: 0,
-      embroideryTotal: 0,
-      printTotal: 0,
-      uniqueOrders: 0,
-      uniqueCustomers: 0,
-      decorationLines: 0
-    }
-  );
-
-  const filteredDecorationTotals = state.data.deco.reduce(
-    (acc, row) => {
-      const qty = Number(row.total_quantity || 0);
-
-      acc.total += qty;
-
-      if (row.decoration_type === 'embroidery') acc.embroidery += qty;
-      if (row.decoration_type === 'print') acc.print += qty;
-
-      return acc;
-    },
-    {
-      total: 0,
-      embroidery: 0,
-      print: 0
-    }
-  );
-
-  const useFilteredTotals = Boolean(state.type || state.store);
+  const o = state.data.overview[0] || {};
 
   if ($('totalDecorations')) {
-    $('totalDecorations').textContent = num(
-      useFilteredTotals
-        ? filteredDecorationTotals.total
-        : overviewTotals.totalDecorations
-    );
+    $('totalDecorations').textContent = num(o.total_decorations);
   }
 
   if ($('embroideryTotal')) {
-    $('embroideryTotal').textContent = num(
-      useFilteredTotals
-        ? filteredDecorationTotals.embroidery
-        : overviewTotals.embroideryTotal
-    );
+    $('embroideryTotal').textContent = num(o.embroidery_total);
   }
 
   if ($('printTotal')) {
-    $('printTotal').textContent = num(
-      useFilteredTotals
-        ? filteredDecorationTotals.print
-        : overviewTotals.printTotal
-    );
+    $('printTotal').textContent = num(o.print_total);
   }
 
   if ($('uniqueOrders')) {
-    const uniqueOrders = new Set(
-      state.data.activity.map(r => r.order_id).filter(Boolean)
-    ).size;
-
-    $('uniqueOrders').textContent = num(
-      useFilteredTotals ? uniqueOrders : overviewTotals.uniqueOrders
-    );
+    $('uniqueOrders').textContent = num(o.unique_orders);
   }
 
   if ($('uniqueCustomers')) {
-    const uniqueCustomers = new Set(
-      state.data.activity
-        .map(r => r.customer_id || r.customer_name)
-        .filter(Boolean)
-    ).size;
-
-    $('uniqueCustomers').textContent = num(
-      useFilteredTotals ? uniqueCustomers : overviewTotals.uniqueCustomers
-    );
+    $('uniqueCustomers').textContent = num(o.unique_customers);
   }
 
   if ($('decorationLines')) {
-    $('decorationLines').textContent = num(
-      useFilteredTotals
-        ? state.data.activity.length
-        : overviewTotals.decorationLines
-    );
+    $('decorationLines').textContent = num(o.decoration_lines);
   }
 }
 
@@ -508,6 +497,26 @@ function chartDeco() {
 function chartProcess() {
   upchart(
     'processChart',
+    'bar',
+    state.data.process.map(r => r.process_code),
+    state.data.process.map(r => Number(r.total_quantity || 0)),
+    false
+  );
+}
+
+function chartDecoProduction() {
+  upchart(
+    'decorationChartProduction',
+    'doughnut',
+    state.data.deco.map(r => title(r.decoration_type)),
+    state.data.deco.map(r => Number(r.total_quantity || 0)),
+    true
+  );
+}
+
+function chartProcessProduction() {
+  upchart(
+    'processChartProduction',
     'bar',
     state.data.process.map(r => r.process_code),
     state.data.process.map(r => Number(r.total_quantity || 0)),
@@ -576,22 +585,7 @@ function renderActivity() {
   let rows = state.data.activity;
 
   if (state.search) {
-    rows = rows.filter(r =>
-      [
-        r.order_id,
-        r.customer_name,
-        r.store_name,
-        r.product_name,
-        r.decoration_type,
-        r.process_code,
-        r.area_name,
-        r.view_name,
-        r.assigned_to
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(state.search)
-    );
+    rows = filterRowsBySearch(rows);
   }
 
   table(
@@ -613,6 +607,53 @@ function renderActivity() {
   );
 
   bindOrderButtons();
+}
+
+function renderProductionActivity() {
+  let rows = state.data.activity;
+
+  if (state.search) {
+    rows = filterRowsBySearch(rows);
+  }
+
+  table(
+    'productionActivityTable',
+    rows,
+    r => `
+      <tr>
+        <td>${datetime(r.counted_at)}</td>
+        <td>${orderButton(r.order_id)}</td>
+        <td>${esc(r.customer_name || 'Unknown')}</td>
+        <td>${esc(r.product_name || '—')}</td>
+        <td><span class="badge ${esc(r.decoration_type)}">${title(r.decoration_type)}</span></td>
+        <td>${esc(r.process_code || '—')}</td>
+        <td>${num(r.quantity)}</td>
+        <td>${esc(r.area_name || '—')}</td>
+      </tr>
+    `,
+    8
+  );
+
+  bindOrderButtons();
+}
+
+function filterRowsBySearch(rows) {
+  return rows.filter(r =>
+    [
+      r.order_id,
+      r.customer_name,
+      r.store_name,
+      r.product_name,
+      r.decoration_type,
+      r.process_code,
+      r.area_name,
+      r.view_name,
+      r.assigned_to
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(state.search)
+  );
 }
 
 function table(id, rows, fn, cols) {
@@ -770,6 +811,31 @@ function closeOrderModal() {
   }
 }
 
+function bindPageNavigation() {
+  const navButtons = document.querySelectorAll('.nav-link');
+  const pages = document.querySelectorAll('.dashboard-page');
+
+  navButtons.forEach(button => {
+    button.onclick = () => {
+      const targetPage = button.dataset.page;
+
+      navButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+
+      pages.forEach(page => {
+        page.classList.remove('active');
+      });
+
+      const pageToShow = document.getElementById(targetPage);
+
+      if (pageToShow) {
+        pageToShow.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+  });
+}
+
 async function hook(key, payload) {
   const url = cfg.WEBHOOKS?.[key];
 
@@ -858,31 +924,3 @@ function esc(value = '') {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
-function bindPageNavigation() {
-  const navButtons = document.querySelectorAll('.nav-link');
-  const pages = document.querySelectorAll('.dashboard-page');
-
-  navButtons.forEach(button => {
-    button.onclick = () => {
-      const targetPage = button.dataset.page;
-
-      navButtons.forEach(btn => btn.classList.remove('active'));
-      button.classList.add('active');
-
-      pages.forEach(page => {
-        page.classList.remove('active');
-      });
-
-      const pageToShow = document.getElementById(targetPage);
-
-      if (pageToShow) {
-        pageToShow.classList.add('active');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    };
-  });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  bindPageNavigation();
-});
