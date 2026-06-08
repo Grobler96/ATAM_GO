@@ -1,426 +1,150 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ATAM GO</title>
+<section id="production" class="dashboard-page">
+  <div class="page-header">
+    <div>
+      <p class="eyebrow">Production</p>
+      <h1>Production Dashboard</h1>
+      <p class="page-subtitle">Live workload, decoration volume, due pressure and order breakdowns.</p>
+    </div>
+  </div>
 
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Production Insights</p>
+      <h2>Workload Breakdown</h2>
+    </div>
+  </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="config.js?v=3"></script>
-</head>
+  <div class="kpi-grid production-pressure-grid">
+    <div class="kpi-card">
+      <span>Due Today</span>
+      <strong id="dueTodayCount">0</strong>
+      <small>orders needing attention today</small>
+    </div>
 
-<body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">A</div>
+    <div class="kpi-card">
+      <span>Due Tomorrow</span>
+      <strong id="dueTomorrowCount">0</strong>
+      <small>orders due next working day</small>
+    </div>
+
+    <div class="kpi-card">
+      <span>Due This Week</span>
+      <strong id="dueWeekCount">0</strong>
+      <small>orders due in the next 7 days</small>
+    </div>
+
+    <div class="kpi-card">
+      <span>Biggest Job</span>
+      <strong id="biggestJobQty">0</strong>
+      <small id="biggestJobLabel">No job selected</small>
+    </div>
+  </div>
+
+  <div class="chart-grid production-insight-grid">
+    <div class="panel">
+      <div class="panel-header">
         <div>
-          <h1>ATAM GO</h1>
-          <p>Production Intelligence</p>
+          <p class="eyebrow">Areas</p>
+          <h3>Top Decoration Areas</h3>
         </div>
       </div>
 
-      <nav class="side-nav">
-        <button class="nav-link active" data-page="overviewPage">Overview</button>
-        <button class="nav-link" data-page="productionPage">Production</button>
-        <button class="nav-link" data-page="readyPage">Ready to Ship</button>
-        <button class="nav-link" data-page="riskPage">At Risk</button>
-        <button class="nav-link" data-page="customersPage">Customers</button>
-        <button class="nav-link" data-page="workflowPage">Workflow Control</button>
-      </nav>
-
-      <div class="sidebar-footer">
-        <span class="status-dot"></span>
-        <span id="connectionStatus">Connecting...</span>
+      <div class="chart-box">
+        <canvas id="areaChart"></canvas>
       </div>
-    </aside>
+    </div>
 
-    <main class="main-content">
-      <header class="topbar">
+    <div class="panel">
+      <div class="panel-header">
         <div>
-          <p class="eyebrow">Live Dashboard</p>
-          <h2>ATAM GO Command Centre</h2>
+          <p class="eyebrow">Team</p>
+          <h3>Workload by Assignee</h3>
         </div>
-
-        <div class="filters">
-          <div class="date-range-controls">
-  <div class="range-presets">
-    <button class="range-btn active" data-range="today">Today</button>
-    <button class="range-btn" data-range="yesterday">Yesterday</button>
-    <button class="range-btn" data-range="last7">Last 7 Days</button>
-    <button class="range-btn" data-range="month">This Month</button>
-    <button class="range-btn" data-range="custom">Custom</button>
-  </div>
-
-  <div class="custom-date-range" id="customDateRange">
-    <input id="dateFromInput" type="date">
-    <span>to</span>
-    <input id="dateToInput" type="date">
-  </div>
-</div>
-
-          <select id="storeFilter">
-            <option value="">All stores</option>
-          </select>
-
-          <select id="decorationFilter">
-            <option value="">All decoration</option>
-            <option value="embroidery">Embroidery</option>
-            <option value="print">Print</option>
-          </select>
-
-          <input id="searchInput" type="search" placeholder="Search..." />
-
-          <button id="refreshBtn" class="primary-btn">Refresh</button>
-        </div>
-      </header>
-
-      <section id="overviewPage" class="dashboard-page active">
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <span>Total Decorations</span>
-            <strong id="totalDecorations">0</strong>
-          </div>
-
-          <div class="kpi-card">
-            <span>Embroidery</span>
-            <strong id="embroideryTotal">0</strong>
-          </div>
-
-          <div class="kpi-card">
-            <span>Print</span>
-            <strong id="printTotal">0</strong>
-          </div>
-
-          <div class="kpi-card">
-            <span>Unique Orders</span>
-            <strong id="uniqueOrders">0</strong>
-          </div>
-
-          <div class="kpi-card">
-            <span>Unique Customers</span>
-            <strong id="uniqueCustomers">0</strong>
-          </div>
-
-          <div class="kpi-card">
-            <span>Decoration Lines</span>
-            <strong id="decorationLines">0</strong>
-          </div>
-        </div>
-
-        <div class="grid-two">
-          <section class="panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Split</p>
-                <h3>Print vs Embroidery</h3>
-              </div>
-            </div>
-            <div class="chart-wrap">
-              <canvas id="decorationChart"></canvas>
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Process</p>
-                <h3>Process Code Breakdown</h3>
-              </div>
-            </div>
-            <div class="chart-wrap">
-              <canvas id="processChart"></canvas>
-            </div>
-          </section>
-        </div>
-
-        <section class="panel">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Latest</p>
-              <h3>Recent Decoration Activity</h3>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Type</th>
-                  <th>Code</th>
-                  <th>Qty</th>
-                  <th>Area</th>
-                </tr>
-              </thead>
-              <tbody id="activityTable"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section id="productionPage" class="dashboard-page">
-        <div class="section-heading page-heading">
-          <div>
-            <p class="eyebrow">Production</p>
-            <h2>Decoration Workload</h2>
-          </div>
-          <p class="muted">Breakdown of current daily decoration demand.</p>
-        </div>
-
-        <div class="grid-two">
-          <section class="panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Decoration Type</p>
-                <h3>Print vs Embroidery</h3>
-              </div>
-            </div>
-            <div class="chart-wrap">
-              <canvas id="decorationChartProduction"></canvas>
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Process Codes</p>
-                <h3>Production Breakdown</h3>
-              </div>
-            </div>
-            <div class="chart-wrap">
-              <canvas id="processChartProduction"></canvas>
-            </div>
-          </section>
-        </div>
-
-        <section class="panel">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Activity</p>
-              <h3>Production Feed</h3>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Type</th>
-                  <th>Code</th>
-                  <th>Qty</th>
-                  <th>Area</th>
-                </tr>
-              </thead>
-              <tbody id="productionActivityTable"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section id="readyPage" class="dashboard-page">
-        <div class="section-heading page-heading">
-          <div>
-            <p class="eyebrow">Shipping</p>
-            <h2>Ready to Ship</h2>
-          </div>
-          <button id="triggerReadyShipWorkflow" class="primary-btn">Send Ready Alert</button>
-        </div>
-
-        <section class="panel">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Qty</th>
-                  <th>Due</th>
-                  <th>Shipping</th>
-                  <th>Assigned</th>
-                </tr>
-              </thead>
-              <tbody id="readyTable"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section id="riskPage" class="dashboard-page">
-        <div class="section-heading page-heading">
-          <div>
-            <p class="eyebrow">Alerts</p>
-            <h2>Late / At Risk Orders</h2>
-          </div>
-          <button id="triggerRiskWorkflow" class="danger-btn">Send Risk Alert</button>
-        </div>
-
-        <section class="panel">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Status</th>
-                  <th>Due</th>
-                  <th>Qty</th>
-                </tr>
-              </thead>
-              <tbody id="riskTable"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section id="customersPage" class="dashboard-page">
-        <div class="section-heading page-heading">
-          <div>
-            <p class="eyebrow">Customers</p>
-            <h2>Customer & Store Performance</h2>
-          </div>
-          <p class="muted">See where today’s work is coming from.</p>
-        </div>
-
-        <div class="grid-two">
-          <section class="panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Top Customers</p>
-                <h3>Customer Workload</h3>
-              </div>
-            </div>
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Customer</th>
-                    <th>Store</th>
-                    <th>Qty</th>
-                    <th>Orders</th>
-                  </tr>
-                </thead>
-                <tbody id="customerTable"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Stores</p>
-                <h3>Store Breakdown</h3>
-              </div>
-            </div>
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Store</th>
-                    <th>Qty</th>
-                    <th>Orders</th>
-                    <th>Customers</th>
-                  </tr>
-                </thead>
-                <tbody id="storeTable"></tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <section id="workflowPage" class="dashboard-page">
-        <div class="section-heading page-heading">
-          <div>
-            <p class="eyebrow">Automation Control</p>
-            <h2>Workflow Control</h2>
-          </div>
-          <p class="muted">Trigger n8n workflows directly from ATAM GO.</p>
-        </div>
-
-        <div class="workflow-grid">
-          <button class="workflow-card" data-action="refreshDeco">
-            <span>Run Deco Sync</span>
-            <small>Pull the latest DecoNetwork data into Supabase.</small>
-          </button>
-
-          <button class="workflow-card" data-action="sendDailyReport">
-            <span>Send Daily Report</span>
-            <small>Send today’s production summary.</small>
-          </button>
-
-          <button class="workflow-card" data-action="readyShipAlert">
-            <span>Ready to Ship Alert</span>
-            <small>Notify the team about orders ready to ship.</small>
-          </button>
-
-          <button class="workflow-card" data-action="sendRiskAlert">
-            <span>Risk Alert</span>
-            <small>Notify the team about late or at-risk orders.</small>
-          </button>
-
-          <button class="workflow-card" data-action="exportDashboard">
-            <span>Export Dashboard</span>
-            <small>Prepare dashboard data for external reporting.</small>
-          </button>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <div id="orderModal" class="modal-backdrop">
-    <div class="order-modal">
-      <div class="modal-header">
-        <div>
-          <p class="eyebrow">Order Details</p>
-          <h2 id="modalOrderTitle">Order</h2>
-        </div>
-        <button id="closeOrderModal" class="modal-close">×</button>
       </div>
 
-      <div id="modalOrderMeta" class="order-meta-grid"></div>
-
-      <div class="modal-section">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Decorations</p>
-            <h3>Order Breakdown</h3>
-          </div>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Type</th>
-                <th>Code</th>
-                <th>View</th>
-                <th>Area</th>
-                <th>Qty</th>
-              </tr>
-            </thead>
-            <tbody id="modalOrderLines"></tbody>
-          </table>
-        </div>
+      <div class="chart-box">
+        <canvas id="assigneeChart"></canvas>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast"></div>
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Largest Orders</p>
+        <h3>Biggest Live Jobs</h3>
+      </div>
+    </div>
 
-  <script src="app.js?v=4"></script>
-</body>
-</html>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Customer</th>
+            <th>Store</th>
+            <th>Total Qty</th>
+            <th>Due Date</th>
+            <th>Assigned To</th>
+          </tr>
+        </thead>
+        <tbody id="biggestJobsTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Decoration Type</p>
+          <h3>Production Split</h3>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <canvas id="decorationChartProduction"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Process Codes</p>
+          <h3>Production by Process</h3>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <canvas id="processChartProduction"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Activity</p>
+        <h3>Production Activity</h3>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Order</th>
+            <th>Customer</th>
+            <th>Product</th>
+            <th>Type</th>
+            <th>Process</th>
+            <th>Qty</th>
+            <th>Area</th>
+          </tr>
+        </thead>
+        <tbody id="productionActivityTable"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
