@@ -46,7 +46,21 @@
         </div>
 
         <div class="filters">
-          <input id="dateInput" type="date" />
+          <div class="date-range-controls">
+  <div class="range-presets">
+    <button class="range-btn active" data-range="today">Today</button>
+    <button class="range-btn" data-range="yesterday">Yesterday</button>
+    <button class="range-btn" data-range="last7">Last 7 Days</button>
+    <button class="range-btn" data-range="month">This Month</button>
+    <button class="range-btn" data-range="custom">Custom</button>
+  </div>
+
+  <div class="custom-date-range" id="customDateRange">
+    <input id="dateFromInput" type="date">
+    <span>to</span>
+    <input id="dateToInput" type="date">
+  </div>
+</div>
 
           <select id="storeFilter">
             <option value="">All stores</option>
