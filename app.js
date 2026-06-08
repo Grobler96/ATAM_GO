@@ -18,7 +18,7 @@ const state = {
   }
 };
 
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 
 const sb =
   cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY
@@ -26,7 +26,8 @@ const sb =
     : null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  $('dateInput').value = state.date;
+  if ($('dateInput')) $('dateInput').value = state.date;
+
   bind();
 
   if (!sb) {
@@ -39,48 +40,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function bind() {
-  $('refreshBtn').onclick = refresh;
+  if ($('refreshBtn')) $('refreshBtn').onclick = refresh;
 
-  $('dateInput').onchange = (e) => {
-    state.date = e.target.value;
-    refresh();
-  };
+  if ($('dateInput')) {
+    $('dateInput').onchange = e => {
+      state.date = e.target.value;
+      refresh();
+    };
+  }
 
-  $('storeFilter').onchange = (e) => {
-    state.store = e.target.value;
-    refresh();
-  };
+  if ($('storeFilter')) {
+    $('storeFilter').onchange = e => {
+      state.store = e.target.value;
+      refresh();
+    };
+  }
 
-  $('decorationFilter').onchange = (e) => {
-    state.type = e.target.value;
-    refresh();
-  };
+  if ($('decorationFilter')) {
+    $('decorationFilter').onchange = e => {
+      state.type = e.target.value;
+      refresh();
+    };
+  }
 
-  $('searchInput').oninput = (e) => {
-    state.search = e.target.value.toLowerCase();
-    renderActivity();
-    renderProductionActivity();
-  };
+  if ($('searchInput')) {
+    $('searchInput').oninput = e => {
+      state.search = e.target.value.toLowerCase();
+      renderActivity();
+    };
+  }
 
-  const readyBtn = $('triggerReadyShipWorkflow');
-  if (readyBtn) {
-    readyBtn.onclick = () =>
+  if ($('triggerReadyShipWorkflow')) {
+    $('triggerReadyShipWorkflow').onclick = () =>
       hook('readyShipAlert', {
         action: 'ready_to_ship_alert',
         date: state.date
       });
   }
 
-  const riskBtn = $('triggerRiskWorkflow');
-  if (riskBtn) {
-    riskBtn.onclick = () =>
+  if ($('triggerRiskWorkflow')) {
+    $('triggerRiskWorkflow').onclick = () =>
       hook('sendRiskAlert', {
         action: 'risk_alert',
         date: state.date
       });
   }
 
-  document.querySelectorAll('[data-action]').forEach((button) => {
+  document.querySelectorAll('[data-action]').forEach(button => {
     button.onclick = () =>
       hook(button.dataset.action, {
         action: button.dataset.action,
@@ -89,31 +95,22 @@ function bind() {
       });
   });
 
-  bindPageNavigation();
-}
+  if ($('closeOrderModal')) {
+    $('closeOrderModal').onclick = closeOrderModal;
+  }
 
-function bindPageNavigation() {
-  document.querySelectorAll('.nav-link').forEach((button) => {
-    button.addEventListener('click', () => {
-      const pageId = button.dataset.page;
-
-      document.querySelectorAll('.nav-link').forEach((nav) => {
-        nav.classList.remove('active');
-      });
-
-      document.querySelectorAll('.dashboard-page').forEach((page) => {
-        page.classList.remove('active');
-      });
-
-      button.classList.add('active');
-
-      const page = document.getElementById(pageId);
-      if (page) {
-        page.classList.add('active');
+  if ($('orderModal')) {
+    $('orderModal').onclick = e => {
+      if (e.target.id === 'orderModal') {
+        closeOrderModal();
       }
+    };
+  }
 
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeOrderModal();
+    }
   });
 }
 
@@ -142,137 +139,153 @@ async function refresh() {
   }
 }
 
-function qStore(query) {
-  return state.store ? query.eq('store_name', state.store) : query;
+function qStore(q) {
+  return state.store ? q.eq('store_name', state.store) : q;
 }
 
-function qType(query) {
-  return state.type ? query.eq('decoration_type', state.type) : query;
+function qType(q) {
+  return state.type ? q.eq('decoration_type', state.type) : q;
 }
 
 async function overview() {
-  const { data, error } = await sb
+  let q = sb
     .from('daily_dashboard_overview')
     .select('*')
     .eq('report_date', state.date);
 
+  if (state.store) q = q.eq('store_name', state.store);
+
+  const { data, error } = await q;
+
   if (error) throw error;
+
   state.data.overview = data || [];
 }
 
 async function deco() {
-  let query = sb
+  let q = sb
     .from('daily_decoration_summary')
     .select('*')
     .eq('report_date', state.date);
 
-  query = qType(query);
+  q = qStore(q);
+  q = qType(q);
 
-  const { data, error } = await query;
+  const { data, error } = await q;
 
   if (error) throw error;
+
   state.data.deco = data || [];
 }
 
 async function process() {
-  let query = sb
+  let q = sb
     .from('daily_process_code_summary')
     .select('*')
     .eq('report_date', state.date);
 
-  query = qType(query);
+  q = qStore(q);
+  q = qType(q);
 
-  const { data, error } = await query;
+  const { data, error } = await q;
 
   if (error) throw error;
+
   state.data.process = data || [];
 }
 
 async function customers() {
-  let query = sb
+  let q = sb
     .from('daily_customer_summary')
     .select('*')
     .eq('report_date', state.date)
     .order('total_quantity', { ascending: false })
-    .limit(100);
+    .limit(10);
 
-  query = qStore(query);
+  q = qStore(q);
+  q = qType(q);
 
-  const { data, error } = await query;
+  const { data, error } = await q;
 
   if (error) throw error;
+
   state.data.customers = data || [];
 }
 
 async function stores() {
-  const { data, error } = await sb
+  let q = sb
     .from('daily_store_summary')
     .select('*')
     .eq('report_date', state.date)
     .order('total_quantity', { ascending: false });
 
+  q = qType(q);
+
+  const { data, error } = await q;
+
   if (error) throw error;
+
   state.data.stores = data || [];
 }
 
 async function ready() {
-  let query = sb
+  let q = sb
     .from('ready_to_ship_orders')
     .select('*')
     .order('date_due', { ascending: true, nullsFirst: false })
-    .limit(100);
+    .limit(50);
 
-  query = qStore(query);
+  q = qStore(q);
 
-  const { data, error } = await query;
+  const { data, error } = await q;
 
   if (error) throw error;
+
   state.data.ready = data || [];
 }
 
 async function risk() {
-  let query = sb
+  let q = sb
     .from('late_or_at_risk_orders')
     .select('*')
     .order('date_due', { ascending: true, nullsFirst: false })
-    .limit(100);
+    .limit(50);
 
-  query = qStore(query);
+  q = qStore(q);
 
-  const { data, error } = await query;
+  const { data, error } = await q;
 
   if (error) throw error;
+
   state.data.risk = data || [];
 }
 
 async function activity() {
-  let query = sb
+  let q = sb
     .from('recent_decoration_activity')
     .select('*')
-    .eq('report_date', state.date)
     .order('counted_at', { ascending: false })
-    .limit(1000);
+    .limit(120);
 
-  query = qStore(query);
-  query = qType(query);
+  q = qStore(q);
+  q = qType(q);
 
-  const { data, error } = await query;
+  const { data, error } = await q;
 
   if (error) throw error;
+
   state.data.activity = data || [];
 }
 
 function render() {
   renderKpis();
-  chartDeco('decorationChart');
-  chartProcess('processChart');
-  chartDeco('decorationChartProduction');
-  chartProcess('processChartProduction');
+  chartDeco();
+  chartProcess();
 
   table(
     'customerTable',
-    getFilteredCustomers(),
-    (r) => `
+    state.data.customers,
+    r => `
       <tr>
         <td><strong>${esc(r.customer_name || 'Unknown')}</strong></td>
         <td>${esc(r.store_name || '—')}</td>
@@ -285,8 +298,8 @@ function render() {
 
   table(
     'storeTable',
-    getFilteredStores(),
-    (r) => `
+    state.data.stores,
+    r => `
       <tr>
         <td><strong>${esc(r.store_name || 'Unknown')}</strong></td>
         <td>${num(r.total_quantity)}</td>
@@ -300,9 +313,9 @@ function render() {
   table(
     'readyTable',
     state.data.ready,
-    (r) => `
+    r => `
       <tr>
-        <td><strong>#${esc(r.order_id)}</strong></td>
+        <td>${orderButton(r.order_id)}</td>
         <td>${esc(r.customer_name || 'Unknown')}</td>
         <td>${num(r.total_quantity)}</td>
         <td>${date(r.date_due)}</td>
@@ -316,9 +329,9 @@ function render() {
   table(
     'riskTable',
     state.data.risk,
-    (r) => `
+    r => `
       <tr>
-        <td><strong>#${esc(r.order_id)}</strong></td>
+        <td>${orderButton(r.order_id)}</td>
         <td>${esc(r.customer_name || 'Unknown')}</td>
         <td><span class="badge ${esc(r.risk_status)}">${title(r.risk_status)}</span></td>
         <td>${date(r.date_due)}</td>
@@ -329,96 +342,136 @@ function render() {
   );
 
   renderActivity();
-  renderProductionActivity();
+  bindOrderButtons();
 }
 
 function renderKpis() {
-  const rows = getFilteredActivityRows();
+  const overviewRows = state.data.overview || [];
 
-  const totalDecorations = rows.reduce(
-    (sum, row) => sum + Number(row.quantity || 0),
-    0
+  const overviewTotals = overviewRows.reduce(
+    (acc, row) => {
+      acc.totalDecorations += Number(row.total_decorations || 0);
+      acc.embroideryTotal += Number(row.embroidery_total || 0);
+      acc.printTotal += Number(row.print_total || 0);
+      acc.uniqueOrders += Number(row.unique_orders || 0);
+      acc.uniqueCustomers += Number(row.unique_customers || 0);
+      acc.decorationLines += Number(row.decoration_lines || 0);
+      return acc;
+    },
+    {
+      totalDecorations: 0,
+      embroideryTotal: 0,
+      printTotal: 0,
+      uniqueOrders: 0,
+      uniqueCustomers: 0,
+      decorationLines: 0
+    }
   );
 
-  const embroideryTotal = rows
-    .filter((row) => row.decoration_type === 'embroidery')
-    .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+  const filteredDecorationTotals = state.data.deco.reduce(
+    (acc, row) => {
+      const qty = Number(row.total_quantity || 0);
 
-  const printTotal = rows
-    .filter((row) => row.decoration_type === 'print')
-    .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+      acc.total += qty;
 
-  const uniqueOrders = new Set(
-    rows.map((row) => row.order_id).filter(Boolean)
-  ).size;
+      if (row.decoration_type === 'embroidery') acc.embroidery += qty;
+      if (row.decoration_type === 'print') acc.print += qty;
 
-  const uniqueCustomers = new Set(
-    rows.map((row) => row.customer_id || row.customer_name).filter(Boolean)
-  ).size;
+      return acc;
+    },
+    {
+      total: 0,
+      embroidery: 0,
+      print: 0
+    }
+  );
 
-  const decorationLines = rows.length;
+  const useFilteredTotals = Boolean(state.type || state.store);
 
-  $('totalDecorations').textContent = num(totalDecorations);
-  $('embroideryTotal').textContent = num(embroideryTotal);
-  $('printTotal').textContent = num(printTotal);
-  $('uniqueOrders').textContent = num(uniqueOrders);
-  $('uniqueCustomers').textContent = num(uniqueCustomers);
-  $('decorationLines').textContent = num(decorationLines);
+  if ($('totalDecorations')) {
+    $('totalDecorations').textContent = num(
+      useFilteredTotals
+        ? filteredDecorationTotals.total
+        : overviewTotals.totalDecorations
+    );
+  }
+
+  if ($('embroideryTotal')) {
+    $('embroideryTotal').textContent = num(
+      useFilteredTotals
+        ? filteredDecorationTotals.embroidery
+        : overviewTotals.embroideryTotal
+    );
+  }
+
+  if ($('printTotal')) {
+    $('printTotal').textContent = num(
+      useFilteredTotals
+        ? filteredDecorationTotals.print
+        : overviewTotals.printTotal
+    );
+  }
+
+  if ($('uniqueOrders')) {
+    const uniqueOrders = new Set(
+      state.data.activity.map(r => r.order_id).filter(Boolean)
+    ).size;
+
+    $('uniqueOrders').textContent = num(
+      useFilteredTotals ? uniqueOrders : overviewTotals.uniqueOrders
+    );
+  }
+
+  if ($('uniqueCustomers')) {
+    const uniqueCustomers = new Set(
+      state.data.activity
+        .map(r => r.customer_id || r.customer_name)
+        .filter(Boolean)
+    ).size;
+
+    $('uniqueCustomers').textContent = num(
+      useFilteredTotals ? uniqueCustomers : overviewTotals.uniqueCustomers
+    );
+  }
+
+  if ($('decorationLines')) {
+    $('decorationLines').textContent = num(
+      useFilteredTotals
+        ? state.data.activity.length
+        : overviewTotals.decorationLines
+    );
+  }
 }
 
-function chartDeco(chartId) {
-  const rows = getFilteredActivityRows();
-
-  const totals = rows.reduce((acc, row) => {
-    const type = row.decoration_type || 'unknown';
-    acc[type] = (acc[type] || 0) + Number(row.quantity || 0);
-    return acc;
-  }, {});
-
-  const labels = Object.keys(totals).map(title);
-  const values = Object.values(totals);
-
-  upchart(chartId, 'doughnut', labels, values, true);
+function chartDeco() {
+  upchart(
+    'decorationChart',
+    'doughnut',
+    state.data.deco.map(r => title(r.decoration_type)),
+    state.data.deco.map(r => Number(r.total_quantity || 0)),
+    true
+  );
 }
 
-function chartProcess(chartId) {
-  const rows = getFilteredActivityRows();
-
-  const totals = rows.reduce((acc, row) => {
-    const code = row.process_code || 'Unknown';
-    acc[code] = (acc[code] || 0) + Number(row.quantity || 0);
-    return acc;
-  }, {});
-
-  const labels = Object.keys(totals);
-  const values = Object.values(totals);
-
-  upchart(chartId, 'bar', labels, values, false);
+function chartProcess() {
+  upchart(
+    'processChart',
+    'bar',
+    state.data.process.map(r => r.process_code),
+    state.data.process.map(r => Number(r.total_quantity || 0)),
+    false
+  );
 }
 
 function upchart(id, type, labels, data, legend) {
-  const canvas = $(id);
-  if (!canvas) return;
+  const el = $(id);
+  if (!el) return;
 
   if (state.charts[id]) {
     state.charts[id].destroy();
   }
 
-  const scales =
-    type === 'doughnut'
-      ? {}
-      : {
-          x: {
-            ticks: { color: '#94a3b8' },
-            grid: { color: 'rgba(255,255,255,.06)' }
-          },
-          y: {
-            ticks: { color: '#94a3b8' },
-            grid: { color: 'rgba(255,255,255,.06)' }
-          }
-        };
-
-  state.charts[id] = new Chart(canvas, {
+  state.charts[id] = new Chart(el, {
     type,
     data: {
       labels,
@@ -427,7 +480,7 @@ function upchart(id, type, labels, data, legend) {
           label: 'Quantity',
           data,
           borderWidth: 0,
-          borderRadius: type === 'bar' ? 10 : 0
+          borderRadius: 10
         }
       ]
     },
@@ -442,24 +495,36 @@ function upchart(id, type, labels, data, legend) {
           }
         }
       },
-      scales
+      scales:
+        type === 'doughnut'
+          ? {}
+          : {
+              x: {
+                ticks: {
+                  color: '#94a3b8'
+                },
+                grid: {
+                  color: 'rgba(255,255,255,.06)'
+                }
+              },
+              y: {
+                ticks: {
+                  color: '#94a3b8'
+                },
+                grid: {
+                  color: 'rgba(255,255,255,.06)'
+                }
+              }
+            }
     }
   });
 }
 
 function renderActivity() {
-  renderActivityIntoTable('activityTable');
-}
-
-function renderProductionActivity() {
-  renderActivityIntoTable('productionActivityTable');
-}
-
-function renderActivityIntoTable(tableId) {
-  let rows = getFilteredActivityRows();
+  let rows = state.data.activity;
 
   if (state.search) {
-    rows = rows.filter((r) =>
+    rows = rows.filter(r =>
       [
         r.order_id,
         r.customer_name,
@@ -468,6 +533,7 @@ function renderActivityIntoTable(tableId) {
         r.decoration_type,
         r.process_code,
         r.area_name,
+        r.view_name,
         r.assigned_to
       ]
         .join(' ')
@@ -477,12 +543,12 @@ function renderActivityIntoTable(tableId) {
   }
 
   table(
-    tableId,
+    'activityTable',
     rows,
-    (r) => `
+    r => `
       <tr>
         <td>${datetime(r.counted_at)}</td>
-        <td><strong>#${esc(r.order_id)}</strong></td>
+        <td>${orderButton(r.order_id)}</td>
         <td>${esc(r.customer_name || 'Unknown')}</td>
         <td>${esc(r.product_name || '—')}</td>
         <td><span class="badge ${esc(r.decoration_type)}">${title(r.decoration_type)}</span></td>
@@ -493,61 +559,163 @@ function renderActivityIntoTable(tableId) {
     `,
     8
   );
-}
 
-function getFilteredActivityRows() {
-  return state.data.activity.filter((row) => {
-    const matchesStore = !state.store || row.store_name === state.store;
-    const matchesType = !state.type || row.decoration_type === state.type;
-
-    return matchesStore && matchesType;
-  });
-}
-
-function getFilteredCustomers() {
-  return state.data.customers
-    .filter((row) => !state.store || row.store_name === state.store)
-    .slice(0, 10);
-}
-
-function getFilteredStores() {
-  return state.data.stores.filter(
-    (row) => !state.store || row.store_name === state.store
-  );
+  bindOrderButtons();
 }
 
 function table(id, rows, fn, cols) {
-  const target = $(id);
-  if (!target) return;
+  const el = $(id);
+  if (!el) return;
 
-  target.innerHTML = rows.length
+  el.innerHTML = rows.length
     ? rows.map(fn).join('')
     : `<tr><td colspan="${cols}">No data found.</td></tr>`;
 }
 
 function storesFilter() {
-  const current = $('storeFilter').value || state.store;
+  const el = $('storeFilter');
+  if (!el) return;
 
-  const storeNames = new Set(
+  const current = el.value;
+
+  const set = new Set(
     [
-      ...state.data.stores.map((r) => r.store_name),
-      ...state.data.customers.map((r) => r.store_name),
-      ...state.data.ready.map((r) => r.store_name),
-      ...state.data.risk.map((r) => r.store_name),
-      ...state.data.activity.map((r) => r.store_name)
-    ].filter(Boolean)
+      ...state.data.stores,
+      ...state.data.customers,
+      ...state.data.ready,
+      ...state.data.risk,
+      ...state.data.activity
+    ]
+      .map(r => r.store_name)
+      .filter(Boolean)
   );
 
-  const stores = [...storeNames].sort();
-
-  $('storeFilter').innerHTML =
+  el.innerHTML =
     '<option value="">All stores</option>' +
-    stores
-      .map((store) => `<option value="${esc(store)}">${esc(store)}</option>`)
+    [...set]
+      .sort()
+      .map(store => `<option>${esc(store)}</option>`)
       .join('');
 
-  $('storeFilter').value = stores.includes(current) ? current : '';
-  state.store = $('storeFilter').value;
+  el.value = [...set].includes(current) ? current : '';
+  state.store = el.value;
+}
+
+function orderButton(orderId) {
+  if (!orderId) return '—';
+
+  return `
+    <button class="order-link" data-order-id="${esc(orderId)}">
+      #${esc(orderId)}
+    </button>
+  `;
+}
+
+function bindOrderButtons() {
+  document.querySelectorAll('[data-order-id]').forEach(button => {
+    button.onclick = () => openOrderModal(button.dataset.orderId);
+  });
+}
+
+function openOrderModal(orderId) {
+  const rows = state.data.activity.filter(
+    row => String(row.order_id) === String(orderId)
+  );
+
+  if (!rows.length) {
+    toast('No order data found.');
+    return;
+  }
+
+  const first = rows[0];
+
+  const totalQty = rows.reduce(
+    (sum, row) => sum + Number(row.quantity || 0),
+    0
+  );
+
+  const embroideryQty = rows
+    .filter(row => row.decoration_type === 'embroidery')
+    .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+
+  const printQty = rows
+    .filter(row => row.decoration_type === 'print')
+    .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+
+  if ($('modalOrderTitle')) {
+    $('modalOrderTitle').textContent = `Order #${orderId}`;
+  }
+
+  if ($('modalOrderMeta')) {
+    $('modalOrderMeta').innerHTML = `
+      <div class="order-meta-card">
+        <span>Customer</span>
+        <strong>${esc(first.customer_name || 'Unknown')}</strong>
+      </div>
+
+      <div class="order-meta-card">
+        <span>Store</span>
+        <strong>${esc(first.store_name || '—')}</strong>
+      </div>
+
+      <div class="order-meta-card">
+        <span>Assigned To</span>
+        <strong>${esc(first.assigned_to || '—')}</strong>
+      </div>
+
+      <div class="order-meta-card">
+        <span>Shipping</span>
+        <strong>${esc(first.shipping_method || '—')}</strong>
+      </div>
+
+      <div class="order-meta-card">
+        <span>Due Date</span>
+        <strong>${date(first.date_due)}</strong>
+      </div>
+
+      <div class="order-meta-card">
+        <span>Total Qty</span>
+        <strong>${num(totalQty)}</strong>
+      </div>
+
+      <div class="order-meta-card">
+        <span>Embroidery</span>
+        <strong>${num(embroideryQty)}</strong>
+      </div>
+
+      <div class="order-meta-card">
+        <span>Print</span>
+        <strong>${num(printQty)}</strong>
+      </div>
+    `;
+  }
+
+  if ($('modalOrderLines')) {
+    $('modalOrderLines').innerHTML = rows
+      .map(
+        row => `
+          <tr>
+            <td>${esc(row.product_name || '—')}</td>
+            <td><span class="badge ${esc(row.decoration_type)}">${title(row.decoration_type)}</span></td>
+            <td>${esc(row.process_code || '—')}</td>
+            <td>${esc(row.view_name || '—')}</td>
+            <td>${esc(row.area_name || '—')}</td>
+            <td>${num(row.quantity)}</td>
+          </tr>
+        `
+      )
+      .join('');
+  }
+
+  if ($('orderModal')) {
+    $('orderModal').classList.add('show');
+  }
+}
+
+function closeOrderModal() {
+  if ($('orderModal')) {
+    $('orderModal').classList.remove('show');
+  }
 }
 
 async function hook(key, payload) {
@@ -580,12 +748,16 @@ async function hook(key, payload) {
   }
 }
 
-function status(t) {
-  $('connectionStatus').textContent = t;
+function status(text) {
+  if ($('connectionStatus')) {
+    $('connectionStatus').textContent = text;
+  }
 }
 
-function toast(t) {
-  $('toast').textContent = t;
+function toast(text) {
+  if (!$('toast')) return;
+
+  $('toast').textContent = text;
   $('toast').classList.add('show');
 
   clearTimeout(toast.t);
@@ -595,39 +767,39 @@ function toast(t) {
   }, 3500);
 }
 
-function num(v) {
-  return new Intl.NumberFormat('en-GB').format(Number(v) || 0);
+function num(value) {
+  return new Intl.NumberFormat('en-GB').format(Number(value || 0));
 }
 
-function date(v) {
-  return v
+function date(value) {
+  return value
     ? new Intl.DateTimeFormat('en-GB', {
         day: '2-digit',
         month: 'short',
         year: 'numeric'
-      }).format(new Date(v))
+      }).format(new Date(value))
     : '—';
 }
 
-function datetime(v) {
-  return v
+function datetime(value) {
+  return value
     ? new Intl.DateTimeFormat('en-GB', {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
         minute: '2-digit'
-      }).format(new Date(v))
+      }).format(new Date(value))
     : '—';
 }
 
-function title(v = '') {
-  return String(v)
+function title(value = '') {
+  return String(value)
     .replaceAll('_', ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, char => char.toUpperCase());
 }
 
-function esc(v = '') {
-  return String(v)
+function esc(value = '') {
+  return String(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
