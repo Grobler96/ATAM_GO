@@ -1,6 +1,7 @@
 window.ATAM_GO_CONFIG = {
-  SUPABASE_URL: "https://YOUR-PROJECT-REF.supabase.co",
-  SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_PUBLIC_KEY",
+  SUPABASE_URL: "https://aobosyvlhgkxhjxkfzlz.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_4Ii8Z8bGgQ5OrSKB2at_GA_GubBsWC1",
+
   WEBHOOKS: {
     refreshDeco: "",
     sendDailyReport: "",
