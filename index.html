@@ -367,8 +367,47 @@
     </main>
   </div>
 
-  <div id="toast" class="toast"></div>
+  <div id="orderModal" class="modal-backdrop">
+  <div class="order-modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Order Details</p>
+        <h2 id="modalOrderTitle">Order</h2>
+      </div>
+      <button id="closeOrderModal" class="modal-close">×</button>
+    </div>
 
-  <script src="app.js?v=3"></script>
+    <div id="modalOrderMeta" class="order-meta-grid"></div>
+
+    <div class="modal-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Decorations</p>
+          <h3>Order Breakdown</h3>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Type</th>
+              <th>Code</th>
+              <th>View</th>
+              <th>Area</th>
+              <th>Qty</th>
+            </tr>
+          </thead>
+          <tbody id="modalOrderLines"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="app.js?v=4"></script>
 </body>
 </html>
