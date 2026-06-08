@@ -806,3 +806,31 @@ function esc(value = '') {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
+function bindPageNavigation() {
+  const navButtons = document.querySelectorAll('.nav-link');
+  const pages = document.querySelectorAll('.dashboard-page');
+
+  navButtons.forEach(button => {
+    button.onclick = () => {
+      const targetPage = button.dataset.page;
+
+      navButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+
+      pages.forEach(page => {
+        page.classList.remove('active');
+      });
+
+      const pageToShow = document.getElementById(targetPage);
+
+      if (pageToShow) {
+        pageToShow.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  bindPageNavigation();
+});
