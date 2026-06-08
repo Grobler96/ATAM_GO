@@ -219,7 +219,9 @@ async function stores() {
     .eq('report_date', state.date)
     .order('total_quantity', { ascending: false });
 
-  q = qType(q);
+  if (state.store) {
+    q = q.eq('store_name', state.store);
+  }
 
   const { data, error } = await q;
 
