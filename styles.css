@@ -775,3 +775,56 @@ td {
     grid-template-columns: 1fr;
   }
 }
+.date-range-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.range-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.range-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.75);
+  color: #cbd5e1;
+  padding: 9px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.range-btn:hover {
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #ffffff;
+}
+
+.range-btn.active {
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 10px 25px rgba(56, 189, 248, 0.18);
+}
+
+.custom-date-range {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+}
+
+.custom-date-range.show {
+  display: flex;
+}
+
+.custom-date-range input {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  border-radius: 10px;
+  padding: 9px 10px;
+}
