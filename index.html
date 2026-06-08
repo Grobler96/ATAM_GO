@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ATAM GO</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <aside class="side">
+    <div class="logo"><span>AG</span><div><h1>ATAM GO</h1><p>Production Control</p></div></div>
+    <nav><a href="#overview">Overview</a><a href="#production">Production</a><a href="#orders">Orders</a><a href="#activity">Activity</a><a href="#actions">Actions</a></nav>
+    <div class="status"><p>Supabase</p><b id="connectionStatus">Not connected</b></div>
+  </aside>
+
+  <main>
+    <header>
+      <div><small>DASHBOARD</small><h2>Production overview</h2></div>
+      <div class="filters">
+        <input id="dateInput" type="date" />
+        <select id="storeFilter"><option value="">All stores</option></select>
+        <select id="decorationFilter"><option value="">All types</option><option value="embroidery">Embroidery</option><option value="print">Print</option></select>
+        <button id="refreshBtn">Refresh</button>
+      </div>
+    </header>
+
+    <section id="overview" class="kpis">
+      <article><p>Total decorations</p><h3 id="totalDecorations">0</h3></article>
+      <article><p>Embroidery</p><h3 id="embroideryTotal">0</h3></article>
+      <article><p>Print</p><h3 id="printTotal">0</h3></article>
+      <article><p>Orders</p><h3 id="uniqueOrders">0</h3></article>
+      <article><p>Customers</p><h3 id="uniqueCustomers">0</h3></article>
+      <article><p>Lines</p><h3 id="decorationLines">0</h3></article>
+    </section>
+
+    <section id="production" class="grid2">
+      <article class="card"><h3>Print vs Embroidery</h3><canvas id="decorationChart"></canvas></article>
+      <article class="card"><h3>Process Code Breakdown</h3><canvas id="processChart"></canvas></article>
+    </section>
+
+    <section class="grid2">
+      <article class="card"><h3>Top Customers</h3><table><thead><tr><th>Customer</th><th>Store</th><th>Qty</th><th>Orders</th></tr></thead><tbody id="customerTable"></tbody></table></article>
+      <article class="card"><h3>Stores</h3><table><thead><tr><th>Store</th><th>Qty</th><th>Orders</th><th>Customers</th></tr></thead><tbody id="storeTable"></tbody></table></article>
+    </section>
+
+    <section id="orders" class="grid2">
+      <article class="card"><div class="cardTop"><h3>Ready to Ship</h3><button id="triggerReadyShipWorkflow" class="ghost">Trigger workflow</button></div><table><thead><tr><th>Order</th><th>Customer</th><th>Qty</th><th>Due</th><th>Shipping</th><th>Assigned</th></tr></thead><tbody id="readyTable"></tbody></table></article>
+      <article class="card danger"><div class="cardTop"><h3>Late / At Risk</h3><button id="triggerRiskWorkflow" class="dangerBtn">Send alert</button></div><table><thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Due</th><th>Qty</th></tr></thead><tbody id="riskTable"></tbody></table></article>
+    </section>
+
+    <section id="activity" class="card"><div class="cardTop"><h3>Recent Activity</h3><input id="searchInput" placeholder="Search orders, customers, products..." /></div><table><thead><tr><th>Time</th><th>Order</th><th>Customer</th><th>Product</th><th>Type</th><th>Process</th><th>Qty</th><th>Area</th></tr></thead><tbody id="activityTable"></tbody></table></section>
+
+    <section id="actions" class="card"><h3>Workflow Actions</h3><div class="actions"><button data-action="refreshDeco">Pull DecoNetwork now</button><button data-action="sendDailyReport">Send daily report</button><button data-action="sendRiskAlert">Send risk alert</button><button data-action="exportDashboard">Export dashboard</button></div><p class="muted">Buttons are wired for future n8n webhooks in config.js.</p></section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
