@@ -93,6 +93,8 @@ function bind() {
       state.search = e.target.value.toLowerCase();
       renderActivity();
       renderProductionActivity();
+      renderProductionInsights();
+      bindOrderButtons();
     };
   }
 
@@ -192,7 +194,6 @@ function baseRecordsQuery() {
 
 async function overview() {
   const { data, error } = await baseRecordsQuery();
-
   if (error) throw error;
 
   const rows = data || [];
@@ -222,7 +223,6 @@ async function overview() {
 
 async function deco() {
   const { data, error } = await baseRecordsQuery();
-
   if (error) throw error;
 
   const grouped = {};
@@ -251,7 +251,6 @@ async function deco() {
 
 async function process() {
   const { data, error } = await baseRecordsQuery();
-
   if (error) throw error;
 
   const grouped = {};
@@ -282,7 +281,6 @@ async function process() {
 
 async function customers() {
   const { data, error } = await baseRecordsQuery();
-
   if (error) throw error;
 
   const grouped = {};
@@ -316,7 +314,6 @@ async function customers() {
 
 async function stores() {
   const { data, error } = await baseRecordsQuery();
-
   if (error) throw error;
 
   const grouped = {};
@@ -362,7 +359,6 @@ async function ready() {
   if (state.store) q = q.eq('store_name', state.store);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
   state.data.ready = data || [];
@@ -378,7 +374,6 @@ async function risk() {
   if (state.store) q = q.eq('store_name', state.store);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
   state.data.risk = data || [];
@@ -397,7 +392,6 @@ async function activity() {
   if (state.type) q = q.eq('decoration_type', state.type);
 
   const { data, error } = await q;
-
   if (error) throw error;
 
   state.data.activity = data || [];
@@ -407,8 +401,6 @@ function render() {
   renderKpis();
   chartDeco();
   chartProcess();
-  chartDecoProduction();
-  chartProcessProduction();
 
   table(
     'customerTable',
@@ -471,40 +463,32 @@ function render() {
 
   renderActivity();
   renderProductionActivity();
+  renderProductionInsights();
   bindOrderButtons();
 }
 
 function renderKpis() {
   const o = state.data.overview[0] || {};
 
-  if ($('totalDecorations')) {
-    $('totalDecorations').textContent = num(o.total_decorations);
-  }
-
-  if ($('embroideryTotal')) {
-    $('embroideryTotal').textContent = num(o.embroidery_total);
-  }
-
-  if ($('printTotal')) {
-    $('printTotal').textContent = num(o.print_total);
-  }
-
-  if ($('uniqueOrders')) {
-    $('uniqueOrders').textContent = num(o.unique_orders);
-  }
-
-  if ($('uniqueCustomers')) {
-    $('uniqueCustomers').textContent = num(o.unique_customers);
-  }
-
-  if ($('decorationLines')) {
-    $('decorationLines').textContent = num(o.decoration_lines);
-  }
+  if ($('totalDecorations')) $('totalDecorations').textContent = num(o.total_decorations);
+  if ($('embroideryTotal')) $('embroideryTotal').textContent = num(o.embroidery_total);
+  if ($('printTotal')) $('printTotal').textContent = num(o.print_total);
+  if ($('uniqueOrders')) $('uniqueOrders').textContent = num(o.unique_orders);
+  if ($('uniqueCustomers')) $('uniqueCustomers').textContent = num(o.unique_customers);
+  if ($('decorationLines')) $('decorationLines').textContent = num(o.decoration_lines);
 }
 
 function chartDeco() {
   upchart(
     'decorationChart',
+    'doughnut',
+    state.data.deco.map(r => title(r.decoration_type)),
+    state.data.deco.map(r => Number(r.total_quantity || 0)),
+    true
+  );
+
+  upchart(
+    'decorationChartProduction',
     'doughnut',
     state.data.deco.map(r => title(r.decoration_type)),
     state.data.deco.map(r => Number(r.total_quantity || 0)),
@@ -520,19 +504,7 @@ function chartProcess() {
     state.data.process.map(r => Number(r.total_quantity || 0)),
     false
   );
-}
 
-function chartDecoProduction() {
-  upchart(
-    'decorationChartProduction',
-    'doughnut',
-    state.data.deco.map(r => title(r.decoration_type)),
-    state.data.deco.map(r => Number(r.total_quantity || 0)),
-    true
-  );
-}
-
-function chartProcessProduction() {
   upchart(
     'processChartProduction',
     'bar',
@@ -540,63 +512,6 @@ function chartProcessProduction() {
     state.data.process.map(r => Number(r.total_quantity || 0)),
     false
   );
-}
-
-function upchart(id, type, labels, data, legend) {
-  const el = $(id);
-  if (!el) return;
-
-  if (state.charts[id]) {
-    state.charts[id].destroy();
-  }
-
-  state.charts[id] = new Chart(el, {
-    type,
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Quantity',
-          data,
-          borderWidth: 0,
-          borderRadius: 10
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: legend,
-          labels: {
-            color: '#cbd5e1'
-          }
-        }
-      },
-      scales:
-        type === 'doughnut'
-          ? {}
-          : {
-              x: {
-                ticks: {
-                  color: '#94a3b8'
-                },
-                grid: {
-                  color: 'rgba(255,255,255,.06)'
-                }
-              },
-              y: {
-                ticks: {
-                  color: '#94a3b8'
-                },
-                grid: {
-                  color: 'rgba(255,255,255,.06)'
-                }
-              }
-            }
-    }
-  });
 }
 
 function renderActivity() {
@@ -653,6 +568,235 @@ function renderProductionActivity() {
   );
 
   bindOrderButtons();
+}
+
+function renderProductionInsights() {
+  let rows = state.data.activity || [];
+
+  if (state.search) {
+    rows = filterRowsBySearch(rows);
+  }
+
+  renderDuePressure(rows);
+  renderBiggestJobs(rows);
+  chartAreas(rows);
+  chartAssignees(rows);
+  bindOrderButtons();
+
+  setTimeout(() => {
+    resizeAllCharts();
+  }, 150);
+}
+
+function renderDuePressure(rows) {
+  const orders = groupRowsByOrder(rows);
+
+  const today = startOfDay(new Date());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  const weekEnd = new Date(today);
+  weekEnd.setDate(today.getDate() + 7);
+
+  let dueToday = 0;
+  let dueTomorrow = 0;
+  let dueWeek = 0;
+
+  for (const order of Object.values(orders)) {
+    if (!order.date_due) continue;
+
+    const due = startOfDay(new Date(order.date_due));
+
+    if (sameDay(due, today)) dueToday++;
+    if (sameDay(due, tomorrow)) dueTomorrow++;
+    if (due >= today && due <= weekEnd) dueWeek++;
+  }
+
+  if ($('dueTodayCount')) $('dueTodayCount').textContent = num(dueToday);
+  if ($('dueTomorrowCount')) $('dueTomorrowCount').textContent = num(dueTomorrow);
+  if ($('dueWeekCount')) $('dueWeekCount').textContent = num(dueWeek);
+}
+
+function renderBiggestJobs(rows) {
+  const orders = Object.values(groupRowsByOrder(rows))
+    .sort((a, b) => b.total_quantity - a.total_quantity)
+    .slice(0, 10);
+
+  const biggest = orders[0];
+
+  if ($('biggestJobQty')) {
+    $('biggestJobQty').textContent = biggest ? num(biggest.total_quantity) : '0';
+  }
+
+  if ($('biggestJobLabel')) {
+    $('biggestJobLabel').textContent = biggest
+      ? `#${biggest.order_id} — ${biggest.customer_name || 'Unknown'}`
+      : 'No job selected';
+  }
+
+  table(
+    'biggestJobsTable',
+    orders,
+    order => `
+      <tr>
+        <td>${orderButton(order.order_id)}</td>
+        <td>${esc(order.customer_name || 'Unknown')}</td>
+        <td>${esc(order.store_name || '—')}</td>
+        <td>${num(order.total_quantity)}</td>
+        <td>${date(order.date_due)}</td>
+        <td>${esc(order.assigned_to || '—')}</td>
+      </tr>
+    `,
+    6
+  );
+}
+
+function chartAreas(rows) {
+  const grouped = {};
+
+  for (const row of rows) {
+    const key = row.area_name || 'Unknown Area';
+    grouped[key] = (grouped[key] || 0) + Number(row.quantity || 0);
+  }
+
+  const topAreas = Object.entries(grouped)
+    .map(([area, quantity]) => ({ area, quantity }))
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 10);
+
+  upchart(
+    'areaChart',
+    'bar',
+    topAreas.map(r => r.area),
+    topAreas.map(r => r.quantity),
+    false
+  );
+}
+
+function chartAssignees(rows) {
+  const grouped = {};
+
+  for (const row of rows) {
+    const key = row.assigned_to || 'Unassigned';
+    grouped[key] = (grouped[key] || 0) + Number(row.quantity || 0);
+  }
+
+  const assignees = Object.entries(grouped)
+    .map(([assignee, quantity]) => ({ assignee, quantity }))
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 10);
+
+  upchart(
+    'assigneeChart',
+    'bar',
+    assignees.map(r => r.assignee),
+    assignees.map(r => r.quantity),
+    false
+  );
+}
+
+function upchart(id, type, labels, data, legend) {
+  const el = $(id);
+  if (!el) return;
+
+  if (state.charts[id]) {
+    state.charts[id].destroy();
+  }
+
+  const hasData = data.some(value => Number(value || 0) > 0);
+
+  state.charts[id] = new Chart(el, {
+    type,
+    data: {
+      labels: hasData ? labels : ['No data'],
+      datasets: [
+        {
+          label: 'Quantity',
+          data: hasData ? data : [0],
+          borderWidth: 0,
+          borderRadius: 10
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          display: legend && hasData,
+          labels: {
+            color: '#cbd5e1'
+          }
+        },
+        tooltip: {
+          enabled: hasData
+        }
+      },
+      scales:
+        type === 'doughnut'
+          ? {}
+          : {
+              x: {
+                ticks: {
+                  color: '#94a3b8'
+                },
+                grid: {
+                  color: 'rgba(255,255,255,.06)'
+                }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: '#94a3b8'
+                },
+                grid: {
+                  color: 'rgba(255,255,255,.06)'
+                }
+              }
+            }
+    }
+  });
+}
+
+function resizeAllCharts() {
+  Object.values(state.charts).forEach(chart => {
+    if (chart && typeof chart.resize === 'function') {
+      chart.resize();
+      chart.update();
+    }
+  });
+}
+
+function groupRowsByOrder(rows) {
+  const grouped = {};
+
+  for (const row of rows) {
+    const key = row.order_id || 'UNKNOWN';
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        order_id: row.order_id,
+        customer_name: row.customer_name,
+        store_name: row.store_name,
+        date_due: row.date_due,
+        assigned_to: row.assigned_to,
+        total_quantity: 0
+      };
+    }
+
+    grouped[key].total_quantity += Number(row.quantity || 0);
+
+    if (!grouped[key].date_due && row.date_due) {
+      grouped[key].date_due = row.date_due;
+    }
+
+    if (!grouped[key].assigned_to && row.assigned_to) {
+      grouped[key].assigned_to = row.assigned_to;
+    }
+  }
+
+  return grouped;
 }
 
 function filterRowsBySearch(rows) {
@@ -850,6 +994,11 @@ function bindPageNavigation() {
       if (pageToShow) {
         pageToShow.classList.add('active');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        setTimeout(() => {
+          resizeAllCharts();
+          renderProductionInsights();
+        }, 150);
       }
     };
   });
@@ -918,6 +1067,20 @@ function updateCustomRangeUi() {
 
 function formatDate(dateObj) {
   return dateObj.toISOString().slice(0, 10);
+}
+
+function startOfDay(dateObj) {
+  const d = new Date(dateObj);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function sameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 async function hook(key, payload) {
