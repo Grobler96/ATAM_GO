@@ -1369,7 +1369,7 @@ button:disabled,
   }
 }
 /* =========================================================
-   ATAM GO — Sidebar logo
+   ATAM GO — Clean readable sidebar logo
    ========================================================= */
 
 .brand {
@@ -1377,20 +1377,25 @@ button:disabled,
   align-items: center !important;
   justify-content: center !important;
   width: 100% !important;
-  margin: 0 0 22px !important;
+  margin: 0 0 24px !important;
   padding: 0 !important;
 }
 
 .brand-logo-wide {
   display: block !important;
   width: 100% !important;
-  max-width: 220px !important;
+  max-width: 230px !important;
   height: auto !important;
   object-fit: contain !important;
-  border-radius: 14px !important;
-  background: #ffffff !important;
-  padding: 8px !important;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22) !important;
+
+  background: rgba(255, 255, 255, 0.92) !important;
+  padding: 10px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
 }
 
 .brand h1,
