@@ -9,6 +9,7 @@ const state = {
   store: '',
   type: '',
   search: '',
+  customerSearch: '',
   charts: {},
   data: {
     overview: [],
@@ -18,7 +19,8 @@ const state = {
     stores: [],
     ready: [],
     risk: [],
-    activity: []
+    activity: [],
+    customerAlerts: []
   }
 };
 
@@ -98,6 +100,26 @@ function bind() {
     };
   }
 
+  if ($('customerSearchInput')) {
+    $('customerSearchInput').oninput = e => {
+      state.customerSearch = e.target.value.toLowerCase();
+      renderCustomerAlerts();
+    };
+  }
+
+  if ($('refreshCustomersBtn')) {
+    $('refreshCustomersBtn').onclick = async () => {
+      try {
+        await customerAlerts();
+        renderCustomerAlerts();
+        toast('Customer data refreshed.');
+      } catch (error) {
+        console.error(error);
+        toast(error.message || 'Customer refresh failed.');
+      }
+    };
+  }
+
   if ($('triggerReadyShipWorkflow')) {
     $('triggerReadyShipWorkflow').onclick = () =>
       hook('readyShipAlert', {
@@ -153,6 +175,13 @@ async function refresh() {
     await customers();
     await stores();
     await activity();
+
+    try {
+      await customerAlerts();
+    } catch (e) {
+      console.warn('Customer reorder alerts view failed:', e.message);
+      state.data.customerAlerts = [];
+    }
 
     try {
       await ready();
@@ -397,6 +426,19 @@ async function activity() {
   state.data.activity = data || [];
 }
 
+async function customerAlerts() {
+  const { data, error } = await sb
+    .from('customer_reorder_alerts')
+    .select('*')
+    .order('priority_score', { ascending: false })
+    .order('days_since_last_order', { ascending: false })
+    .limit(1000);
+
+  if (error) throw error;
+
+  state.data.customerAlerts = data || [];
+}
+
 function render() {
   renderKpis();
   chartDeco();
@@ -464,6 +506,7 @@ function render() {
   renderActivity();
   renderProductionActivity();
   renderProductionInsights();
+  renderCustomerAlerts();
   bindOrderButtons();
 }
 
@@ -693,6 +736,138 @@ function chartAssignees(rows) {
     assignees.map(r => r.quantity),
     false
   );
+}
+
+function renderCustomerAlerts() {
+  let rows = state.data.customerAlerts || [];
+
+  if (state.customerSearch) {
+    rows = rows.filter(row =>
+      [
+        row.customer_id,
+        row.name,
+        row.company,
+        row.email,
+        row.reorder_status,
+        row.last_order_id,
+        row.last_order_summary
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(state.customerSearch)
+    );
+  }
+
+  const allRows = state.data.customerAlerts || [];
+
+  const atRisk = allRows.filter(row => row.reorder_status === 'At Risk');
+  const dueSoon = allRows.filter(row => row.reorder_status === 'Due Soon');
+
+  const valueAtRisk = atRisk.reduce(
+    (sum, row) => sum + Number(row.last_order_value || 0),
+    0
+  );
+
+  setText('reorderTotalCustomers', num(allRows.length));
+  setText('reorderAtRisk', num(atRisk.length));
+  setText('reorderDueSoon', num(dueSoon.length));
+  setText('reorderValueAtRisk', money(valueAtRisk));
+
+  table(
+    'reorderCustomerTable',
+    rows,
+    row => `
+      <tr>
+        <td>
+          <strong>${esc(row.name || 'Unknown')}</strong>
+          <div class="muted">ID: ${esc(row.customer_id || '—')}</div>
+          <div class="muted">${esc(row.email || '')}</div>
+        </td>
+
+        <td>${esc(row.company || '—')}</td>
+
+        <td>
+          ${date(row.last_order_date)}
+          <div class="muted">#${esc(row.last_order_id || '—')}</div>
+        </td>
+
+        <td>${row.days_since_last_order ?? '—'}</td>
+
+        <td>
+          ${row.mean_reorder_days ? `${num(row.mean_reorder_days)} days` : '—'}
+          <div class="muted">
+            Threshold: ${row.overdue_threshold_days ? `${num(row.overdue_threshold_days)} days` : '—'}
+          </div>
+        </td>
+
+        <td>
+          <span class="status-pill ${statusClass(row.reorder_status)}">
+            ${esc(row.reorder_status || 'Unknown')}
+          </span>
+          ${
+            row.overdue_by_days && Number(row.overdue_by_days) > 0
+              ? `<div class="muted">Overdue by ${num(row.overdue_by_days)} days</div>`
+              : ''
+          }
+        </td>
+
+        <td>${money(row.last_order_value || 0)}</td>
+
+        <td>
+          <button
+            type="button"
+            class="customer-action-btn"
+            data-ghl-customer-id="${esc(row.customer_id || '')}"
+          >
+            Push to GHL
+          </button>
+        </td>
+      </tr>
+    `,
+    8
+  );
+
+  bindCustomerActionButtons();
+}
+
+function bindCustomerActionButtons() {
+  document.querySelectorAll('[data-ghl-customer-id]').forEach(button => {
+    button.onclick = () => {
+      const customerId = button.dataset.ghlCustomerId;
+      const customer = (state.data.customerAlerts || []).find(
+        row => String(row.customer_id) === String(customerId)
+      );
+
+      if (!customer) {
+        toast('Customer not found.');
+        return;
+      }
+
+      hook('pushToGHL', {
+        action: 'pushToGHL',
+        customer_id: customer.customer_id,
+        name: customer.name,
+        company: customer.company,
+        email: customer.email,
+        reorder_status: customer.reorder_status,
+        last_order_date: customer.last_order_date,
+        days_since_last_order: customer.days_since_last_order,
+        last_order_value: customer.last_order_value,
+        source: 'ATAM GO'
+      });
+    };
+  });
+}
+
+function statusClass(status = '') {
+  const cleaned = String(status).toLowerCase();
+
+  if (cleaned === 'at risk') return 'at-risk';
+  if (cleaned === 'due soon') return 'due-soon';
+  if (cleaned === 'active') return 'active';
+  if (cleaned === 'suppressed') return 'suppressed';
+
+  return '';
 }
 
 function upchart(id, type, labels, data, legend) {
@@ -998,6 +1173,7 @@ function bindPageNavigation() {
         setTimeout(() => {
           resizeAllCharts();
           renderProductionInsights();
+          renderCustomerAlerts();
         }, 150);
       }
     };
@@ -1132,8 +1308,21 @@ function toast(text) {
   }, 3500);
 }
 
+function setText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
 function num(value) {
   return new Intl.NumberFormat('en-GB').format(Number(value || 0));
+}
+
+function money(value) {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
 }
 
 function date(value) {
