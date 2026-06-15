@@ -11,41 +11,41 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-  <div class="brand">
-    <img src="atam-go-logo.png?v=4" alt="ATAM GO logo" class="brand-logo-wide">
-  </div>
+      <div class="brand">
+        <img src="atam-go-logo.png?v=4" alt="ATAM GO logo" class="brand-logo-wide">
+      </div>
 
-  <nav class="sidebar-nav">
-    <button type="button" class="nav-link active" data-page="overview">
-      <span>Overview</span>
-    </button>
+      <nav class="sidebar-nav">
+        <button type="button" class="nav-link active" data-page="overview">
+          <span>Overview</span>
+        </button>
 
-    <button type="button" class="nav-link" data-page="production">
-      <span>Production</span>
-    </button>
+        <button type="button" class="nav-link" data-page="production">
+          <span>Production</span>
+        </button>
 
-    <button type="button" class="nav-link" data-page="orders">
-      <span>Orders</span>
-    </button>
+        <button type="button" class="nav-link" data-page="orders">
+          <span>Orders</span>
+        </button>
 
-    <button type="button" class="nav-link" data-page="customers">
-      <span>Customers</span>
-    </button>
+        <button type="button" class="nav-link" data-page="customers">
+          <span>Customers</span>
+        </button>
 
-    <button type="button" class="nav-link" data-page="activity">
-      <span>Activity</span>
-    </button>
+        <button type="button" class="nav-link" data-page="activity">
+          <span>Activity</span>
+        </button>
 
-    <button type="button" class="nav-link" data-page="actions">
-      <span>Actions</span>
-    </button>
-  </nav>
+        <button type="button" class="nav-link" data-page="actions">
+          <span>Actions</span>
+        </button>
+      </nav>
 
-  <div class="sidebar-footer">
-    <p>Status</p>
-    <strong id="connectionStatus">Connecting...</strong>
-  </div>
-</aside>
+      <div class="sidebar-footer">
+        <p>Status</p>
+        <strong id="connectionStatus">Connecting...</strong>
+      </div>
+    </aside>
 
     <main class="main-content">
       <header class="topbar">
@@ -422,6 +422,86 @@
                 </tr>
               </thead>
               <tbody id="riskTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="customers" class="dashboard-page">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Customer Reorder Monitor</p>
+            <h2>Customers / Reorder Risk</h2>
+            <p class="page-subtitle">Tracks customer reorder patterns from Airtable and Supabase.</p>
+          </div>
+
+          <input
+            id="customerSearchInput"
+            class="search-input"
+            type="search"
+            placeholder="Search customers, companies or emails..."
+          />
+        </div>
+
+        <div class="kpi-grid customer-kpis">
+          <div class="kpi-card">
+            <span>Total Customers</span>
+            <strong id="reorderTotalCustomers">0</strong>
+            <small>Customers tracked</small>
+          </div>
+
+          <div class="kpi-card danger-kpi">
+            <span>At Risk</span>
+            <strong id="reorderAtRisk">0</strong>
+            <small>Customers overdue for reorder</small>
+          </div>
+
+          <div class="kpi-card warning-kpi">
+            <span>Due Soon</span>
+            <strong id="reorderDueSoon">0</strong>
+            <small>Approaching reorder threshold</small>
+          </div>
+
+          <div class="kpi-card">
+            <span>Potential Value at Risk</span>
+            <strong id="reorderValueAtRisk">£0</strong>
+            <small>Based on last order value</small>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Reorder Risk</p>
+              <h3>Customer Watchlist</h3>
+              <p class="muted">Customers are ranked by priority, overdue status and last order value.</p>
+            </div>
+
+            <button type="button" class="secondary-btn" id="refreshCustomersBtn">
+              Refresh Customers
+            </button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Company</th>
+                  <th>Last Order</th>
+                  <th>Days Since</th>
+                  <th>Mean Reorder</th>
+                  <th>Status</th>
+                  <th>Last Value</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+
+              <tbody id="reorderCustomerTable">
+                <tr>
+                  <td colspan="8">Loading customer data...</td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </div>
