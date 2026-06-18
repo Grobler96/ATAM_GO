@@ -5,7 +5,7 @@ window.ATAM_GO_CONFIG = {
   WEBHOOKS: {
     refreshDecoData: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
     recountToday: "",
-    sendDailySummary: "",
+    sendDailySummary: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
     sendManagerAlert: "",
     readyShipAlert: "",
     sendRiskAlert: "",
