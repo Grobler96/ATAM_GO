@@ -985,3 +985,62 @@ button.action-card:hover {
     max-height: 92vh;
   }
 }
+/* ─────────────────────────────────────────────
+   Workflow button loading / success / error states
+   Paste this at the bottom of styles.css
+   ───────────────────────────────────────────── */
+
+.btn-loading,
+.btn-success,
+.btn-error {
+  position: relative;
+  overflow: hidden;
+  min-width: 130px;
+  cursor: not-allowed !important;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Sliding indeterminate progress bar */
+.btn-progress-track {
+  display: block;
+  margin-top: 5px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.btn-progress-bar {
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 2px;
+  animation: btn-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes btn-slide {
+  0%   { transform: translateX(-150%); }
+  100% { transform: translateX(400%); }
+}
+
+/* Success state — green */
+.btn-success {
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #fff !important;
+}
+
+/* Error state — red */
+.btn-error {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #fff !important;
+}
