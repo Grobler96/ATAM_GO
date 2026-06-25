@@ -1,3 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATAM GO — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0f1a;
+      --surface:   #131929;
+      --border:    #1e2d45;
+      --accent:    #f97316;
+      --accent-dim:#7c3410;
+      --text:      #e8edf5;
+      --muted:     #64748b;
+      --error:     #ef4444;
+      --success:   #22c55e;
+      --input-bg:  #0d1525;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 15px;
+    }
+
+    /* ── Animated background grid ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(249,115,22,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(249,115,22,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Glow blob ── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(249,115,22,0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 36px 36px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+
+    /* ── Logo area ── */
+    .logo-wrap {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-wrap img {
+      height: 52px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .logo-fallback {
+      display: none;
+      font-family: 'Syne', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+
+    .logo-fallback span {
+      color: var(--accent);
+    }
+
+    .tagline {
+      margin-top: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 28px;
+    }
+
+    /* ── Form ── */
+    .field {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 7px;
+    }
+
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(249,115,22,0.12);
+    }
+
+    input::placeholder { color: var(--muted); }
+
+    /* ── Submit button ── */
+    .btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 13px;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn:hover  { background: #ea6c0a; }
+    .btn:active { transform: scale(0.98); }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* spinner inside button */
+    .btn .spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .btn.loading .spinner { display: block; }
+
+    @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+
+    /* ── Messages ── */
+    .msg {
+      margin-top: 16px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .msg.error   { display: flex; background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.25);  color: var(--error); }
+    .msg.success { display: flex; background: rgba(34,197,94,0.1);  border: 1px solid rgba(34,197,94,0.25);  color: var(--success); }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ── */
+    @media (max-width: 440px) {
+      .card { padding: 32px 24px 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+  <div class="card">
+
+    <div class="logo-wrap">
+      <img
+        src="https://grobler96.github.io/ATAM_GO/atam-go-logo.png?v=4"
+        alt="ATAM GO"
+        onerror="this.style.display='none'; document.querySelector('.logo-fallback').style.display='block';"
+      />
+      <div class="logo-fallback">ATAM <span>GO</span></div>
+      <p class="tagline">Production Dashboard</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <form id="loginForm" autocomplete="on">
+      <div class="field">
+        <label for="email">Email</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="you@atamworkwear.co.uk"
+          autocomplete="email"
+          required
+        />
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="••••••••••"
+          autocomplete="current-password"
+          required
+        />
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">
+        Sign in
+        <span class="spinner"></span>
+      </button>
+
+      <div class="msg" id="msgBox"></div>
+    </form>
+
+    <div class="footer">
+      <p>Access is by invitation only.<br/>Contact <a href="mailto:dev@atamworkwear.co.uk">your administrator</a> if you need an account.</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── Supabase client ──────────────────────────────────────────────
+  const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTA4NDAsImV4cCI6MjA5NjA4Njg0MH0.MwfoPHpa--9uiwCcgtzUn2nFMBcFawQAg44rmSdisyQ';
+
+  const { createClient } = supabase;
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  // ── Redirect if already logged in ───────────────────────────────
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      window.location.href = './index.html';
+    }
+  })();
+
+  // ── Form submission ──────────────────────────────────────────────
+  const form      = document.getElementById('loginForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const msgBox    = document.getElementById('msgBox');
+
+  function showMsg(text, type) {
+    msgBox.textContent = text;
+    msgBox.className   = `msg ${type}`;
+  }
+
+  function clearMsg() {
+    msgBox.className = 'msg';
+    msgBox.textContent = '';
+  }
+
+  function setLoading(on) {
+    submitBtn.disabled = on;
+    submitBtn.classList.toggle('loading', on);
+    submitBtn.childNodes[0].textContent = on ? 'Signing in…' : 'Sign in';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg();
+
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!email || !password) {
+      showMsg('Please enter your email and password.', 'error');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        const msg = error.message.includes('Invalid login')
+          ? 'Incorrect email or password. Please try again.'
+          : error.message;
+        showMsg(msg, 'error');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch profile to confirm access
+      const { data: profile } = await sb
+        .from('profiles')
+        .select('full_name, is_superuser')
+        .eq('id', data.user.id)
+        .single();
+
+      showMsg(`Welcome back, ${profile?.full_name || email.split('@')[0]}. Redirecting…`, 'success');
+
+      setTimeout(() => {
+        window.location.href = './index.html';
+      }, 900);
+
+    } catch (err) {
+      showMsg('Something went wrong. Please try again.', 'error');
+      setLoading(false);
+    }
+  });
+</script>
+
+</body>
+</html>
 const sb = supabase.createClient('https://aobosyvlhgkxhjxkfzlz.supabase.co', 'YOUR_ANON_KEY');
 const { data: { session } } = await sb.auth.getSession();
 if (!session) window.location.href = './login.html';
