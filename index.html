@@ -7,7 +7,334 @@
 
   <link rel="stylesheet" href="styles.css" />
 </head>
+<!--
+  ╔══════════════════════════════════════════════════════════╗
+  ║  DAN BOT Chat Widget — Embed in ATAM GO Dashboard       ║
+  ║  Paste this entire block into your index.html just       ║
+  ║  before the closing </body> tag                          ║
+  ╚══════════════════════════════════════════════════════════╝
+-->
 
+<!-- ── DAN BOT STYLES ───────────────────────────────────────────── -->
+<style>
+  #dan-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a73e8, #0d47a1);
+    color: #fff;
+    font-size: 22px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(26,115,232,0.45);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  #dan-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(26,115,232,0.55); }
+
+  #dan-panel {
+    position: fixed;
+    bottom: 92px;
+    right: 24px;
+    width: 360px;
+    max-height: 520px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 9998;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    transform: scale(0.85) translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.22s cubic-bezier(.34,1.56,.64,1), opacity 0.18s ease;
+  }
+  #dan-panel.open {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  #dan-header {
+    background: linear-gradient(135deg, #1a73e8, #0d47a1);
+    color: #fff;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  #dan-header .dan-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  #dan-header .dan-title { flex: 1; }
+  #dan-header .dan-subtitle { font-size: 11px; font-weight: 400; opacity: 0.8; }
+  #dan-close {
+    background: none; border: none; color: #fff; cursor: pointer;
+    font-size: 18px; padding: 0; opacity: 0.7; line-height: 1;
+  }
+  #dan-close:hover { opacity: 1; }
+
+  #dan-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #f8f9fb;
+    min-height: 200px;
+    max-height: 360px;
+  }
+  .dan-msg {
+    max-width: 85%;
+    padding: 10px 13px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .dan-msg.bot {
+    background: #fff;
+    color: #1a1a2e;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    align-self: flex-start;
+  }
+  .dan-msg.user {
+    background: #1a73e8;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+    align-self: flex-end;
+  }
+  .dan-msg.typing { opacity: 0.6; font-style: italic; }
+
+  .dan-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .dan-chip {
+    background: #e8f0fe;
+    color: #1a73e8;
+    border: 1px solid #c5d9f8;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .dan-chip:hover { background: #c5d9f8; }
+
+  #dan-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid #e8eaed;
+    background: #fff;
+  }
+  #dan-input {
+    flex: 1;
+    border: 1px solid #dadce0;
+    border-radius: 22px;
+    padding: 8px 14px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #dan-input:focus { border-color: #1a73e8; }
+  #dan-send {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  #dan-send:hover { background: #1557b0; }
+  #dan-send:disabled { background: #aaa; cursor: not-allowed; }
+
+  @media (max-width: 420px) {
+    #dan-panel { width: calc(100vw - 32px); right: 16px; bottom: 80px; }
+    #dan-fab { bottom: 16px; right: 16px; }
+  }
+</style>
+
+<!-- ── DAN BOT HTML ──────────────────────────────────────────────── -->
+<button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖</button>
+
+<div id="dan-panel">
+  <div id="dan-header">
+    <div class="dan-avatar">🤖</div>
+    <div class="dan-title">
+      DAN
+      <div class="dan-subtitle">ATAM GO Production Assistant</div>
+    </div>
+    <button id="dan-close" onclick="danToggle()">✕</button>
+  </div>
+  <div id="dan-messages"></div>
+  <div id="dan-input-row">
+    <input id="dan-input" type="text" placeholder="Ask about production, orders, customers…" 
+           onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
+    <button id="dan-send" onclick="danSend()">➤</button>
+  </div>
+</div>
+
+<!-- ── DAN BOT SCRIPT ────────────────────────────────────────────── -->
+<script>
+(function() {
+  // ── CONFIG — update the webhook URL after activating the workflow ──
+  const WEBHOOK_URL = 'https://atamcpi.app.n8n.cloud/webhook/dan-bot';
+
+  // Session ID persists per browser tab so DAN remembers context
+  const SESSION_ID = 'dan-' + Math.random().toString(36).slice(2, 10);
+
+  let isOpen = false;
+  let isBusy = false;
+  let hasGreeted = false;
+
+  const QUICK_PROMPTS = [
+    "Today's production summary",
+    "What's ready to ship?",
+    "Any late orders?",
+    "Top customers this week",
+    "Refresh the data"
+  ];
+
+  function danToggle() {
+    isOpen = !isOpen;
+    document.getElementById('dan-panel').classList.toggle('open', isOpen);
+    if (isOpen && !hasGreeted) {
+      hasGreeted = true;
+      danAppendBot(
+        "Hi! I'm <strong>DAN</strong>, your ATAM GO assistant 👋<br><br>" +
+        "I can answer questions about your production data, orders, customers, and more — or trigger a data refresh if needed.<br><br>" +
+        "What would you like to know?",
+        true
+      );
+    }
+    if (isOpen) setTimeout(() => document.getElementById('dan-input').focus(), 200);
+  }
+
+  function danAppendUser(text) {
+    const el = document.createElement('div');
+    el.className = 'dan-msg user';
+    el.textContent = text;
+    document.getElementById('dan-messages').appendChild(el);
+    danScroll();
+  }
+
+  function danAppendBot(html, showChips) {
+    const el = document.createElement('div');
+    el.className = 'dan-msg bot';
+    el.innerHTML = html;
+
+    if (showChips) {
+      const chips = document.createElement('div');
+      chips.className = 'dan-suggestions';
+      QUICK_PROMPTS.forEach(p => {
+        const chip = document.createElement('button');
+        chip.className = 'dan-chip';
+        chip.textContent = p;
+        chip.onclick = () => { danSendText(p); };
+        chips.appendChild(chip);
+      });
+      el.appendChild(chips);
+    }
+
+    document.getElementById('dan-messages').appendChild(el);
+    danScroll();
+    return el;
+  }
+
+  function danAppendTyping() {
+    const el = document.createElement('div');
+    el.className = 'dan-msg bot typing';
+    el.id = 'dan-typing';
+    el.textContent = 'DAN is thinking…';
+    document.getElementById('dan-messages').appendChild(el);
+    danScroll();
+  }
+
+  function danRemoveTyping() {
+    const el = document.getElementById('dan-typing');
+    if (el) el.remove();
+  }
+
+  function danScroll() {
+    const msgs = document.getElementById('dan-messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  async function danSendText(text) {
+    if (isBusy || !text.trim()) return;
+    isBusy = true;
+
+    danAppendUser(text);
+    document.getElementById('dan-input').value = '';
+    document.getElementById('dan-send').disabled = true;
+    danAppendTyping();
+
+    try {
+      const res = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, sessionId: SESSION_ID })
+      });
+
+      danRemoveTyping();
+
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const reply = data.reply || data.output || data.message || 'Sorry, I did not get a response.';
+
+      // Convert newlines to <br> for display
+      const formatted = reply.replace(/\n/g, '<br>');
+      danAppendBot(formatted, false);
+
+    } catch (err) {
+      danRemoveTyping();
+      danAppendBot(
+        'Sorry, I could not connect right now. Make sure the DAN BOT workflow is <strong>active</strong> in n8n, then try again.',
+        false
+      );
+      console.error('[DAN BOT]', err);
+    } finally {
+      isBusy = false;
+      document.getElementById('dan-send').disabled = false;
+      document.getElementById('dan-input').focus();
+    }
+  }
+
+  function danSend() {
+    const input = document.getElementById('dan-input');
+    danSendText(input.value.trim());
+  }
+
+  // Expose to global scope for inline onclick handlers
+  window.danToggle = danToggle;
+  window.danSend = danSend;
+})();
+</script>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
