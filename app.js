@@ -121,31 +121,34 @@ function bind() {
   }
 
   if ($('triggerReadyShipWorkflow')) {
-    $('triggerReadyShipWorkflow').onclick = () =>
+    $('triggerReadyShipWorkflow').onclick = function() {
       hook('readyShipAlert', {
         action: 'ready_to_ship_alert',
         dateFrom: state.dateFrom,
         dateTo: state.dateTo
-      });
+      }, this);
+    };
   }
 
   if ($('triggerRiskWorkflow')) {
-    $('triggerRiskWorkflow').onclick = () =>
+    $('triggerRiskWorkflow').onclick = function() {
       hook('sendRiskAlert', {
         action: 'risk_alert',
         dateFrom: state.dateFrom,
         dateTo: state.dateTo
-      });
+      }, this);
+    };
   }
 
   document.querySelectorAll('[data-action]').forEach(button => {
-    button.onclick = () =>
+    button.onclick = function() {
       hook(button.dataset.action, {
         action: button.dataset.action,
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
         source: 'ATAM GO'
-      });
+      }, this);
+    };
   });
 
   if ($('closeOrderModal')) {
@@ -154,9 +157,7 @@ function bind() {
 
   if ($('orderModal')) {
     $('orderModal').onclick = e => {
-      if (e.target.id === 'orderModal') {
-        closeOrderModal();
-      }
+      if (e.target.id === 'orderModal') closeOrderModal();
     };
   }
 
@@ -233,10 +234,7 @@ async function overview() {
 
   state.data.overview = [
     {
-      total_decorations: rows.reduce(
-        (sum, r) => sum + Number(r.quantity || 0),
-        0
-      ),
+      total_decorations: rows.reduce((sum, r) => sum + Number(r.quantity || 0), 0),
       embroidery_total: rows
         .filter(r => r.decoration_type === 'embroidery')
         .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
@@ -360,9 +358,7 @@ async function stores() {
     }
 
     grouped[key].total_quantity += Number(row.quantity || 0);
-
     if (row.order_id) grouped[key].unique_orders_set.add(row.order_id);
-
     if (row.customer_id || row.customer_name) {
       grouped[key].unique_customers_set.add(row.customer_id || row.customer_name);
     }
@@ -560,9 +556,7 @@ function chartProcess() {
 function renderActivity() {
   let rows = state.data.activity;
 
-  if (state.search) {
-    rows = filterRowsBySearch(rows);
-  }
+  if (state.search) rows = filterRowsBySearch(rows);
 
   table(
     'activityTable',
@@ -588,9 +582,7 @@ function renderActivity() {
 function renderProductionActivity() {
   let rows = state.data.activity;
 
-  if (state.search) {
-    rows = filterRowsBySearch(rows);
-  }
+  if (state.search) rows = filterRowsBySearch(rows);
 
   table(
     'productionActivityTable',
@@ -616,9 +608,7 @@ function renderProductionActivity() {
 function renderProductionInsights() {
   let rows = state.data.activity || [];
 
-  if (state.search) {
-    rows = filterRowsBySearch(rows);
-  }
+  if (state.search) rows = filterRowsBySearch(rows);
 
   renderDuePressure(rows);
   renderBiggestJobs(rows);
@@ -626,9 +616,7 @@ function renderProductionInsights() {
   chartAssignees(rows);
   bindOrderButtons();
 
-  setTimeout(() => {
-    resizeAllCharts();
-  }, 150);
+  setTimeout(() => { resizeAllCharts(); }, 150);
 }
 
 function renderDuePressure(rows) {
@@ -759,14 +747,9 @@ function renderCustomerAlerts() {
   }
 
   const allRows = state.data.customerAlerts || [];
-
   const atRisk = allRows.filter(row => row.reorder_status === 'At Risk');
   const dueSoon = allRows.filter(row => row.reorder_status === 'Due Soon');
-
-  const valueAtRisk = atRisk.reduce(
-    (sum, row) => sum + Number(row.last_order_value || 0),
-    0
-  );
+  const valueAtRisk = atRisk.reduce((sum, row) => sum + Number(row.last_order_value || 0), 0);
 
   setText('reorderTotalCustomers', num(allRows.length));
   setText('reorderAtRisk', num(atRisk.length));
@@ -783,23 +766,18 @@ function renderCustomerAlerts() {
           <div class="muted">ID: ${esc(row.customer_id || '—')}</div>
           <div class="muted">${esc(row.email || '')}</div>
         </td>
-
         <td>${esc(row.company || '—')}</td>
-
         <td>
           ${date(row.last_order_date)}
           <div class="muted">#${esc(row.last_order_id || '—')}</div>
         </td>
-
         <td>${row.days_since_last_order ?? '—'}</td>
-
         <td>
           ${row.mean_reorder_days ? `${num(row.mean_reorder_days)} days` : '—'}
           <div class="muted">
             Threshold: ${row.overdue_threshold_days ? `${num(row.overdue_threshold_days)} days` : '—'}
           </div>
         </td>
-
         <td>
           <span class="status-pill ${statusClass(row.reorder_status)}">
             ${esc(row.reorder_status || 'Unknown')}
@@ -810,9 +788,7 @@ function renderCustomerAlerts() {
               : ''
           }
         </td>
-
         <td>${money(row.last_order_value || 0)}</td>
-
         <td>
           <button
             type="button"
@@ -832,7 +808,7 @@ function renderCustomerAlerts() {
 
 function bindCustomerActionButtons() {
   document.querySelectorAll('[data-ghl-customer-id]').forEach(button => {
-    button.onclick = () => {
+    button.onclick = function() {
       const customerId = button.dataset.ghlCustomerId;
       const customer = (state.data.customerAlerts || []).find(
         row => String(row.customer_id) === String(customerId)
@@ -854,7 +830,7 @@ function bindCustomerActionButtons() {
         days_since_last_order: customer.days_since_last_order,
         last_order_value: customer.last_order_value,
         source: 'ATAM GO'
-      });
+      }, this);
     };
   });
 }
@@ -874,9 +850,7 @@ function upchart(id, type, labels, data, legend) {
   const el = $(id);
   if (!el) return;
 
-  if (state.charts[id]) {
-    state.charts[id].destroy();
-  }
+  if (state.charts[id]) state.charts[id].destroy();
 
   const hasData = data.some(value => Number(value || 0) > 0);
 
@@ -900,34 +874,22 @@ function upchart(id, type, labels, data, legend) {
       plugins: {
         legend: {
           display: legend && hasData,
-          labels: {
-            color: '#cbd5e1'
-          }
+          labels: { color: '#cbd5e1' }
         },
-        tooltip: {
-          enabled: hasData
-        }
+        tooltip: { enabled: hasData }
       },
       scales:
         type === 'doughnut'
           ? {}
           : {
               x: {
-                ticks: {
-                  color: '#94a3b8'
-                },
-                grid: {
-                  color: 'rgba(255,255,255,.06)'
-                }
+                ticks: { color: '#94a3b8' },
+                grid: { color: 'rgba(255,255,255,.06)' }
               },
               y: {
                 beginAtZero: true,
-                ticks: {
-                  color: '#94a3b8'
-                },
-                grid: {
-                  color: 'rgba(255,255,255,.06)'
-                }
+                ticks: { color: '#94a3b8' },
+                grid: { color: 'rgba(255,255,255,.06)' }
               }
             }
     }
@@ -962,13 +924,8 @@ function groupRowsByOrder(rows) {
 
     grouped[key].total_quantity += Number(row.quantity || 0);
 
-    if (!grouped[key].date_due && row.date_due) {
-      grouped[key].date_due = row.date_due;
-    }
-
-    if (!grouped[key].assigned_to && row.assigned_to) {
-      grouped[key].assigned_to = row.assigned_to;
-    }
+    if (!grouped[key].date_due && row.date_due) grouped[key].date_due = row.date_due;
+    if (!grouped[key].assigned_to && row.assigned_to) grouped[key].assigned_to = row.assigned_to;
   }
 
   return grouped;
@@ -1060,22 +1017,15 @@ function openOrderModal(orderId) {
 
   const first = rows[0];
 
-  const totalQty = rows.reduce(
-    (sum, row) => sum + Number(row.quantity || 0),
-    0
-  );
-
+  const totalQty = rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
   const embroideryQty = rows
     .filter(row => row.decoration_type === 'embroidery')
     .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
-
   const printQty = rows
     .filter(row => row.decoration_type === 'print')
     .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
 
-  if ($('modalOrderTitle')) {
-    $('modalOrderTitle').textContent = `Order #${orderId}`;
-  }
+  if ($('modalOrderTitle')) $('modalOrderTitle').textContent = `Order #${orderId}`;
 
   if ($('modalOrderMeta')) {
     $('modalOrderMeta').innerHTML = `
@@ -1083,37 +1033,30 @@ function openOrderModal(orderId) {
         <span>Customer</span>
         <strong>${esc(first.customer_name || 'Unknown')}</strong>
       </div>
-
       <div class="order-meta-card">
         <span>Store</span>
         <strong>${esc(first.store_name || '—')}</strong>
       </div>
-
       <div class="order-meta-card">
         <span>Assigned To</span>
         <strong>${esc(first.assigned_to || '—')}</strong>
       </div>
-
       <div class="order-meta-card">
         <span>Shipping</span>
         <strong>${esc(first.shipping_method || '—')}</strong>
       </div>
-
       <div class="order-meta-card">
         <span>Due Date</span>
         <strong>${date(first.date_due)}</strong>
       </div>
-
       <div class="order-meta-card">
         <span>Total Qty</span>
         <strong>${num(totalQty)}</strong>
       </div>
-
       <div class="order-meta-card">
         <span>Embroidery</span>
         <strong>${num(embroideryQty)}</strong>
       </div>
-
       <div class="order-meta-card">
         <span>Print</span>
         <strong>${num(printQty)}</strong>
@@ -1138,15 +1081,11 @@ function openOrderModal(orderId) {
       .join('');
   }
 
-  if ($('orderModal')) {
-    $('orderModal').classList.add('show');
-  }
+  if ($('orderModal')) $('orderModal').classList.add('show');
 }
 
 function closeOrderModal() {
-  if ($('orderModal')) {
-    $('orderModal').classList.remove('show');
-  }
+  if ($('orderModal')) $('orderModal').classList.remove('show');
 }
 
 function bindPageNavigation() {
@@ -1160,9 +1099,7 @@ function bindPageNavigation() {
       navButtons.forEach(btn => btn.classList.remove('active'));
       button.classList.add('active');
 
-      pages.forEach(page => {
-        page.classList.remove('active');
-      });
+      pages.forEach(page => page.classList.remove('active'));
 
       const pageToShow = document.getElementById(targetPage);
 
@@ -1183,7 +1120,6 @@ function bindPageNavigation() {
 function setDateRange(range) {
   const today = new Date();
   const start = new Date(today);
-  const end = new Date(today);
 
   state.range = range;
 
@@ -1194,22 +1130,18 @@ function setDateRange(range) {
 
   if (range === 'yesterday') {
     start.setDate(today.getDate() - 1);
-    end.setDate(today.getDate() - 1);
-
     state.dateFrom = formatDate(start);
-    state.dateTo = formatDate(end);
+    state.dateTo = formatDate(start);
   }
 
   if (range === 'last7') {
     start.setDate(today.getDate() - 6);
-
     state.dateFrom = formatDate(start);
     state.dateTo = formatDate(today);
   }
 
   if (range === 'month') {
     start.setDate(1);
-
     state.dateFrom = formatDate(start);
     state.dateTo = formatDate(today);
   }
@@ -1259,40 +1191,74 @@ function sameDay(a, b) {
   );
 }
 
-async function hook(key, payload) {
+/* ─────────────────────────────────────────────
+   HOOK — Webhook trigger with button loading states
+   ───────────────────────────────────────────── */
+async function hook(key, payload, buttonEl) {
   const url = cfg.WEBHOOKS?.[key];
 
   if (!url) {
-    toast(`No webhook set for ${key} yet.`);
+    toast(`No webhook configured for "${key}" yet.`);
     return;
+  }
+
+  // ── Save original button content and set loading state ──
+  if (buttonEl) {
+    buttonEl.disabled = true;
+    buttonEl.dataset.originalText = buttonEl.textContent.trim();
+    buttonEl.innerHTML = `
+      <span class="btn-label">Sending…</span>
+      <span class="btn-progress-track">
+        <span class="btn-progress-bar"></span>
+      </span>
+    `;
+    buttonEl.classList.add('btn-loading');
   }
 
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        ...payload,
-        source: 'ATAM GO'
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, source: 'ATAM GO' })
     });
 
-    if (!res.ok) {
-      throw new Error(`Webhook failed: ${res.status}`);
+    if (!res.ok) throw new Error(`Webhook failed: ${res.status}`);
+
+    // ── Success ──
+    if (buttonEl) {
+      buttonEl.classList.remove('btn-loading');
+      buttonEl.classList.add('btn-success');
+      buttonEl.innerHTML = `<span class="btn-label">✓ Done</span>`;
+
+      setTimeout(() => {
+        buttonEl.classList.remove('btn-success');
+        buttonEl.disabled = false;
+        buttonEl.textContent = buttonEl.dataset.originalText || 'Trigger';
+      }, 2500);
     }
 
-    toast('Workflow triggered.');
+    toast('Workflow triggered successfully.');
+
   } catch (e) {
-    toast(e.message);
+    // ── Error ──
+    if (buttonEl) {
+      buttonEl.classList.remove('btn-loading');
+      buttonEl.classList.add('btn-error');
+      buttonEl.innerHTML = `<span class="btn-label">✗ Failed</span>`;
+
+      setTimeout(() => {
+        buttonEl.classList.remove('btn-error');
+        buttonEl.disabled = false;
+        buttonEl.textContent = buttonEl.dataset.originalText || 'Trigger';
+      }, 2500);
+    }
+
+    toast(e.message || 'Workflow failed.');
   }
 }
 
 function status(text) {
-  if ($('connectionStatus')) {
-    $('connectionStatus').textContent = text;
-  }
+  if ($('connectionStatus')) $('connectionStatus').textContent = text;
 }
 
 function toast(text) {
