@@ -6,7 +6,11 @@
   <title>ATAM GO</title>
 
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase loaded in head so session check can run immediately -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
+
 <!--
   ╔══════════════════════════════════════════════════════════╗
   ║  DAN BOT Chat Widget — Embed in ATAM GO Dashboard       ║
@@ -177,6 +181,23 @@
     #dan-panel { width: calc(100vw - 32px); right: 16px; bottom: 80px; }
     #dan-fab { bottom: 16px; right: 16px; }
   }
+
+  /* ── Sign-out button ── */
+  #signOutBtn {
+    margin-top: 12px;
+    width: 100%;
+    padding: 8px;
+    background: rgba(249,115,22,0.15);
+    color: #f97316;
+    border: 1px solid rgba(249,115,22,0.3);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    transition: background 0.15s;
+  }
+  #signOutBtn:hover { background: rgba(249,115,22,0.28); }
 </style>
 
 <!-- ── DAN BOT HTML ──────────────────────────────────────────────── -->
@@ -193,7 +214,7 @@
   </div>
   <div id="dan-messages"></div>
   <div id="dan-input-row">
-    <input id="dan-input" type="text" placeholder="Ask about production, orders, customers…" 
+    <input id="dan-input" type="text" placeholder="Ask about production, orders, customers…"
            onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
     <button id="dan-send" onclick="danSend()">➤</button>
   </div>
@@ -202,10 +223,7 @@
 <!-- ── DAN BOT SCRIPT ────────────────────────────────────────────── -->
 <script>
 (function() {
-  // ── CONFIG — update the webhook URL after activating the workflow ──
   const WEBHOOK_URL = 'https://danbotv2.grobleroliver.workers.dev/';
-
-  // Session ID persists per browser tab so DAN remembers context
   const SESSION_ID = 'dan-' + Math.random().toString(36).slice(2, 10);
 
   let isOpen = false;
@@ -307,7 +325,6 @@
       const data = await res.json();
       const reply = data.reply || data.output || data.message || 'Sorry, I did not get a response.';
 
-      // Convert newlines to <br> for display
       const formatted = reply.replace(/\n/g, '<br>');
       danAppendBot(formatted, false);
 
@@ -330,12 +347,24 @@
     danSendText(input.value.trim());
   }
 
-  // Expose to global scope for inline onclick handlers
   window.danToggle = danToggle;
   window.danSend = danSend;
 })();
 </script>
+
 <body>
+
+  <!-- ── SESSION CHECK — redirects to login if not authenticated ── -->
+  <script>
+    (async () => {
+      const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
+      const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTA4NDAsImV4cCI6MjA5NjA4Njg0MH0.MwfoPHpa--9uiwCcgtzUn2nFMBcFawQAg44rmSdisyQ';
+      const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      const { data: { session } } = await _sb.auth.getSession();
+      if (!session) window.location.replace('./login.html');
+    })();
+  </script>
+
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
@@ -371,6 +400,7 @@
       <div class="sidebar-footer">
         <p>Status</p>
         <strong id="connectionStatus">Connecting...</strong>
+        <button type="button" id="signOutBtn" onclick="signOut()">Sign Out</button>
       </div>
     </aside>
 
@@ -467,7 +497,6 @@
                 <h3>Decoration Split</h3>
               </div>
             </div>
-
             <div class="chart-box">
               <canvas id="decorationChart"></canvas>
             </div>
@@ -480,7 +509,6 @@
                 <h3>Production by Process</h3>
               </div>
             </div>
-
             <div class="chart-box">
               <canvas id="processChart"></canvas>
             </div>
@@ -495,7 +523,6 @@
                 <h3>Top Customers</h3>
               </div>
             </div>
-
             <div class="table-wrap">
               <table>
                 <thead>
@@ -518,7 +545,6 @@
                 <h3>Store Breakdown</h3>
               </div>
             </div>
-
             <div class="table-wrap">
               <table>
                 <thead>
@@ -586,7 +612,6 @@
                 <h3>Top Decoration Areas</h3>
               </div>
             </div>
-
             <div class="chart-box">
               <canvas id="areaChart"></canvas>
             </div>
@@ -599,7 +624,6 @@
                 <h3>Workload by Assignee</h3>
               </div>
             </div>
-
             <div class="chart-box">
               <canvas id="assigneeChart"></canvas>
             </div>
@@ -613,7 +637,6 @@
               <h3>Biggest Live Jobs</h3>
             </div>
           </div>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -639,7 +662,6 @@
                 <h3>Production Split</h3>
               </div>
             </div>
-
             <div class="chart-box">
               <canvas id="decorationChartProduction"></canvas>
             </div>
@@ -652,7 +674,6 @@
                 <h3>Production by Process</h3>
               </div>
             </div>
-
             <div class="chart-box">
               <canvas id="processChartProduction"></canvas>
             </div>
@@ -666,7 +687,6 @@
               <h3>Production Activity</h3>
             </div>
           </div>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -702,12 +722,10 @@
               <p class="eyebrow">Ready</p>
               <h3>Ready To Ship Orders</h3>
             </div>
-
             <button type="button" id="triggerReadyShipWorkflow" class="secondary-btn">
               Trigger Alert
             </button>
           </div>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -731,12 +749,10 @@
               <p class="eyebrow">Risk</p>
               <h3>Late Or At-Risk Orders</h3>
             </div>
-
             <button type="button" id="triggerRiskWorkflow" class="secondary-btn">
               Trigger Risk Alert
             </button>
           </div>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -803,12 +819,10 @@
               <h3>Customer Watchlist</h3>
               <p class="muted">Customers are ranked by priority, overdue status and last order value.</p>
             </div>
-
             <button type="button" class="secondary-btn" id="refreshCustomersBtn">
               Refresh Customers
             </button>
           </div>
-
           <div class="table-wrap">
             <table>
               <thead>
@@ -823,7 +837,6 @@
                   <th>Action</th>
                 </tr>
               </thead>
-
               <tbody id="reorderCustomerTable">
                 <tr>
                   <td colspan="8">Loading customer data...</td>
@@ -841,7 +854,6 @@
             <h2>Recent Decoration Activity</h2>
             <p class="page-subtitle">Search and inspect recently counted decoration records.</p>
           </div>
-
           <input id="searchInput" type="search" placeholder="Search orders, customers, products..." />
         </div>
 
@@ -907,12 +919,9 @@
           <p class="eyebrow">Order Details</p>
           <h2 id="modalOrderTitle">Order</h2>
         </div>
-
         <button type="button" id="closeOrderModal" class="modal-close">×</button>
       </div>
-
       <div id="modalOrderMeta" class="order-meta-grid"></div>
-
       <div class="table-wrap">
         <table>
           <thead>
@@ -933,9 +942,21 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase already loaded in <head> — no duplicate needed -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
+
+  <!-- ── SIGN OUT ── -->
+  <script>
+    async function signOut() {
+      const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
+      const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTA4NDAsImV4cCI6MjA5NjA4Njg0MH0.MwfoPHpa--9uiwCcgtzUn2nFMBcFawQAg44rmSdisyQ';
+      const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      await _sb.auth.signOut();
+      window.location.replace('./login.html');
+    }
+  </script>
+
 </body>
 </html>
