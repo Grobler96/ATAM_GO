@@ -12,685 +12,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
-<!--
-  ╔══════════════════════════════════════════════════════════╗
-  ║  DAN BOT Chat Widget — Embed in ATAM GO Dashboard       ║
-  ║  Paste this entire block into your index.html just       ║
-  ║  before the closing </body> tag                          ║
-  ╚══════════════════════════════════════════════════════════╝
--->
-
-<!-- ── DAN BOT STYLES ───────────────────────────────────────────── -->
-<style>
-  /* ── FAB ── */
-  #dan-fab {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 58px;
-    height: 58px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #38bdf8, #6366f1);
-    color: #fff;
-    font-size: 24px;
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 4px 24px rgba(56,189,248,0.5), 0 0 0 0 rgba(56,189,248,0.3);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s;
-  }
-  #dan-fab:hover {
-    transform: scale(1.12);
-    box-shadow: 0 8px 32px rgba(56,189,248,0.6), 0 0 0 6px rgba(56,189,248,0.12);
-  }
-  #dan-fab.dan-open {
-    transform: scale(0.9) rotate(20deg);
-    background: linear-gradient(135deg, #ef4444, #f97316);
-  }
-
-  /* ── PANEL ── */
-  #dan-panel {
-    position: fixed;
-    bottom: 96px;
-    right: 24px;
-    width: 380px;
-    max-height: 580px;
-    border-radius: 20px;
-    overflow: hidden;
-    z-index: 9998;
-    display: flex;
-    flex-direction: column;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    transform: scale(0.88) translateY(24px);
-    opacity: 0;
-    pointer-events: none;
-    transition: transform 0.26s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
-    border: 1px solid rgba(56,189,248,0.2);
-    box-shadow:
-      0 24px 64px rgba(0,0,0,0.55),
-      0 0 0 1px rgba(56,189,248,0.08),
-      inset 0 1px 0 rgba(255,255,255,0.06);
-    background: #0d1a2e;
-  }
-  #dan-panel.open {
-    transform: scale(1) translateY(0);
-    opacity: 1;
-    pointer-events: all;
-  }
-
-  /* ── HEADER ── */
-  #dan-header {
-    background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(99,102,241,0.12));
-    border-bottom: 1px solid rgba(56,189,248,0.15);
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
-  }
-  #dan-header .dan-avatar {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: linear-gradient(135deg, #38bdf8, #6366f1);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    box-shadow: 0 0 12px rgba(56,189,248,0.4);
-    flex-shrink: 0;
-  }
-  #dan-header .dan-title-wrap { flex: 1; }
-  #dan-header .dan-name {
-    font-size: 14px; font-weight: 700; color: #f8fafc;
-    letter-spacing: -0.01em;
-  }
-  #dan-header .dan-subtitle {
-    font-size: 11px; color: rgba(56,189,248,0.8);
-    display: flex; align-items: center; gap: 5px; margin-top: 1px;
-  }
-  .dan-live-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 5px #22c55e;
-    animation: dan-pulse 2s infinite;
-    flex-shrink: 0;
-  }
-  @keyframes dan-pulse {
-    0%,100% { opacity:1; transform:scale(1); }
-    50%      { opacity:0.4; transform:scale(0.7); }
-  }
-  #dan-close {
-    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
-    color: #94a3b8; cursor: pointer; font-size: 16px;
-    width: 28px; height: 28px; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s; line-height: 1;
-  }
-  #dan-close:hover { background: rgba(239,68,68,0.2); color: #f87171; border-color: rgba(239,68,68,0.3); }
-
-  /* ── INSIGHT CARDS (auto-generated from live data) ── */
-  #dan-insights {
-    padding: 10px 12px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-  .dan-insight-card {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 10px 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    animation: dan-card-in 0.35s ease both;
-  }
-  @keyframes dan-card-in {
-    from { opacity:0; transform:translateY(6px); }
-    to   { opacity:1; transform:translateY(0); }
-  }
-  .dan-insight-card:hover {
-    background: rgba(56,189,248,0.08);
-    border-color: rgba(56,189,248,0.25);
-  }
-  .dan-insight-card.urgent { border-left: 3px solid #ef4444; }
-  .dan-insight-card.warning { border-left: 3px solid #f59e0b; }
-  .dan-insight-card.good { border-left: 3px solid #22c55e; }
-  .dan-insight-card.info { border-left: 3px solid #38bdf8; }
-
-  .dan-ic-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-  .dan-ic-text { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
-  .dan-ic-text strong { color: #f8fafc; font-weight: 700; }
-  .dan-ic-hint { font-size: 10px; color: rgba(56,189,248,0.7); margin-top: 3px; }
-
-  /* ── MESSAGES ── */
-  #dan-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-height: 80px;
-    max-height: 260px;
-  }
-  #dan-messages::-webkit-scrollbar { width: 3px; }
-  #dan-messages::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 2px; }
-
-  .dan-msg {
-    max-width: 88%;
-    padding: 10px 13px;
-    border-radius: 14px;
-    font-size: 13px;
-    line-height: 1.55;
-    word-break: break-word;
-    animation: dan-msg-in 0.2s ease;
-  }
-  @keyframes dan-msg-in {
-    from { opacity:0; transform:translateY(4px); }
-    to   { opacity:1; transform:translateY(0); }
-  }
-  .dan-msg.bot {
-    background: rgba(255,255,255,0.06);
-    color: #e2e8f0;
-    border: 1px solid rgba(255,255,255,0.08);
-    border-bottom-left-radius: 4px;
-    align-self: flex-start;
-  }
-  .dan-msg.user {
-    background: linear-gradient(135deg, #38bdf8, #6366f1);
-    color: #fff;
-    border-bottom-right-radius: 4px;
-    align-self: flex-end;
-    border: none;
-  }
-  .dan-msg.typing {
-    color: #64748b;
-    font-style: italic;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.05);
-  }
-  .dan-typing-dots {
-    display: inline-flex; gap: 3px; align-items: center; margin-left: 4px;
-  }
-  .dan-typing-dots span {
-    width: 5px; height: 5px; border-radius: 50%;
-    background: #38bdf8; opacity: 0.5;
-    animation: dan-dot-bounce 1.2s infinite ease;
-  }
-  .dan-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-  .dan-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes dan-dot-bounce {
-    0%,80%,100% { transform:translateY(0); opacity:0.5; }
-    40%          { transform:translateY(-4px); opacity:1; }
-  }
-
-  /* ── QUICK CHIPS ── */
-  .dan-chips {
-    display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;
-  }
-  .dan-chip {
-    background: rgba(56,189,248,0.1);
-    color: #7dd3fc;
-    border: 1px solid rgba(56,189,248,0.22);
-    border-radius: 20px;
-    padding: 4px 10px;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .dan-chip:hover { background: rgba(56,189,248,0.2); color: #bae6fd; }
-
-  /* ── DIVIDER ── */
-  .dan-divider {
-    height: 1px;
-    background: rgba(255,255,255,0.06);
-    margin: 0 12px;
-    flex-shrink: 0;
-  }
-
-  /* ── INPUT ROW ── */
-  #dan-input-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-top: 1px solid rgba(255,255,255,0.06);
-    background: rgba(0,0,0,0.2);
-    flex-shrink: 0;
-  }
-  #dan-input {
-    flex: 1;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 22px;
-    padding: 9px 14px;
-    font-size: 13px;
-    color: #f8fafc;
-    outline: none;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  #dan-input::placeholder { color: #475569; }
-  #dan-input:focus {
-    border-color: rgba(56,189,248,0.5);
-    background: rgba(56,189,248,0.05);
-  }
-  #dan-send {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: linear-gradient(135deg, #38bdf8, #6366f1);
-    color: #fff; border: none; cursor: pointer; font-size: 15px;
-    display: flex; align-items: center; justify-content: center;
-    transition: transform 0.15s, box-shadow 0.15s;
-    flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(56,189,248,0.3);
-  }
-  #dan-send:hover { transform: scale(1.1); box-shadow: 0 4px 14px rgba(56,189,248,0.45); }
-  #dan-send:disabled { background: #1e293b; box-shadow: none; cursor: not-allowed; }
-
-  /* ── SIGN OUT ── */
-  #signOutBtn {
-    margin-top: 12px; width: 100%; padding: 8px;
-    background: rgba(249,115,22,0.15); color: #f97316;
-    border: 1px solid rgba(249,115,22,0.3); border-radius: 6px;
-    cursor: pointer; font-size: 12px; font-weight: 600;
-    letter-spacing: 0.05em; transition: background 0.15s;
-  }
-  #signOutBtn:hover { background: rgba(249,115,22,0.28); }
-
-  @media (max-width: 420px) {
-    #dan-panel { width: calc(100vw - 32px); right: 16px; bottom: 84px; }
-    #dan-fab { bottom: 16px; right: 16px; }
-  }
-</style>
-
-<!-- ── DAN BOT HTML ──────────────────────────────────────────────── -->
-<button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖</button>
-
-<div id="dan-panel">
-  <div id="dan-header">
-    <div class="dan-avatar">🤖</div>
-    <div class="dan-title-wrap">
-      <div class="dan-name">DAN</div>
-      <div class="dan-subtitle">
-        <span class="dan-live-dot"></span>
-        Analysing your production data
-      </div>
-    </div>
-    <button id="dan-close" onclick="danToggle()">✕</button>
-  </div>
-
-  <!-- Auto-generated insight cards from live data -->
-  <div id="dan-insights"></div>
-
-  <div class="dan-divider"></div>
-
-  <div id="dan-messages"></div>
-
-  <div id="dan-input-row">
-    <input id="dan-input" type="text"
-           placeholder="Ask DAN anything about your production…"
-           onkeydown="if(event.key==='Enter')danSend()"
-           autocomplete="off" />
-    <button id="dan-send" onclick="danSend()">➤</button>
-  </div>
-</div>
-
-<!-- ── DAN BOT SCRIPT ────────────────────────────────────────────── -->
-<script>
-(function () {
-  'use strict';
-
-  const WEBHOOK_URL = 'https://danbotv2.grobleroliver.workers.dev/';
-  const SESSION_ID  = 'dan-' + Math.random().toString(36).slice(2, 10);
-
-  let isOpen     = false;
-  let isBusy     = false;
-  let hasGreeted = false;
-
-  /* ── QUICK PROMPT CHIPS ─────────────────────────────────────── */
-  const QUICK_PROMPTS = [
-    "Today's production summary",
-    "What's ready to ship?",
-    "Any late orders?",
-    "Top customers this week",
-    "Who has the most work today?",
-    "Any reorder risks?",
-  ];
-
-  /* ── TOGGLE ─────────────────────────────────────────────────── */
-  function danToggle() {
-    isOpen = !isOpen;
-    const panel = document.getElementById('dan-panel');
-    const fab   = document.getElementById('dan-fab');
-    panel.classList.toggle('open', isOpen);
-    fab.classList.toggle('dan-open', isOpen);
-
-    if (isOpen) {
-      if (!hasGreeted) {
-        hasGreeted = true;
-        showGreetingAndInsights();
-      }
-      setTimeout(() => document.getElementById('dan-input').focus(), 240);
-    }
-  }
-
-  /* ── INSIGHT ENGINE — reads window.state ────────────────────── */
-  function buildInsights() {
-    const s = window.state || {};
-    const overview  = s.data?.overview?.[0]  || {};
-    const risk      = s.data?.risk            || [];
-    const ready     = s.data?.ready           || [];
-    const customers = s.data?.customerAlerts  || [];
-    const activity  = s.data?.activity        || [];
-
-    const insights = [];
-
-    /* 1 — Late / at-risk orders */
-    if (risk.length > 0) {
-      const worst = risk[0];
-      insights.push({
-        type: 'urgent',
-        icon: '🚨',
-        text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` +
-              (worst ? `Order <strong>#${worst.order_id}</strong> for <strong>${worst.customer_name || 'Unknown'}</strong> needs attention now.` : ''),
-        hint: 'Tap to ask DAN what to do',
-        prompt: `What should I do about the ${risk.length} late or at-risk orders?`
-      });
-    }
-
-    /* 2 — Ready to ship */
-    if (ready.length > 0) {
-      const totalQty = ready.reduce((sum, r) => sum + Number(r.total_quantity || 0), 0);
-      insights.push({
-        type: 'good',
-        icon: '✅',
-        text: `<strong>${ready.length} order${ready.length > 1 ? 's' : ''} ready to ship</strong> — ${fmtNum(totalQty)} total units awaiting dispatch.`,
-        hint: 'Tap to see the full list',
-        prompt: "Give me the full ready to ship list with customer names and quantities"
-      });
-    }
-
-    /* 3 — Total production */
-    const total = Number(overview.total_decorations || 0);
-    const emb   = Number(overview.embroidery_total  || 0);
-    const prt   = Number(overview.print_total       || 0);
-    if (total > 0) {
-      const split = emb > prt
-        ? `Embroidery leads at <strong>${fmtNum(emb)}</strong> vs Print at <strong>${fmtNum(prt)}</strong>.`
-        : `Print leads at <strong>${fmtNum(prt)}</strong> vs Embroidery at <strong>${fmtNum(emb)}</strong>.`;
-      insights.push({
-        type: 'info',
-        icon: '🏭',
-        text: `<strong>${fmtNum(total)} units decorated</strong> in the selected range. ${split}`,
-        hint: 'Tap for a full breakdown',
-        prompt: "Give me a detailed production breakdown for the current date range"
-      });
-    }
-
-    /* 4 — Customer reorder risk */
-    const atRisk = customers.filter(c => c.reorder_status === 'At Risk');
-    if (atRisk.length > 0) {
-      const top = atRisk[0];
-      const val = atRisk.reduce((s, c) => s + Number(c.last_order_value || 0), 0);
-      insights.push({
-        type: 'warning',
-        icon: '💰',
-        text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong> — <strong>£${fmtNum(val)}</strong> potential value at risk.` +
-              (top ? ` ${top.name || top.company || 'A customer'} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''),
-        hint: 'Tap to see who needs a call',
-        prompt: `Which customers are most overdue for reorder and what's the value at risk?`
-      });
-    }
-
-    /* 5 — Biggest job today */
-    if (activity.length > 0) {
-      const grouped = {};
-      activity.forEach(r => {
-        const k = r.order_id;
-        if (!k) return;
-        grouped[k] = (grouped[k] || 0) + Number(r.quantity || 0);
-      });
-      const biggest = Object.entries(grouped).sort((a,b) => b[1]-a[1])[0];
-      if (biggest && biggest[1] > 0) {
-        const row = activity.find(r => String(r.order_id) === String(biggest[0]));
-        insights.push({
-          type: 'info',
-          icon: '📦',
-          text: `Biggest active job: Order <strong>#${biggest[0]}</strong>` +
-                (row?.customer_name ? ` for <strong>${row.customer_name}</strong>` : '') +
-                ` — <strong>${fmtNum(biggest[1])} units</strong>.`,
-          hint: 'Tap to ask about this order',
-          prompt: `Tell me everything about order #${biggest[0]}`
-        });
-      }
-    }
-
-    /* Fallback — no data yet */
-    if (insights.length === 0) {
-      insights.push({
-        type: 'info',
-        icon: '📡',
-        text: 'Loading your production data… refresh the dashboard to see live insights here.',
-        hint: null,
-        prompt: "What can you help me with?"
-      });
-    }
-
-    return insights;
-  }
-
-  /* ── RENDER INSIGHT CARDS ───────────────────────────────────── */
-  function renderInsights() {
-    const container = document.getElementById('dan-insights');
-    if (!container) return;
-
-    container.innerHTML = '';
-    const insights = buildInsights();
-
-    insights.forEach((ins, i) => {
-      const card = document.createElement('div');
-      card.className = `dan-insight-card ${ins.type}`;
-      card.style.animationDelay = `${i * 70}ms`;
-      card.innerHTML = `
-        <div class="dan-ic-icon">${ins.icon}</div>
-        <div>
-          <div class="dan-ic-text">${ins.text}</div>
-          ${ins.hint ? `<div class="dan-ic-hint">${ins.hint} →</div>` : ''}
-        </div>`;
-      card.onclick = () => danSendText(ins.prompt);
-      container.appendChild(card);
-    });
-  }
-
-  /* ── GREETING ───────────────────────────────────────────────── */
-  function showGreetingAndInsights() {
-    renderInsights();
-
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-
-    const s = window.state || {};
-    const risk  = s.data?.risk?.length || 0;
-    const ready = s.data?.ready?.length || 0;
-
-    let statusLine = '';
-    if (risk > 0) {
-      statusLine = `⚠️ You have <strong>${risk} order${risk>1?'s':''} needing attention</strong> right now.`;
-    } else if (ready > 0) {
-      statusLine = `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong> — looking good.`;
-    } else {
-      statusLine = `Everything looks clear. Ask me anything about production.`;
-    }
-
-    danAppendBot(
-      `${greeting}! I'm <strong>DAN</strong>, your ATAM GO production analyst. 👋<br><br>${statusLine}`,
-      true
-    );
-  }
-
-  /* ── MESSAGE HELPERS ────────────────────────────────────────── */
-  function danAppendUser(text) {
-    const el = document.createElement('div');
-    el.className = 'dan-msg user';
-    el.textContent = text;
-    document.getElementById('dan-messages').appendChild(el);
-    danScroll();
-  }
-
-  function danAppendBot(html, showChips) {
-    const el = document.createElement('div');
-    el.className = 'dan-msg bot';
-    el.innerHTML = html;
-
-    if (showChips) {
-      const chips = document.createElement('div');
-      chips.className = 'dan-chips';
-      QUICK_PROMPTS.forEach(p => {
-        const chip = document.createElement('button');
-        chip.className = 'dan-chip';
-        chip.textContent = p;
-        chip.onclick = () => danSendText(p);
-        chips.appendChild(chip);
-      });
-      el.appendChild(chips);
-    }
-
-    document.getElementById('dan-messages').appendChild(el);
-    danScroll();
-    return el;
-  }
-
-  function danAppendTyping() {
-    const el = document.createElement('div');
-    el.className = 'dan-msg bot typing';
-    el.id = 'dan-typing';
-    el.innerHTML = 'DAN is thinking<span class="dan-typing-dots"><span></span><span></span><span></span></span>';
-    document.getElementById('dan-messages').appendChild(el);
-    danScroll();
-  }
-
-  function danRemoveTyping() {
-    const el = document.getElementById('dan-typing');
-    if (el) el.remove();
-  }
-
-  function danScroll() {
-    const msgs = document.getElementById('dan-messages');
-    msgs.scrollTop = msgs.scrollHeight;
-  }
-
-  /* ── SEND ───────────────────────────────────────────────────── */
-  async function danSendText(text) {
-    if (isBusy || !text.trim()) return;
-    isBusy = true;
-
-    // Collapse insight cards to save space when conversation starts
-    const insights = document.getElementById('dan-insights');
-    if (insights && insights.children.length) {
-      insights.style.maxHeight = insights.offsetHeight + 'px';
-      insights.style.overflow = 'hidden';
-      insights.style.transition = 'max-height 0.3s ease, opacity 0.3s ease';
-      setTimeout(() => {
-        insights.style.maxHeight = '0';
-        insights.style.opacity = '0';
-        insights.style.padding = '0';
-      }, 50);
-    }
-
-    danAppendUser(text);
-    document.getElementById('dan-input').value = '';
-    document.getElementById('dan-send').disabled = true;
-    danAppendTyping();
-
-    /* Build a rich context snapshot from window.state */
-    const s   = window.state || {};
-    const ov  = s.data?.overview?.[0] || {};
-    const ctx = {
-      dateFrom:            s.dateFrom || 'unknown',
-      dateTo:              s.dateTo   || 'unknown',
-      total_decorations:   ov.total_decorations  || 0,
-      embroidery_total:    ov.embroidery_total    || 0,
-      print_total:         ov.print_total         || 0,
-      unique_orders:       ov.unique_orders       || 0,
-      unique_customers:    ov.unique_customers    || 0,
-      decoration_lines:    ov.decoration_lines    || 0,
-      late_orders:         (s.data?.risk          || []).length,
-      ready_to_ship:       (s.data?.ready         || []).length,
-      customers_at_risk:   (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length,
-      top_customers:       (s.data?.customers     || []).slice(0, 5).map(c => `${c.customer_name} (${c.total_quantity} units)`).join(', '),
-      risk_orders_detail:  (s.data?.risk          || []).slice(0, 3).map(r => `#${r.order_id} — ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '),
-      ready_orders_detail: (s.data?.ready         || []).slice(0, 3).map(r => `#${r.order_id} — ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', '),
-    };
-
-    try {
-      const res = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message:   text,
-          sessionId: SESSION_ID,
-          context:   ctx          // ← live production snapshot sent with every message
-        })
-      });
-
-      danRemoveTyping();
-
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data  = await res.json();
-      const reply = data.reply || data.output || data.message || 'Sorry, no response received.';
-
-      danAppendBot(reply.replace(/\n/g, '<br>'), false);
-
-    } catch (err) {
-      danRemoveTyping();
-      danAppendBot(
-        '⚠️ Couldn\'t reach DAN right now. Make sure the <strong>DAN BOT workflow is active</strong> in n8n and try again.',
-        false
-      );
-      console.error('[DAN BOT]', err);
-    } finally {
-      isBusy = false;
-      document.getElementById('dan-send').disabled = false;
-      document.getElementById('dan-input').focus();
-    }
-  }
-
-  function danSend() {
-    danSendText(document.getElementById('dan-input').value.trim());
-  }
-
-  /* ── REFRESH INSIGHTS when data reloads ─────────────────────── */
-  // Watch connectionStatus — re-render insight cards after each data load
-  const _statusEl = document.getElementById('connectionStatus');
-  if (_statusEl) {
-    new MutationObserver(() => {
-      if ((_statusEl.textContent || '').toLowerCase() === 'connected') {
-        setTimeout(() => {
-          if (isOpen) renderInsights();
-        }, 200);
-      }
-    }).observe(_statusEl, { childList: true, characterData: true, subtree: true });
-  }
-
-  /* ── EXPORTS ─────────────────────────────────────────────────── */
-  window.danToggle    = danToggle;
-  window.danSend      = danSend;
-  window.danRefresh   = renderInsights; // callable from console
-
-  /* ── HELPER ─────────────────────────────────────────────────── */
-  function fmtNum(n) {
-    return new Intl.NumberFormat('en-GB').format(Number(n || 0));
-  }
-})();
-</script>
-
 <body>
 
-  <!-- ── SESSION CHECK — redirects to login if not authenticated ── -->
+  <!-- ── SESSION CHECK ── -->
   <script>
     (async () => {
       const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
@@ -701,6 +25,501 @@
     })();
   </script>
 
+  <!-- ── DAN BOT STYLES ── -->
+  <style>
+    #dan-fab {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: #fff;
+      font-size: 24px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 24px rgba(56,189,248,0.5), 0 0 0 0 rgba(56,189,248,0.3);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s;
+    }
+    #dan-fab:hover {
+      transform: scale(1.12);
+      box-shadow: 0 8px 32px rgba(56,189,248,0.6), 0 0 0 6px rgba(56,189,248,0.12);
+    }
+    #dan-fab.dan-open {
+      transform: scale(0.9) rotate(20deg);
+      background: linear-gradient(135deg, #ef4444, #f97316);
+    }
+    #dan-panel {
+      position: fixed;
+      bottom: 96px;
+      right: 24px;
+      width: 380px;
+      max-height: 580px;
+      border-radius: 20px;
+      overflow: hidden;
+      z-index: 9998;
+      display: flex;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      transform: scale(0.88) translateY(24px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.26s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
+      border: 1px solid rgba(56,189,248,0.2);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.08), inset 0 1px 0 rgba(255,255,255,0.06);
+      background: #0d1a2e;
+    }
+    #dan-panel.open {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+      pointer-events: all;
+    }
+    #dan-header {
+      background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(99,102,241,0.12));
+      border-bottom: 1px solid rgba(56,189,248,0.15);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    #dan-header .dan-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 12px rgba(56,189,248,0.4);
+      flex-shrink: 0;
+    }
+    #dan-header .dan-title-wrap { flex: 1; }
+    #dan-header .dan-name { font-size: 14px; font-weight: 700; color: #f8fafc; letter-spacing: -0.01em; }
+    #dan-header .dan-subtitle { font-size: 11px; color: rgba(56,189,248,0.8); display: flex; align-items: center; gap: 5px; margin-top: 1px; }
+    .dan-live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #22c55e; box-shadow: 0 0 5px #22c55e;
+      animation: dan-pulse 2s infinite; flex-shrink: 0;
+    }
+    @keyframes dan-pulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)} }
+    #dan-close {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+      color: #94a3b8; cursor: pointer; font-size: 16px;
+      width: 28px; height: 28px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; line-height: 1;
+    }
+    #dan-close:hover { background: rgba(239,68,68,0.2); color: #f87171; border-color: rgba(239,68,68,0.3); }
+    #dan-insights { padding: 10px 12px 0; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    .dan-insight-card {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: all 0.15s;
+      animation: dan-card-in 0.35s ease both;
+    }
+    @keyframes dan-card-in { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
+    .dan-insight-card:hover { background: rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.25); }
+    .dan-insight-card.urgent { border-left: 3px solid #ef4444; }
+    .dan-insight-card.warning { border-left: 3px solid #f59e0b; }
+    .dan-insight-card.good { border-left: 3px solid #22c55e; }
+    .dan-insight-card.info { border-left: 3px solid #38bdf8; }
+    .dan-ic-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .dan-ic-text { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
+    .dan-ic-text strong { color: #f8fafc; font-weight: 700; }
+    .dan-ic-hint { font-size: 10px; color: rgba(56,189,248,0.7); margin-top: 3px; }
+    #dan-messages {
+      flex: 1; overflow-y: auto; padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      min-height: 80px; max-height: 260px;
+    }
+    #dan-messages::-webkit-scrollbar { width: 3px; }
+    #dan-messages::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 2px; }
+    .dan-msg {
+      max-width: 88%; padding: 10px 13px; border-radius: 14px;
+      font-size: 13px; line-height: 1.55; word-break: break-word;
+      animation: dan-msg-in 0.2s ease;
+    }
+    @keyframes dan-msg-in { from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)} }
+    .dan-msg.bot {
+      background: rgba(255,255,255,0.06); color: #e2e8f0;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-bottom-left-radius: 4px; align-self: flex-start;
+    }
+    .dan-msg.user {
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: #fff; border-bottom-right-radius: 4px; align-self: flex-end; border: none;
+    }
+    .dan-msg.typing {
+      color: #64748b; font-style: italic;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+    }
+    .dan-typing-dots { display: inline-flex; gap: 3px; align-items: center; margin-left: 4px; }
+    .dan-typing-dots span {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #38bdf8; opacity: 0.5;
+      animation: dan-dot-bounce 1.2s infinite ease;
+    }
+    .dan-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dan-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dan-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-4px);opacity:1} }
+    .dan-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .dan-chip {
+      background: rgba(56,189,248,0.1); color: #7dd3fc;
+      border: 1px solid rgba(56,189,248,0.22); border-radius: 20px;
+      padding: 4px 10px; font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .dan-chip:hover { background: rgba(56,189,248,0.2); color: #bae6fd; }
+    .dan-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 12px; flex-shrink: 0; }
+    #dan-input-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.06);
+      background: rgba(0,0,0,0.2); flex-shrink: 0;
+    }
+    #dan-input {
+      flex: 1; background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 22px;
+      padding: 9px 14px; font-size: 13px; color: #f8fafc; outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    #dan-input::placeholder { color: #475569; }
+    #dan-input:focus { border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.05); }
+    #dan-send {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: #fff; border: none; cursor: pointer; font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(56,189,248,0.3);
+    }
+    #dan-send:hover { transform: scale(1.1); box-shadow: 0 4px 14px rgba(56,189,248,0.45); }
+    #dan-send:disabled { background: #1e293b; box-shadow: none; cursor: not-allowed; }
+    #signOutBtn {
+      margin-top: 12px; width: 100%; padding: 8px;
+      background: rgba(249,115,22,0.15); color: #f97316;
+      border: 1px solid rgba(249,115,22,0.3); border-radius: 6px;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      letter-spacing: 0.05em; transition: background 0.15s;
+    }
+    #signOutBtn:hover { background: rgba(249,115,22,0.28); }
+    @media (max-width: 420px) {
+      #dan-panel { width: calc(100vw - 32px); right: 16px; bottom: 84px; }
+      #dan-fab { bottom: 16px; right: 16px; }
+    }
+  </style>
+
+  <!-- ── DAN BOT HTML ── -->
+  <button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖</button>
+
+  <div id="dan-panel">
+    <div id="dan-header">
+      <div class="dan-avatar">🤖</div>
+      <div class="dan-title-wrap">
+        <div class="dan-name">DAN</div>
+        <div class="dan-subtitle">
+          <span class="dan-live-dot"></span>
+          Analysing your production data
+        </div>
+      </div>
+      <button id="dan-close" onclick="danToggle()">✕</button>
+    </div>
+    <div id="dan-insights"></div>
+    <div class="dan-divider"></div>
+    <div id="dan-messages"></div>
+    <div id="dan-input-row">
+      <input id="dan-input" type="text"
+             placeholder="Ask DAN anything about your production…"
+             onkeydown="if(event.key==='Enter')danSend()"
+             autocomplete="off" />
+      <button id="dan-send" onclick="danSend()">➤</button>
+    </div>
+  </div>
+
+  <!-- ── DAN BOT SCRIPT ── -->
+  <script>
+  (function () {
+    'use strict';
+
+    const WEBHOOK_URL = 'https://danbotv2.grobleroliver.workers.dev/';
+    const SESSION_ID  = 'dan-' + Math.random().toString(36).slice(2, 10);
+
+    let isOpen     = false;
+    let isBusy     = false;
+    let hasGreeted = false;
+
+    const QUICK_PROMPTS = [
+      "Today's production summary",
+      "What's ready to ship?",
+      "Any late orders?",
+      "Top customers this week",
+      "Who has the most work today?",
+      "Any reorder risks?",
+    ];
+
+    function danToggle() {
+      isOpen = !isOpen;
+      const panel = document.getElementById('dan-panel');
+      const fab   = document.getElementById('dan-fab');
+      panel.classList.toggle('open', isOpen);
+      fab.classList.toggle('dan-open', isOpen);
+      if (isOpen) {
+        if (!hasGreeted) { hasGreeted = true; showGreetingAndInsights(); }
+        setTimeout(() => document.getElementById('dan-input').focus(), 240);
+      }
+    }
+
+    function buildInsights() {
+      const s = window.state || {};
+      const overview  = s.data?.overview?.[0]  || {};
+      const risk      = s.data?.risk            || [];
+      const ready     = s.data?.ready           || [];
+      const customers = s.data?.customerAlerts  || [];
+      const activity  = s.data?.activity        || [];
+      const insights  = [];
+
+      if (risk.length > 0) {
+        const worst = risk[0];
+        insights.push({
+          type: 'urgent', icon: '🚨',
+          text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` +
+                (worst ? `Order <strong>#${worst.order_id}</strong> for <strong>${worst.customer_name || 'Unknown'}</strong> needs attention now.` : ''),
+          hint: 'Tap to ask DAN what to do',
+          prompt: `What should I do about the ${risk.length} late or at-risk orders?`
+        });
+      }
+
+      if (ready.length > 0) {
+        const totalQty = ready.reduce((sum, r) => sum + Number(r.total_quantity || 0), 0);
+        insights.push({
+          type: 'good', icon: '✅',
+          text: `<strong>${ready.length} order${ready.length > 1 ? 's' : ''} ready to ship</strong> — ${fmtNum(totalQty)} total units awaiting dispatch.`,
+          hint: 'Tap to see the full list',
+          prompt: "Give me the full ready to ship list with customer names and quantities"
+        });
+      }
+
+      const total = Number(overview.total_decorations || 0);
+      const emb   = Number(overview.embroidery_total  || 0);
+      const prt   = Number(overview.print_total       || 0);
+      if (total > 0) {
+        const split = emb > prt
+          ? `Embroidery leads at <strong>${fmtNum(emb)}</strong> vs Print at <strong>${fmtNum(prt)}</strong>.`
+          : `Print leads at <strong>${fmtNum(prt)}</strong> vs Embroidery at <strong>${fmtNum(emb)}</strong>.`;
+        insights.push({
+          type: 'info', icon: '🏭',
+          text: `<strong>${fmtNum(total)} units decorated</strong> in the selected range. ${split}`,
+          hint: 'Tap for a full breakdown',
+          prompt: "Give me a detailed production breakdown for the current date range"
+        });
+      }
+
+      const atRisk = customers.filter(c => c.reorder_status === 'At Risk');
+      if (atRisk.length > 0) {
+        const top = atRisk[0];
+        const val = atRisk.reduce((s, c) => s + Number(c.last_order_value || 0), 0);
+        insights.push({
+          type: 'warning', icon: '💰',
+          text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong> — <strong>£${fmtNum(val)}</strong> potential value at risk.` +
+                (top ? ` ${top.name || top.company || 'A customer'} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''),
+          hint: 'Tap to see who needs a call',
+          prompt: `Which customers are most overdue for reorder and what's the value at risk?`
+        });
+      }
+
+      if (activity.length > 0) {
+        const grouped = {};
+        activity.forEach(r => {
+          const k = r.order_id;
+          if (!k) return;
+          grouped[k] = (grouped[k] || 0) + Number(r.quantity || 0);
+        });
+        const biggest = Object.entries(grouped).sort((a,b) => b[1]-a[1])[0];
+        if (biggest && biggest[1] > 0) {
+          const row = activity.find(r => String(r.order_id) === String(biggest[0]));
+          insights.push({
+            type: 'info', icon: '📦',
+            text: `Biggest active job: Order <strong>#${biggest[0]}</strong>` +
+                  (row?.customer_name ? ` for <strong>${row.customer_name}</strong>` : '') +
+                  ` — <strong>${fmtNum(biggest[1])} units</strong>.`,
+            hint: 'Tap to ask about this order',
+            prompt: `Tell me everything about order #${biggest[0]}`
+          });
+        }
+      }
+
+      if (insights.length === 0) {
+        insights.push({
+          type: 'info', icon: '📡',
+          text: 'Loading your production data… refresh the dashboard to see live insights here.',
+          hint: null,
+          prompt: "What can you help me with?"
+        });
+      }
+
+      return insights;
+    }
+
+    function renderInsights() {
+      const container = document.getElementById('dan-insights');
+      if (!container) return;
+      container.innerHTML = '';
+      buildInsights().forEach((ins, i) => {
+        const card = document.createElement('div');
+        card.className = `dan-insight-card ${ins.type}`;
+        card.style.animationDelay = `${i * 70}ms`;
+        card.innerHTML = `
+          <div class="dan-ic-icon">${ins.icon}</div>
+          <div>
+            <div class="dan-ic-text">${ins.text}</div>
+            ${ins.hint ? `<div class="dan-ic-hint">${ins.hint} →</div>` : ''}
+          </div>`;
+        card.onclick = () => danSendText(ins.prompt);
+        container.appendChild(card);
+      });
+    }
+
+    function showGreetingAndInsights() {
+      renderInsights();
+      const hour = new Date().getHours();
+      const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+      const s = window.state || {};
+      const risk  = s.data?.risk?.length || 0;
+      const ready = s.data?.ready?.length || 0;
+      let statusLine = '';
+      if (risk > 0) statusLine = `⚠️ You have <strong>${risk} order${risk>1?'s':''} needing attention</strong> right now.`;
+      else if (ready > 0) statusLine = `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong> — looking good.`;
+      else statusLine = `Everything looks clear. Ask me anything about production.`;
+      danAppendBot(`${greeting}! I'm <strong>DAN</strong>, your ATAM GO production analyst. 👋<br><br>${statusLine}`, true);
+    }
+
+    function danAppendUser(text) {
+      const el = document.createElement('div');
+      el.className = 'dan-msg user';
+      el.textContent = text;
+      document.getElementById('dan-messages').appendChild(el);
+      danScroll();
+    }
+
+    function danAppendBot(html, showChips) {
+      const el = document.createElement('div');
+      el.className = 'dan-msg bot';
+      el.innerHTML = html;
+      if (showChips) {
+        const chips = document.createElement('div');
+        chips.className = 'dan-chips';
+        QUICK_PROMPTS.forEach(p => {
+          const chip = document.createElement('button');
+          chip.className = 'dan-chip';
+          chip.textContent = p;
+          chip.onclick = () => danSendText(p);
+          chips.appendChild(chip);
+        });
+        el.appendChild(chips);
+      }
+      document.getElementById('dan-messages').appendChild(el);
+      danScroll();
+      return el;
+    }
+
+    function danAppendTyping() {
+      const el = document.createElement('div');
+      el.className = 'dan-msg bot typing';
+      el.id = 'dan-typing';
+      el.innerHTML = 'DAN is thinking<span class="dan-typing-dots"><span></span><span></span><span></span></span>';
+      document.getElementById('dan-messages').appendChild(el);
+      danScroll();
+    }
+
+    function danRemoveTyping() {
+      const el = document.getElementById('dan-typing');
+      if (el) el.remove();
+    }
+
+    function danScroll() {
+      const msgs = document.getElementById('dan-messages');
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    async function danSendText(text) {
+      if (isBusy || !text.trim()) return;
+      isBusy = true;
+
+      const insights = document.getElementById('dan-insights');
+      if (insights && insights.children.length) {
+        insights.style.maxHeight = insights.offsetHeight + 'px';
+        insights.style.overflow = 'hidden';
+        insights.style.transition = 'max-height 0.3s ease, opacity 0.3s ease';
+        setTimeout(() => { insights.style.maxHeight = '0'; insights.style.opacity = '0'; insights.style.padding = '0'; }, 50);
+      }
+
+      danAppendUser(text);
+      document.getElementById('dan-input').value = '';
+      document.getElementById('dan-send').disabled = true;
+      danAppendTyping();
+
+      const s   = window.state || {};
+      const ov  = s.data?.overview?.[0] || {};
+      const ctx = {
+        dateFrom:            s.dateFrom || 'unknown',
+        dateTo:              s.dateTo   || 'unknown',
+        total_decorations:   ov.total_decorations  || 0,
+        embroidery_total:    ov.embroidery_total    || 0,
+        print_total:         ov.print_total         || 0,
+        unique_orders:       ov.unique_orders       || 0,
+        unique_customers:    ov.unique_customers    || 0,
+        decoration_lines:    ov.decoration_lines    || 0,
+        late_orders:         (s.data?.risk          || []).length,
+        ready_to_ship:       (s.data?.ready         || []).length,
+        customers_at_risk:   (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length,
+        top_customers:       (s.data?.customers     || []).slice(0, 5).map(c => `${c.customer_name} (${c.total_quantity} units)`).join(', '),
+        risk_orders_detail:  (s.data?.risk          || []).slice(0, 3).map(r => `#${r.order_id} — ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '),
+        ready_orders_detail: (s.data?.ready         || []).slice(0, 3).map(r => `#${r.order_id} — ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', '),
+      };
+
+      try {
+        const res = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, sessionId: SESSION_ID, context: ctx })
+        });
+        danRemoveTyping();
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data  = await res.json();
+        const reply = data.reply || data.output || data.message || 'Sorry, no response received.';
+        danAppendBot(reply.replace(/\n/g, '<br>'), false);
+      } catch (err) {
+        danRemoveTyping();
+        danAppendBot('⚠️ Couldn\'t reach DAN right now. Make sure the <strong>DAN BOT workflow is active</strong> in n8n and try again.', false);
+        console.error('[DAN BOT]', err);
+      } finally {
+        isBusy = false;
+        document.getElementById('dan-send').disabled = false;
+        document.getElementById('dan-input').focus();
+      }
+    }
+
+    function danSend() { danSendText(document.getElementById('dan-input').value.trim()); }
+
+    const _statusEl = document.getElementById('connectionStatus');
+    if (_statusEl) {
+      new MutationObserver(() => {
+        if ((_statusEl.textContent || '').toLowerCase() === 'connected') {
+          setTimeout(() => { if (isOpen) renderInsights(); }, 200);
+        }
+      }).observe(_statusEl, { childList: true, characterData: true, subtree: true });
+    }
+
+    window.danToggle  = danToggle;
+    window.danSend    = danSend;
+    window.danRefresh = renderInsights;
+
+    function fmtNum(n) { return new Intl.NumberFormat('en-GB').format(Number(n || 0)); }
+  })();
+  </script>
+
+  <!-- ── APP SHELL ── -->
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
@@ -708,29 +527,12 @@
       </div>
 
       <nav class="sidebar-nav">
-        <button type="button" class="nav-link active" data-page="overview">
-          <span>Overview</span>
-        </button>
-
-        <button type="button" class="nav-link" data-page="production">
-          <span>Production</span>
-        </button>
-
-        <button type="button" class="nav-link" data-page="orders">
-          <span>Orders</span>
-        </button>
-
-        <button type="button" class="nav-link" data-page="customers">
-          <span>Customers</span>
-        </button>
-
-        <button type="button" class="nav-link" data-page="activity">
-          <span>Activity</span>
-        </button>
-
-        <button type="button" class="nav-link" data-page="actions">
-          <span>Actions</span>
-        </button>
+        <button type="button" class="nav-link active" data-page="overview"><span>Overview</span></button>
+        <button type="button" class="nav-link" data-page="production"><span>Production</span></button>
+        <button type="button" class="nav-link" data-page="orders"><span>Orders</span></button>
+        <button type="button" class="nav-link" data-page="customers"><span>Customers</span></button>
+        <button type="button" class="nav-link" data-page="activity"><span>Activity</span></button>
+        <button type="button" class="nav-link" data-page="actions"><span>Actions</span></button>
       </nav>
 
       <div class="sidebar-footer">
@@ -746,7 +548,6 @@
           <p class="eyebrow">ATAM Workwear</p>
           <h1>ATAM GO</h1>
         </div>
-
         <div class="topbar-controls">
           <div class="date-range-controls">
             <div class="range-presets">
@@ -756,24 +557,18 @@
               <button type="button" class="range-btn" data-range="month">This Month</button>
               <button type="button" class="range-btn" data-range="custom">Custom</button>
             </div>
-
             <div class="custom-date-range" id="customDateRange">
               <input id="dateFromInput" type="date" />
               <span>to</span>
               <input id="dateToInput" type="date" />
             </div>
           </div>
-
-          <select id="storeFilter">
-            <option value="">All stores</option>
-          </select>
-
+          <select id="storeFilter"><option value="">All stores</option></select>
           <select id="decorationFilter">
             <option value="">All decoration types</option>
             <option value="embroidery">Embroidery</option>
             <option value="print">Print</option>
           </select>
-
           <button type="button" id="refreshBtn" class="primary-btn">Refresh</button>
         </div>
       </header>
@@ -786,113 +581,35 @@
             <p class="page-subtitle">Live decoration volume, production split and customer/store breakdowns.</p>
           </div>
         </div>
-
         <div class="kpi-grid">
-          <div class="kpi-card">
-            <span>Total Decorations</span>
-            <strong id="totalDecorations">0</strong>
-            <small>Total production quantity</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Embroidery</span>
-            <strong id="embroideryTotal">0</strong>
-            <small>Total embroidery quantity</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Print</span>
-            <strong id="printTotal">0</strong>
-            <small>Total print quantity</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Unique Orders</span>
-            <strong id="uniqueOrders">0</strong>
-            <small>Orders counted</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Unique Customers</span>
-            <strong id="uniqueCustomers">0</strong>
-            <small>Customers in range</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Decoration Lines</span>
-            <strong id="decorationLines">0</strong>
-            <small>Individual decoration records</small>
-          </div>
+          <div class="kpi-card"><span>Total Decorations</span><strong id="totalDecorations">0</strong><small>Total production quantity</small></div>
+          <div class="kpi-card"><span>Embroidery</span><strong id="embroideryTotal">0</strong><small>Total embroidery quantity</small></div>
+          <div class="kpi-card"><span>Print</span><strong id="printTotal">0</strong><small>Total print quantity</small></div>
+          <div class="kpi-card"><span>Unique Orders</span><strong id="uniqueOrders">0</strong><small>Orders counted</small></div>
+          <div class="kpi-card"><span>Unique Customers</span><strong id="uniqueCustomers">0</strong><small>Customers in range</small></div>
+          <div class="kpi-card"><span>Decoration Lines</span><strong id="decorationLines">0</strong><small>Individual decoration records</small></div>
         </div>
-
         <div class="chart-grid">
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Decoration Type</p>
-                <h3>Decoration Split</h3>
-              </div>
-            </div>
-            <div class="chart-box">
-              <canvas id="decorationChart"></canvas>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Decoration Type</p><h3>Decoration Split</h3></div></div>
+            <div class="chart-box"><canvas id="decorationChart"></canvas></div>
           </div>
-
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Process Codes</p>
-                <h3>Production by Process</h3>
-              </div>
-            </div>
-            <div class="chart-box">
-              <canvas id="processChart"></canvas>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Process Codes</p><h3>Production by Process</h3></div></div>
+            <div class="chart-box"><canvas id="processChart"></canvas></div>
           </div>
         </div>
-
         <div class="table-grid">
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Customers</p>
-                <h3>Top Customers</h3>
-              </div>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Customers</p><h3>Top Customers</h3></div></div>
             <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Customer</th>
-                    <th>Store</th>
-                    <th>Qty</th>
-                    <th>Orders</th>
-                  </tr>
-                </thead>
-                <tbody id="customerTable"></tbody>
-              </table>
+              <table><thead><tr><th>Customer</th><th>Store</th><th>Qty</th><th>Orders</th></tr></thead><tbody id="customerTable"></tbody></table>
             </div>
           </div>
-
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Stores</p>
-                <h3>Store Breakdown</h3>
-              </div>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Stores</p><h3>Store Breakdown</h3></div></div>
             <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Store</th>
-                    <th>Qty</th>
-                    <th>Orders</th>
-                    <th>Customers</th>
-                  </tr>
-                </thead>
-                <tbody id="storeTable"></tbody>
-              </table>
+              <table><thead><tr><th>Store</th><th>Qty</th><th>Orders</th><th>Customers</th></tr></thead><tbody id="storeTable"></tbody></table>
             </div>
           </div>
         </div>
@@ -900,284 +617,91 @@
 
       <section id="production" class="dashboard-page">
         <div class="page-header">
-          <div>
-            <p class="eyebrow">Production</p>
-            <h2>Production Dashboard</h2>
-            <p class="page-subtitle">Live workload, decoration volume, due pressure and order breakdowns.</p>
-          </div>
+          <div><p class="eyebrow">Production</p><h2>Production Dashboard</h2><p class="page-subtitle">Live workload, decoration volume, due pressure and order breakdowns.</p></div>
         </div>
-
-        <div class="section-header">
-          <div>
-            <p class="eyebrow">Production Insights</p>
-            <h2>Workload Breakdown</h2>
-          </div>
-        </div>
-
+        <div class="section-header"><div><p class="eyebrow">Production Insights</p><h2>Workload Breakdown</h2></div></div>
         <div class="kpi-grid production-pressure-grid">
-          <div class="kpi-card">
-            <span>Due Today</span>
-            <strong id="dueTodayCount">0</strong>
-            <small>orders needing attention today</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Due Tomorrow</span>
-            <strong id="dueTomorrowCount">0</strong>
-            <small>orders due next working day</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Due This Week</span>
-            <strong id="dueWeekCount">0</strong>
-            <small>orders due in the next 7 days</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Biggest Job</span>
-            <strong id="biggestJobQty">0</strong>
-            <small id="biggestJobLabel">No job selected</small>
-          </div>
+          <div class="kpi-card"><span>Due Today</span><strong id="dueTodayCount">0</strong><small>orders needing attention today</small></div>
+          <div class="kpi-card"><span>Due Tomorrow</span><strong id="dueTomorrowCount">0</strong><small>orders due next working day</small></div>
+          <div class="kpi-card"><span>Due This Week</span><strong id="dueWeekCount">0</strong><small>orders due in the next 7 days</small></div>
+          <div class="kpi-card"><span>Biggest Job</span><strong id="biggestJobQty">0</strong><small id="biggestJobLabel">No job selected</small></div>
         </div>
-
         <div class="chart-grid production-insight-grid">
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Areas</p>
-                <h3>Top Decoration Areas</h3>
-              </div>
-            </div>
-            <div class="chart-box">
-              <canvas id="areaChart"></canvas>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Areas</p><h3>Top Decoration Areas</h3></div></div>
+            <div class="chart-box"><canvas id="areaChart"></canvas></div>
           </div>
-
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Team</p>
-                <h3>Workload by Assignee</h3>
-              </div>
-            </div>
-            <div class="chart-box">
-              <canvas id="assigneeChart"></canvas>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Team</p><h3>Workload by Assignee</h3></div></div>
+            <div class="chart-box"><canvas id="assigneeChart"></canvas></div>
           </div>
         </div>
-
         <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Largest Orders</p>
-              <h3>Biggest Live Jobs</h3>
-            </div>
-          </div>
+          <div class="panel-header"><div><p class="eyebrow">Largest Orders</p><h3>Biggest Live Jobs</h3></div></div>
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Store</th>
-                  <th>Total Qty</th>
-                  <th>Due Date</th>
-                  <th>Assigned To</th>
-                </tr>
-              </thead>
-              <tbody id="biggestJobsTable"></tbody>
-            </table>
+            <table><thead><tr><th>Order</th><th>Customer</th><th>Store</th><th>Total Qty</th><th>Due Date</th><th>Assigned To</th></tr></thead><tbody id="biggestJobsTable"></tbody></table>
           </div>
         </div>
-
         <div class="chart-grid">
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Decoration Type</p>
-                <h3>Production Split</h3>
-              </div>
-            </div>
-            <div class="chart-box">
-              <canvas id="decorationChartProduction"></canvas>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Decoration Type</p><h3>Production Split</h3></div></div>
+            <div class="chart-box"><canvas id="decorationChartProduction"></canvas></div>
           </div>
-
           <div class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Process Codes</p>
-                <h3>Production by Process</h3>
-              </div>
-            </div>
-            <div class="chart-box">
-              <canvas id="processChartProduction"></canvas>
-            </div>
+            <div class="panel-header"><div><p class="eyebrow">Process Codes</p><h3>Production by Process</h3></div></div>
+            <div class="chart-box"><canvas id="processChartProduction"></canvas></div>
           </div>
         </div>
-
         <div class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Activity</p>
-              <h3>Production Activity</h3>
-            </div>
-          </div>
+          <div class="panel-header"><div><p class="eyebrow">Activity</p><h3>Production Activity</h3></div></div>
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Type</th>
-                  <th>Process</th>
-                  <th>Qty</th>
-                  <th>Area</th>
-                </tr>
-              </thead>
-              <tbody id="productionActivityTable"></tbody>
-            </table>
+            <table><thead><tr><th>Time</th><th>Order</th><th>Customer</th><th>Product</th><th>Type</th><th>Process</th><th>Qty</th><th>Area</th></tr></thead><tbody id="productionActivityTable"></tbody></table>
           </div>
         </div>
       </section>
 
       <section id="orders" class="dashboard-page">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Orders</p>
-            <h2>Order Watchlist</h2>
-            <p class="page-subtitle">Ready-to-ship and at-risk order tracking.</p>
-          </div>
-        </div>
-
+        <div class="page-header"><div><p class="eyebrow">Orders</p><h2>Order Watchlist</h2><p class="page-subtitle">Ready-to-ship and at-risk order tracking.</p></div></div>
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <p class="eyebrow">Ready</p>
-              <h3>Ready To Ship Orders</h3>
-            </div>
-            <button type="button" id="triggerReadyShipWorkflow" class="secondary-btn">
-              Trigger Alert
-            </button>
+            <div><p class="eyebrow">Ready</p><h3>Ready To Ship Orders</h3></div>
+            <button type="button" id="triggerReadyShipWorkflow" class="secondary-btn">Trigger Alert</button>
           </div>
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Qty</th>
-                  <th>Due Date</th>
-                  <th>Shipping</th>
-                  <th>Assigned To</th>
-                </tr>
-              </thead>
-              <tbody id="readyTable"></tbody>
-            </table>
+            <table><thead><tr><th>Order</th><th>Customer</th><th>Qty</th><th>Due Date</th><th>Shipping</th><th>Assigned To</th></tr></thead><tbody id="readyTable"></tbody></table>
           </div>
         </div>
-
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <p class="eyebrow">Risk</p>
-              <h3>Late Or At-Risk Orders</h3>
-            </div>
-            <button type="button" id="triggerRiskWorkflow" class="secondary-btn">
-              Trigger Risk Alert
-            </button>
+            <div><p class="eyebrow">Risk</p><h3>Late Or At-Risk Orders</h3></div>
+            <button type="button" id="triggerRiskWorkflow" class="secondary-btn">Trigger Risk Alert</button>
           </div>
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Status</th>
-                  <th>Due Date</th>
-                  <th>Qty</th>
-                </tr>
-              </thead>
-              <tbody id="riskTable"></tbody>
-            </table>
+            <table><thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Due Date</th><th>Qty</th></tr></thead><tbody id="riskTable"></tbody></table>
           </div>
         </div>
       </section>
 
       <section id="customers" class="dashboard-page">
         <div class="page-header">
-          <div>
-            <p class="eyebrow">Customer Reorder Monitor</p>
-            <h2>Customers / Reorder Risk</h2>
-            <p class="page-subtitle">Tracks customer reorder patterns from Airtable and Supabase.</p>
-          </div>
-
-          <input
-            id="customerSearchInput"
-            class="search-input"
-            type="search"
-            placeholder="Search customers, companies or emails..."
-          />
+          <div><p class="eyebrow">Customer Reorder Monitor</p><h2>Customers / Reorder Risk</h2><p class="page-subtitle">Tracks customer reorder patterns from Airtable and Supabase.</p></div>
+          <input id="customerSearchInput" class="search-input" type="search" placeholder="Search customers, companies or emails..." />
         </div>
-
         <div class="kpi-grid customer-kpis">
-          <div class="kpi-card">
-            <span>Total Customers</span>
-            <strong id="reorderTotalCustomers">0</strong>
-            <small>Customers tracked</small>
-          </div>
-
-          <div class="kpi-card danger-kpi">
-            <span>At Risk</span>
-            <strong id="reorderAtRisk">0</strong>
-            <small>Customers overdue for reorder</small>
-          </div>
-
-          <div class="kpi-card warning-kpi">
-            <span>Due Soon</span>
-            <strong id="reorderDueSoon">0</strong>
-            <small>Approaching reorder threshold</small>
-          </div>
-
-          <div class="kpi-card">
-            <span>Potential Value at Risk</span>
-            <strong id="reorderValueAtRisk">£0</strong>
-            <small>Based on last order value</small>
-          </div>
+          <div class="kpi-card"><span>Total Customers</span><strong id="reorderTotalCustomers">0</strong><small>Customers tracked</small></div>
+          <div class="kpi-card danger-kpi"><span>At Risk</span><strong id="reorderAtRisk">0</strong><small>Customers overdue for reorder</small></div>
+          <div class="kpi-card warning-kpi"><span>Due Soon</span><strong id="reorderDueSoon">0</strong><small>Approaching reorder threshold</small></div>
+          <div class="kpi-card"><span>Potential Value at Risk</span><strong id="reorderValueAtRisk">£0</strong><small>Based on last order value</small></div>
         </div>
-
         <div class="panel">
           <div class="panel-header">
-            <div>
-              <p class="eyebrow">Reorder Risk</p>
-              <h3>Customer Watchlist</h3>
-              <p class="muted">Customers are ranked by priority, overdue status and last order value.</p>
-            </div>
-            <button type="button" class="secondary-btn" id="refreshCustomersBtn">
-              Refresh Customers
-            </button>
+            <div><p class="eyebrow">Reorder Risk</p><h3>Customer Watchlist</h3><p class="muted">Customers are ranked by priority, overdue status and last order value.</p></div>
+            <button type="button" class="secondary-btn" id="refreshCustomersBtn">Refresh Customers</button>
           </div>
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Company</th>
-                  <th>Last Order</th>
-                  <th>Days Since</th>
-                  <th>Mean Reorder</th>
-                  <th>Status</th>
-                  <th>Last Value</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="reorderCustomerTable">
-                <tr>
-                  <td colspan="8">Loading customer data...</td>
-                </tr>
-              </tbody>
+              <thead><tr><th>Customer</th><th>Company</th><th>Last Order</th><th>Days Since</th><th>Mean Reorder</th><th>Status</th><th>Last Value</th><th>Action</th></tr></thead>
+              <tbody id="reorderCustomerTable"><tr><td colspan="8">Loading customer data...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -1185,64 +709,23 @@
 
       <section id="activity" class="dashboard-page">
         <div class="page-header">
-          <div>
-            <p class="eyebrow">Activity</p>
-            <h2>Recent Decoration Activity</h2>
-            <p class="page-subtitle">Search and inspect recently counted decoration records.</p>
-          </div>
+          <div><p class="eyebrow">Activity</p><h2>Recent Decoration Activity</h2><p class="page-subtitle">Search and inspect recently counted decoration records.</p></div>
           <input id="searchInput" type="search" placeholder="Search orders, customers, products..." />
         </div>
-
         <div class="panel">
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Product</th>
-                  <th>Type</th>
-                  <th>Process</th>
-                  <th>Qty</th>
-                  <th>Area</th>
-                </tr>
-              </thead>
-              <tbody id="activityTable"></tbody>
-            </table>
+            <table><thead><tr><th>Time</th><th>Order</th><th>Customer</th><th>Product</th><th>Type</th><th>Process</th><th>Qty</th><th>Area</th></tr></thead><tbody id="activityTable"></tbody></table>
           </div>
         </div>
       </section>
 
       <section id="actions" class="dashboard-page">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Actions</p>
-            <h2>Workflow Triggers</h2>
-            <p class="page-subtitle">Buttons are ready for n8n webhook connections later.</p>
-          </div>
-        </div>
-
+        <div class="page-header"><div><p class="eyebrow">Actions</p><h2>Workflow Triggers</h2><p class="page-subtitle">Buttons are ready for n8n webhook connections later.</p></div></div>
         <div class="action-grid">
-          <button type="button" class="action-card" data-action="refreshDecoData">
-            <strong>Refresh Deco Data</strong>
-            <span>Trigger a data refresh workflow.</span>
-          </button>
-
-          <button type="button" class="action-card" data-action="recountToday">
-            <strong>Recount Selected Range</strong>
-            <span>Ask n8n to recount production records.</span>
-          </button>
-
-          <button type="button" class="action-card" data-action="sendDailySummary">
-            <strong>Send Daily Summary</strong>
-            <span>Push a summary to email, Slack or GHL.</span>
-          </button>
-
-          <button type="button" class="action-card" data-action="sendManagerAlert">
-            <strong>Send Manager Alert</strong>
-            <span>Notify account managers about urgent work.</span>
-          </button>
+          <button type="button" class="action-card" data-action="refreshDecoData"><strong>Refresh Deco Data</strong><span>Trigger a data refresh workflow.</span></button>
+          <button type="button" class="action-card" data-action="recountToday"><strong>Recount Selected Range</strong><span>Ask n8n to recount production records.</span></button>
+          <button type="button" class="action-card" data-action="sendDailySummary"><strong>Send Daily Summary</strong><span>Push a summary to email, Slack or GHL.</span></button>
+          <button type="button" class="action-card" data-action="sendManagerAlert"><strong>Send Manager Alert</strong><span>Notify account managers about urgent work.</span></button>
         </div>
       </section>
     </main>
@@ -1251,52 +734,36 @@
   <div id="orderModal" class="modal-backdrop">
     <div class="modal-card">
       <div class="modal-header">
-        <div>
-          <p class="eyebrow">Order Details</p>
-          <h2 id="modalOrderTitle">Order</h2>
-        </div>
+        <div><p class="eyebrow">Order Details</p><h2 id="modalOrderTitle">Order</h2></div>
         <button type="button" id="closeOrderModal" class="modal-close">×</button>
       </div>
       <div id="modalOrderMeta" class="order-meta-grid"></div>
       <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Type</th>
-              <th>Process</th>
-              <th>View</th>
-              <th>Area</th>
-              <th>Qty</th>
-            </tr>
-          </thead>
-          <tbody id="modalOrderLines"></tbody>
-        </table>
+        <table><thead><tr><th>Product</th><th>Type</th><th>Process</th><th>View</th><th>Area</th><th>Qty</th></tr></thead><tbody id="modalOrderLines"></tbody></table>
       </div>
     </div>
   </div>
 
   <div id="toast" class="toast"></div>
 
-  <!-- Supabase already loaded in <head> — no duplicate needed -->
+  <!-- ── SCRIPTS — order matters ── -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
   <script src="enhancements.js"></script>
+  <script src="dispatch.js"></script>
+  <script src="effects3d.js"></script>
 
- <!-- ── SIGN OUT ── -->
+  <!-- ── SIGN OUT ── -->
   <script>
     async function signOut() {
       const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
-      const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDUxMDg0MCwiZXhwIjoyMDk2MDg2ODQwfQ.0HtbviXwiKHy_yRBY5f2cRpvYk8UOLvP8TIYBc-L7j4';
+      const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTA4NDAsImV4cCI6MjA5NjA4Njg0MH0.MwfoPHpa--9uiwCcgtzUn2nFMBcFawQAg44rmSdisyQ';
       const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
       await _sb.auth.signOut();
       window.location.replace('./login.html');
     }
   </script>
-
-  <script src="dispatch.js"></script>
-  <script src="effects3d.js"></script>
 
 </body>
 </html>
