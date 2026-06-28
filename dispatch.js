@@ -119,15 +119,17 @@
   async function loadAndRender() {
     try {
       const cfg = window.ATAM_GO_CONFIG || {};
-      if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return;
+      if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+        console.warn('[Dispatch] Missing Supabase config');
+        return;
+      }
 
-      // Reuse the existing Supabase client from app.js if available (preserves auth session)
-      // Otherwise create a new one — but the session may not be attached
-      const sb = window._atamSb
-        ? window._atamSb
-        : supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+      // Always create a fresh client using the anon key
+      // The session is handled by Supabase's own cookie/localStorage — createClient picks it up automatically
+      const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
       const { from, to, range } = getDateRange();
+      console.log('[Dispatch] Querying date_due range:', from, 'to', to);
 
       // Update the dispatch page subtitle to show the active range
       const subtitle = document.querySelector('#dispatch .page-subtitle');
@@ -142,15 +144,20 @@
         subtitle.textContent = rangeLabels[range] || `Showing ${from} to ${to}`;
       }
 
-      // Fetch orders due within the selected date range
+      // date_due is a timestamptz — cast to date for comparison
       const { data, error } = await sb
         .from('decoration_records')
         .select('*')
-        .gte('date_due', `${from}T00:00:00`)
-        .lte('date_due', `${to}T23:59:59`)
+        .gte('date_due', `${from}`)
+        .lte('date_due', `${to}T23:59:59+00`)
         .order('date_due', { ascending: true });
 
-      if (error) throw error;
+      console.log('[Dispatch] Query result:', { count: data?.length, error });
+
+      if (error) {
+        console.error('[Dispatch] Supabase error:', error);
+        throw error;
+      }
 
       // Group by order_id
       const grouped = {};
