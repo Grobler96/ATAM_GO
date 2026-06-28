@@ -49,6 +49,35 @@
     startCountdownTick();
 
     dispatchTimer = setInterval(loadAndRender, REFRESH_MS);
+
+    // Re-query when global date filter changes — only if dispatch page is active
+    hookGlobalDateFilters();
+  }
+
+  /* ── Listen to global date range buttons and custom date inputs ── */
+  function hookGlobalDateFilters() {
+    function onFilterChange() {
+      const dispatchPage = document.getElementById('dispatch');
+      if (dispatchPage && dispatchPage.classList.contains('active')) {
+        // Small delay to let app.js update window.state first
+        setTimeout(loadAndRender, 80);
+      }
+    }
+
+    // Range preset buttons
+    document.querySelectorAll('.range-btn').forEach(btn => {
+      btn.addEventListener('click', onFilterChange);
+    });
+
+    // Custom date inputs
+    const fromInput = document.getElementById('dateFromInput');
+    const toInput = document.getElementById('dateToInput');
+    if (fromInput) fromInput.addEventListener('change', onFilterChange);
+    if (toInput) toInput.addEventListener('change', onFilterChange);
+
+    // Refresh button
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', onFilterChange);
   }
 
   /* ── Hook sidebar nav — fully integrates with app.js page system ── */
@@ -76,22 +105,49 @@
     });
   }
 
-  /* ── Load data from Supabase via window state or direct query ── */
+  /* ── Get active date range from global state or fall back to today ── */
+  function getDateRange() {
+    const globalState = window.state;
+    if (globalState && globalState.dateFrom && globalState.dateTo) {
+      return { from: globalState.dateFrom, to: globalState.dateTo, range: globalState.range || 'custom' };
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    return { from: today, to: today, range: 'today' };
+  }
+
+  /* ── Load data from Supabase — respects global date filter ── */
   async function loadAndRender() {
     try {
       const cfg = window.ATAM_GO_CONFIG || {};
       if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return;
 
-      const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+      // Reuse the existing Supabase client from app.js if available (preserves auth session)
+      // Otherwise create a new one — but the session may not be attached
+      const sb = window._atamSb
+        ? window._atamSb
+        : supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
-      const today = new Date().toISOString().slice(0, 10);
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const { from, to, range } = getDateRange();
 
-      // Fetch orders due today and tomorrow
+      // Update the dispatch page subtitle to show the active range
+      const subtitle = document.querySelector('#dispatch .page-subtitle');
+      if (subtitle) {
+        const rangeLabels = {
+          today: "Showing today's orders",
+          yesterday: "Showing yesterday's orders",
+          last7: 'Showing last 7 days',
+          month: 'Showing this month',
+          custom: `Showing ${from} to ${to}`
+        };
+        subtitle.textContent = rangeLabels[range] || `Showing ${from} to ${to}`;
+      }
+
+      // Fetch orders due within the selected date range
       const { data, error } = await sb
         .from('decoration_records')
         .select('*')
-        .or(`date_due.gte.${today}T00:00:00,date_due.lte.${tomorrow}T23:59:59`)
+        .gte('date_due', `${from}T00:00:00`)
+        .lte('date_due', `${to}T23:59:59`)
         .order('date_due', { ascending: true });
 
       if (error) throw error;
@@ -148,12 +204,9 @@
 
   function renderSummaryBar() {
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
 
-    const todayOrders = dispatchData.filter(o => {
-      if (!o.date_due) return false;
-      return new Date(o.date_due).toISOString().slice(0, 10) === today;
-    });
+    // Use all orders in the current filtered range
+    const todayOrders = dispatchData;
 
     const dispatched = todayOrders.filter(o => o.dispatched || o.date_shipped).length;
     const remaining = todayOrders.length - dispatched;
@@ -202,16 +255,16 @@
     let orders = [...dispatchData];
 
     // Filter
-    if (currentFilter === 'today') {
-      orders = orders.filter(o => o.date_due && new Date(o.date_due).toISOString().slice(0, 10) === today);
-    } else if (currentFilter === 'tomorrow') {
-      orders = orders.filter(o => o.date_due && new Date(o.date_due).toISOString().slice(0, 10) === tomorrow);
-    } else if (currentFilter === 'critical') {
+    if (currentFilter === 'critical') {
       orders = orders.filter(o => getUrgency(o) === 'critical' && !o.dispatched && !o.date_shipped);
     } else if (currentFilter === 'done') {
       orders = orders.filter(o => o.dispatched || o.date_shipped);
     } else if (currentFilter === 'pending') {
       orders = orders.filter(o => !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'produced') {
+      orders = orders.filter(o => o.date_produced && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'notproduced') {
+      orders = orders.filter(o => !o.date_produced && !o.dispatched && !o.date_shipped);
     }
 
     if (!orders.length) {
@@ -471,11 +524,11 @@
 
       <div class="dispatch-filter-row">
         <button class="dispatch-filter-btn active" data-filter="all">All</button>
-        <button class="dispatch-filter-btn" data-filter="today">Due Today</button>
-        <button class="dispatch-filter-btn" data-filter="tomorrow">Due Tomorrow</button>
         <button class="dispatch-filter-btn" data-filter="critical">🔴 Critical</button>
         <button class="dispatch-filter-btn" data-filter="pending">Pending</button>
         <button class="dispatch-filter-btn" data-filter="done">✓ Done</button>
+        <button class="dispatch-filter-btn" data-filter="produced">✓ Produced</button>
+        <button class="dispatch-filter-btn" data-filter="notproduced">⚠️ Not Produced</button>
       </div>
 
       <div id="dispatch-card-grid" class="dispatch-card-grid">
