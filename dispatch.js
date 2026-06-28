@@ -51,15 +51,28 @@
     dispatchTimer = setInterval(loadAndRender, REFRESH_MS);
   }
 
-  /* ── Hook sidebar nav ── */
+  /* ── Hook sidebar nav — fully integrates with app.js page system ── */
   function hookNavLink() {
-    const navLinks = document.querySelectorAll('.nav-link');
-    navLinks.forEach(btn => {
-      if (btn.dataset.page === 'dispatch') {
-        btn.addEventListener('click', () => {
-          loadAndRender();
-        });
+    const dispatchBtn = document.querySelector('[data-page="dispatch"]');
+    if (!dispatchBtn) return;
+
+    dispatchBtn.addEventListener('click', () => {
+      // 1. Remove active from all nav links
+      document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+      dispatchBtn.classList.add('active');
+
+      // 2. Hide all pages
+      document.querySelectorAll('.dashboard-page').forEach(p => p.classList.remove('active'));
+
+      // 3. Show dispatch page
+      const dispatchPage = document.getElementById('dispatch');
+      if (dispatchPage) {
+        dispatchPage.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+
+      // 4. Refresh data
+      loadAndRender();
     });
   }
 
@@ -421,6 +434,16 @@
       btn.innerHTML = '<span>Dispatch</span>';
       nav.appendChild(btn);
     }
+
+    // Patch existing nav links so they also hide the dispatch page
+    document.querySelectorAll('.nav-link:not([data-page="dispatch"])').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dispatchPage = document.getElementById('dispatch');
+        const dispatchBtn = document.querySelector('[data-page="dispatch"]');
+        if (dispatchPage) dispatchPage.classList.remove('active');
+        if (dispatchBtn) dispatchBtn.classList.remove('active');
+      });
+    });
 
     // Add page section
     const main = document.querySelector('.main-content');
