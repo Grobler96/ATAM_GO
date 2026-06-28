@@ -88,14 +88,15 @@
 
       const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
-      const today = new Date().toISOString().slice(0, 10);
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      // Show: last 48 hours (overdue/missed) + next 7 days (upcoming)
+      const from48h = new Date(Date.now() - 48 * 3600000).toISOString().slice(0, 10);
+      const next7d  = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
       const { data, error } = await sb
         .from('decoration_records')
         .select('*')
-        .gte('date_due', `${today}T00:00:00`)
-        .lte('date_due', `${tomorrow}T23:59:59`)
+        .gte('date_due', `${from48h}T00:00:00`)
+        .lte('date_due', `${next7d}T23:59:59`)
         .order('date_due', { ascending: true });
 
       if (error) throw error;
@@ -152,21 +153,31 @@
 
   function renderSummaryBar() {
     const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
 
-    // Use all orders in the current filtered range
-    const todayOrders = dispatchData;
+    const all = dispatchData;
+    const todayOrders   = all.filter(o => o.date_due && new Date(o.date_due).toISOString().slice(0, 10) === todayStr);
+    const overdueOrders = all.filter(o => o.date_due && new Date(o.date_due) < now && !o.dispatched && !o.date_shipped);
+    const dispatched    = all.filter(o => o.dispatched || o.date_shipped).length;
+    const upcoming      = all.filter(o => o.date_due && new Date(o.date_due) > now && !o.dispatched && !o.date_shipped).length;
+    const critical      = all.filter(o => getUrgency(o) === 'critical' && !o.dispatched && !o.date_shipped).length;
 
-    const dispatched = todayOrders.filter(o => o.dispatched || o.date_shipped).length;
-    const remaining = todayOrders.length - dispatched;
-    const critical = todayOrders.filter(o => getUrgency(o) === 'critical' && !o.dispatched && !o.date_shipped).length;
+    // Progress bar based on today's orders only
+    const todayDispatched = todayOrders.filter(o => o.dispatched || o.date_shipped).length;
+    const todayPct = todayOrders.length ? Math.round((todayDispatched / todayOrders.length) * 100) : 0;
 
     const el = document.getElementById('dispatch-summary-bar');
     if (!el) return;
 
     el.innerHTML = `
       <div class="dsb-stat">
-        <span class="dsb-num">${todayOrders.length}</span>
-        <span class="dsb-label">Due Today</span>
+        <span class="dsb-num ${overdueOrders.length > 0 ? 'dsb-red pulse-num' : 'dsb-green'}">${overdueOrders.length}</span>
+        <span class="dsb-label">Overdue</span>
+      </div>
+      <div class="dsb-divider"></div>
+      <div class="dsb-stat">
+        <span class="dsb-num ${critical > 0 ? 'dsb-red' : 'dsb-green'}">${critical}</span>
+        <span class="dsb-label">Critical Today</span>
       </div>
       <div class="dsb-divider"></div>
       <div class="dsb-stat">
@@ -175,19 +186,14 @@
       </div>
       <div class="dsb-divider"></div>
       <div class="dsb-stat">
-        <span class="dsb-num dsb-amber">${remaining}</span>
-        <span class="dsb-label">Still to Go</span>
-      </div>
-      <div class="dsb-divider"></div>
-      <div class="dsb-stat">
-        <span class="dsb-num ${critical > 0 ? 'dsb-red pulse-num' : 'dsb-green'}">${critical}</span>
-        <span class="dsb-label">Critical</span>
+        <span class="dsb-num dsb-amber">${upcoming}</span>
+        <span class="dsb-label">Upcoming</span>
       </div>
       <div class="dsb-progress-wrap">
         <div class="dsb-progress-track">
-          <div class="dsb-progress-fill" style="width:${todayOrders.length ? Math.round((dispatched / todayOrders.length) * 100) : 0}%"></div>
+          <div class="dsb-progress-fill" style="width:${todayPct}%"></div>
         </div>
-        <span class="dsb-progress-pct">${todayOrders.length ? Math.round((dispatched / todayOrders.length) * 100) : 0}% complete</span>
+        <span class="dsb-progress-pct">Today: ${todayPct}% dispatched</span>
       </div>
     `;
   }
@@ -200,19 +206,25 @@
     const today = now.toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
     let orders = [...dispatchData];
 
     // Filter
-    if (currentFilter === 'critical') {
+    if (currentFilter === 'overdue') {
+      orders = orders.filter(o => o.date_due && new Date(o.date_due) < now && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'today') {
+      orders = orders.filter(o => o.date_due && new Date(o.date_due).toISOString().slice(0, 10) === todayStr);
+    } else if (currentFilter === 'upcoming') {
+      orders = orders.filter(o => o.date_due && new Date(o.date_due) > now && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'critical') {
       orders = orders.filter(o => getUrgency(o) === 'critical' && !o.dispatched && !o.date_shipped);
-    } else if (currentFilter === 'done') {
-      orders = orders.filter(o => o.dispatched || o.date_shipped);
     } else if (currentFilter === 'pending') {
       orders = orders.filter(o => !o.dispatched && !o.date_shipped);
-    } else if (currentFilter === 'produced') {
-      orders = orders.filter(o => o.date_produced && !o.dispatched && !o.date_shipped);
     } else if (currentFilter === 'notproduced') {
       orders = orders.filter(o => !o.date_produced && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'done') {
+      orders = orders.filter(o => o.dispatched || o.date_shipped);
     }
 
     if (!orders.length) {
@@ -225,7 +237,45 @@
       return;
     }
 
-    grid.innerHTML = orders.map(order => buildCard(order)).join('');
+    // Group orders by due date for day headers
+    const grouped = {};
+    orders.forEach(order => {
+      const dayKey = order.date_due
+        ? new Date(order.date_due).toISOString().slice(0, 10)
+        : 'no-date';
+      if (!grouped[dayKey]) grouped[dayKey] = [];
+      grouped[dayKey].push(order);
+    });
+
+    // Build HTML with day group headers
+    let html = '';
+    Object.keys(grouped).sort().forEach(dayKey => {
+      const dayOrders = grouped[dayKey];
+      const dayDate = dayKey !== 'no-date' ? new Date(dayKey) : null;
+      const isToday = dayKey === todayStr;
+      const isPast = dayDate && dayDate < now && !isToday;
+      const isTomorrow = dayKey === new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+      const dayLabel = dayDate
+        ? dayDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+        : 'No Date';
+
+      const badge = isToday ? '<span class="day-badge day-today">Today</span>'
+        : isPast ? '<span class="day-badge day-overdue">Overdue</span>'
+        : isTomorrow ? '<span class="day-badge day-tomorrow">Tomorrow</span>'
+        : '';
+
+      html += `
+        <div class="dispatch-day-header">
+          <span class="dispatch-day-label">${dayLabel}</span>
+          ${badge}
+          <span class="dispatch-day-count">${dayOrders.length} order${dayOrders.length !== 1 ? 's' : ''}</span>
+        </div>
+      `;
+      html += dayOrders.map(order => buildCard(order)).join('');
+    });
+
+    grid.innerHTML = html;
 
     // Bind dispatch buttons
     grid.querySelectorAll('.dispatch-btn').forEach(btn => {
@@ -477,11 +527,13 @@
 
       <div class="dispatch-filter-row">
         <button class="dispatch-filter-btn active" data-filter="all">All</button>
-        <button class="dispatch-filter-btn" data-filter="critical">🔴 Critical</button>
+        <button class="dispatch-filter-btn" data-filter="overdue">🔴 Overdue</button>
+        <button class="dispatch-filter-btn" data-filter="today">Today</button>
+        <button class="dispatch-filter-btn" data-filter="upcoming">Upcoming</button>
+        <button class="dispatch-filter-btn" data-filter="critical">⚡ Critical</button>
         <button class="dispatch-filter-btn" data-filter="pending">Pending</button>
-        <button class="dispatch-filter-btn" data-filter="done">✓ Done</button>
-        <button class="dispatch-filter-btn" data-filter="produced">✓ Produced</button>
         <button class="dispatch-filter-btn" data-filter="notproduced">⚠️ Not Produced</button>
+        <button class="dispatch-filter-btn" data-filter="done">✓ Done</button>
       </div>
 
       <div id="dispatch-card-grid" class="dispatch-card-grid">
@@ -804,6 +856,42 @@
         border-radius: 8px;
         border: 1px solid rgba(34,197,94,0.2);
       }
+
+      /* ── Day group headers ── */
+      .dispatch-day-header {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0 6px;
+        border-bottom: 1px solid #1e2d45;
+        margin-bottom: 4px;
+        margin-top: 8px;
+      }
+      .dispatch-day-header:first-child { margin-top: 0; }
+      .dispatch-day-label {
+        font-size: 14px;
+        font-weight: 700;
+        color: #e8edf5;
+        letter-spacing: -0.2px;
+      }
+      .dispatch-day-count {
+        font-size: 12px;
+        color: #64748b;
+        margin-left: auto;
+        font-weight: 600;
+      }
+      .day-badge {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 4px;
+      }
+      .day-today    { background: rgba(249,115,22,0.15); color: #f97316; }
+      .day-tomorrow { background: rgba(34,197,94,0.12);  color: #22c55e; }
+      .day-overdue  { background: rgba(239,68,68,0.15);  color: #ef4444; animation: pulse-red 1.5s infinite; }
 
       /* ── Empty state ── */
       .dispatch-empty {
