@@ -243,10 +243,6 @@
     if (!grid) return;
 
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-
-    const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
     let orders = [...dispatchData];
 
