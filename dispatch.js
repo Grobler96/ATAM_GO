@@ -49,35 +49,6 @@
     startCountdownTick();
 
     dispatchTimer = setInterval(loadAndRender, REFRESH_MS);
-
-    // Re-query when global date filter changes — only if dispatch page is active
-    hookGlobalDateFilters();
-  }
-
-  /* ── Listen to global date range buttons and custom date inputs ── */
-  function hookGlobalDateFilters() {
-    function onFilterChange() {
-      const dispatchPage = document.getElementById('dispatch');
-      if (dispatchPage && dispatchPage.classList.contains('active')) {
-        // Small delay to let app.js update window.state first
-        setTimeout(loadAndRender, 80);
-      }
-    }
-
-    // Range preset buttons
-    document.querySelectorAll('.range-btn').forEach(btn => {
-      btn.addEventListener('click', onFilterChange);
-    });
-
-    // Custom date inputs
-    const fromInput = document.getElementById('dateFromInput');
-    const toInput = document.getElementById('dateToInput');
-    if (fromInput) fromInput.addEventListener('change', onFilterChange);
-    if (toInput) toInput.addEventListener('change', onFilterChange);
-
-    // Refresh button
-    const refreshBtn = document.getElementById('refreshBtn');
-    if (refreshBtn) refreshBtn.addEventListener('click', onFilterChange);
   }
 
   /* ── Hook sidebar nav — fully integrates with app.js page system ── */
@@ -100,64 +71,34 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
-      // 4. Refresh data
+      // 4. Hide global filter controls — not relevant for dispatch
+      const filterControls = document.querySelector('.topbar-controls');
+      if (filterControls) filterControls.style.display = 'none';
+
+      // 5. Refresh data
       loadAndRender();
     });
   }
 
-  /* ── Get active date range from global state or fall back to today ── */
-  function getDateRange() {
-    const globalState = window.state;
-    if (globalState && globalState.dateFrom && globalState.dateTo) {
-      return { from: globalState.dateFrom, to: globalState.dateTo, range: globalState.range || 'custom' };
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    return { from: today, to: today, range: 'today' };
-  }
-
-  /* ── Load data from Supabase — respects global date filter ── */
+  /* ── Load data from Supabase — always shows today + tomorrow ── */
   async function loadAndRender() {
     try {
       const cfg = window.ATAM_GO_CONFIG || {};
-      if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
-        console.warn('[Dispatch] Missing Supabase config');
-        return;
-      }
+      if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return;
 
-      // Always create a fresh client using the anon key
-      // The session is handled by Supabase's own cookie/localStorage — createClient picks it up automatically
       const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
-      const { from, to, range } = getDateRange();
-      console.log('[Dispatch] Querying date_due range:', from, 'to', to);
+      const today = new Date().toISOString().slice(0, 10);
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
-      // Update the dispatch page subtitle to show the active range
-      const subtitle = document.querySelector('#dispatch .page-subtitle');
-      if (subtitle) {
-        const rangeLabels = {
-          today: "Showing today's orders",
-          yesterday: "Showing yesterday's orders",
-          last7: 'Showing last 7 days',
-          month: 'Showing this month',
-          custom: `Showing ${from} to ${to}`
-        };
-        subtitle.textContent = rangeLabels[range] || `Showing ${from} to ${to}`;
-      }
-
-      // date_due is a timestamptz — cast to date for comparison
       const { data, error } = await sb
         .from('decoration_records')
         .select('*')
-        .gte('date_due', `${from}`)
-        .lte('date_due', `${to}T23:59:59+00`)
+        .gte('date_due', `${today}T00:00:00`)
+        .lte('date_due', `${tomorrow}T23:59:59`)
         .order('date_due', { ascending: true });
 
-      console.log('[Dispatch] Query result:', { count: data?.length, error });
-
-      if (error) {
-        console.error('[Dispatch] Supabase error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       // Group by order_id
       const grouped = {};
@@ -496,12 +437,17 @@
     }
 
     // Patch existing nav links so they also hide the dispatch page
+    // and restore the global filter controls
     document.querySelectorAll('.nav-link:not([data-page="dispatch"])').forEach(btn => {
       btn.addEventListener('click', () => {
         const dispatchPage = document.getElementById('dispatch');
         const dispatchBtn = document.querySelector('[data-page="dispatch"]');
         if (dispatchPage) dispatchPage.classList.remove('active');
         if (dispatchBtn) dispatchBtn.classList.remove('active');
+
+        // Restore global filter controls
+        const filterControls = document.querySelector('.topbar-controls');
+        if (filterControls) filterControls.style.display = '';
       });
     });
 
