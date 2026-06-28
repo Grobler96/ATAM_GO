@@ -42,6 +42,7 @@
 
   /* ── Init ── */
   function initDispatch() {
+    console.log('[Dispatch] Initialising...');
     injectStyles();
     injectPage();
     hookNavLink();
@@ -49,6 +50,7 @@
     startCountdownTick();
 
     dispatchTimer = setInterval(loadAndRender, REFRESH_MS);
+    console.log('[Dispatch] Done — nav button injected:', !!document.querySelector('[data-page="dispatch"]'));
   }
 
   /* ── Hook sidebar nav — fully integrates with app.js page system ── */
@@ -962,11 +964,21 @@
       .replace(/"/g, '&quot;');
   }
 
-  /* ── Boot when DOM ready ── */
+  /* ── Boot — retry until sidebar nav exists ── */
+  function boot() {
+    const nav = document.querySelector('.sidebar-nav');
+    if (nav) {
+      initDispatch();
+    } else {
+      // Sidebar not ready yet — retry every 100ms
+      setTimeout(boot, 100);
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initDispatch);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 500));
   } else {
-    initDispatch();
+    setTimeout(boot, 500);
   }
 
 })();
