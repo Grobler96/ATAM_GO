@@ -164,11 +164,9 @@
         transition: transform 0.3s ease;
       }
 
-      /* ── Main content depth shift ── */
+      /* ── Main content — no global transform, avoids page shift on tall pages ── */
       .main-content {
-        transform-style: preserve-3d;
-        transition: transform 0.08s linear;
-        will-change: transform;
+        transform-style: flat;
       }
 
       /* ── Panel hover lift ── */
@@ -323,8 +321,16 @@
   function initParallax() {
     let mouseX = 0, mouseY = 0;
     let currentX = 0, currentY = 0;
-    const main = document.querySelector('.main-content');
     const topbar = document.querySelector('.topbar');
+
+    // Pages where parallax on main content is disabled (tall scrolling pages)
+    const PARALLAX_DISABLED_PAGES = ['customers', 'activity', 'orders', 'production'];
+
+    function isParallaxPage() {
+      const active = document.querySelector('.dashboard-page.active');
+      if (!active) return false;
+      return !PARALLAX_DISABLED_PAGES.includes(active.id);
+    }
 
     document.addEventListener('mousemove', e => {
       const cx = window.innerWidth / 2;
@@ -334,18 +340,14 @@
     });
 
     function tick() {
-      currentX += (mouseX - currentX) * 0.06;
-      currentY += (mouseY - currentY) * 0.06;
+      currentX += (mouseX - currentX) * 0.05;
+      currentY += (mouseY - currentY) * 0.05;
 
-      const px = currentX * CFG.parallax.strength;
-      const py = currentY * CFG.parallax.strength;
-
-      if (main) {
-        main.style.transform = `perspective(1200px) rotateX(${-py * 0.018}deg) rotateY(${px * 0.018}deg)`;
-      }
-
+      // Very subtle topbar float on all pages — tiny translate only, no rotation
       if (topbar) {
-        topbar.style.transform = `translateX(${px * 0.12}px) translateY(${py * 0.08}px)`;
+        const px = currentX * 5;
+        const py = currentY * 3;
+        topbar.style.transform = `translateX(${px}px) translateY(${py}px)`;
       }
 
       requestAnimationFrame(tick);
