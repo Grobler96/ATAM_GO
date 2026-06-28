@@ -440,9 +440,51 @@
   /* ══════════════════════════════════════════
      PAGE TRANSITIONS
   ══════════════════════════════════════════ */
-  function initPageTransitions() {
-    const navButtons = document.querySelectorAll('.nav-link');
+  function bindNavTransition(btn) {
+    if (btn.dataset.transitionBound) return;
+    btn.dataset.transitionBound = '1';
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.page;
+      const currentPage = document.querySelector('.dashboard-page.active');
+      const nextPage = document.getElementById(targetId);
 
+      if (!nextPage || currentPage === nextPage) return;
+
+      if (currentPage) {
+        currentPage.classList.add('page-exit');
+        setTimeout(() => currentPage.classList.remove('page-exit'), CFG.transition.duration);
+      }
+
+      setTimeout(() => {
+        if (nextPage.classList.contains('active')) {
+          triggerCardEntrances(nextPage);
+        } else {
+          const check = setInterval(() => {
+            if (nextPage.classList.contains('active')) {
+              clearInterval(check);
+              nextPage.classList.add('page-enter');
+              setTimeout(() => nextPage.classList.remove('page-enter'), CFG.transition.duration);
+              triggerCardEntrances(nextPage);
+              triggerKpiPop(nextPage);
+            }
+          }, 20);
+        }
+      }, CFG.transition.duration * 0.3);
+    });
+  }
+
+  function initPageTransitions() {
+    // Bind existing nav buttons
+    document.querySelectorAll('.nav-link').forEach(bindNavTransition);
+
+    // Watch for new nav buttons added dynamically (e.g. dispatch.js)
+    const navObserver = new MutationObserver(() => {
+      document.querySelectorAll('.nav-link').forEach(bindNavTransition);
+    });
+    const nav = document.querySelector('.sidebar-nav');
+    if (nav) navObserver.observe(nav, { childList: true });
+
+    const navButtons = document.querySelectorAll('.nav-link');
     navButtons.forEach(btn => {
       btn.addEventListener('click', () => {
         const targetId = btn.dataset.page;
