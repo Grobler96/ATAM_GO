@@ -1284,19 +1284,19 @@
   <script src="app.js"></script>
   <script src="enhancements.js"></script>
 
-  <!-- ── SIGN OUT ── -->
+ <!-- ── SIGN OUT ── -->
   <script>
     async function signOut() {
       const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
-      const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTA4NDAsImV4cCI6MjA5NjA4Njg0MH0.MwfoPHpa--9uiwCcgtzUn2nFMBcFawQAg44rmSdisyQ';
+      const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDUxMDg0MCwiZXhwIjoyMDk2MDg2ODQwfQ.0HtbviXwiKHy_yRBY5f2cRpvYk8UOLvP8TIYBc-L7j4';
       const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
       await _sb.auth.signOut();
       window.location.replace('./login.html');
     }
   </script>
-<script src="dispatch.js"></script>
-<script src="effects3d.js"></script>
-  
-})();
+
+  <script src="dispatch.js"></script>
+  <script src="effects3d.js"></script>
+
 </body>
 </html>
