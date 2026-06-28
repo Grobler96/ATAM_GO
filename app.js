@@ -31,6 +31,10 @@ const sb =
     ? supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
     : null;
 
+// Expose Supabase client globally so dispatch.js and other modules
+// can reuse the same authenticated session
+window._atamSb = sb;
+
 document.addEventListener('DOMContentLoaded', async () => {
   if ($('dateFromInput')) $('dateFromInput').value = state.dateFrom;
   if ($('dateToInput')) $('dateToInput').value = state.dateTo;
