@@ -88,60 +88,98 @@
 
       const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
-      // Show: last 48 hours (overdue/missed) + next 7 days (upcoming)
-      const from48h = new Date(Date.now() - 48 * 3600000).toISOString().slice(0, 10);
-      const next7d  = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      // Last 48 hours (overdue/missed) + next 14 days (upcoming) from WF3 table
+      const from48h = new Date(Date.now() - 48 * 3600000).toISOString();
+      const next14d = new Date(Date.now() + 14 * 86400000).toISOString();
 
-      const { data, error } = await sb
-        .from('decoration_records')
+      // Try upcoming_orders first (populated by WF3)
+      // Fall back to decoration_records if table is empty or errors
+      let data = null;
+      let source = 'upcoming_orders';
+
+      const { data: upcomingData, error: upcomingError } = await sb
+        .from('upcoming_orders')
         .select('*')
-        .gte('date_due', `${from48h}T00:00:00`)
-        .lte('date_due', `${next7d}T23:59:59`)
+        .gte('date_due', from48h)
+        .lte('date_due', next14d)
         .order('date_due', { ascending: true });
 
-      if (error) throw error;
+      if (!upcomingError && upcomingData && upcomingData.length > 0) {
+        // upcoming_orders has data — use it
+        data = upcomingData;
+        source = 'upcoming_orders';
+      } else {
+        // WF3 hasn't run yet — fall back to decoration_records
+        console.log('[Dispatch] upcoming_orders empty or error, falling back to decoration_records');
+        source = 'decoration_records';
 
-      // Group by order_id
-      const grouped = {};
-      for (const row of data || []) {
-        const key = row.order_id;
-        if (!key) continue;
+        const { data: fallbackData, error: fallbackError } = await sb
+          .from('decoration_records')
+          .select('*')
+          .gte('date_due', from48h)
+          .lte('date_due', next14d)
+          .order('date_due', { ascending: true });
 
-        if (!grouped[key]) {
-          grouped[key] = {
-            order_id: key,
-            customer_name: row.customer_name || 'Unknown',
-            store_name: row.store_name || '—',
-            shipping_method: row.shipping_method || '—',
-            date_due: row.date_due,
-            date_produced: row.date_produced,
-            date_shipped: row.date_shipped,
-            assigned_to: row.assigned_to || null,
-            order_status: row.order_status,
-            total_qty: 0,
-            processes: new Set(),
-          };
-        }
-
-        grouped[key].total_qty += Number(row.quantity || 0);
-        if (row.process_code) grouped[key].processes.add(row.process_code);
-
-        // Keep earliest due date
-        if (row.date_due && (!grouped[key].date_due || row.date_due < grouped[key].date_due)) {
-          grouped[key].date_due = row.date_due;
-        }
+        if (!fallbackError) data = fallbackData;
       }
 
-      dispatchData = Object.values(grouped).map(o => ({
-        ...o,
-        processes: [...o.processes],
-        dispatched: dispatchedOrders.has(String(o.order_id)),
-      }));
+      if (source === 'upcoming_orders') {
+        // upcoming_orders — already one row per order
+        dispatchData = (data || []).map(o => ({
+          order_id: o.order_id,
+          customer_name: o.customer_name || 'Unknown',
+          store_name: o.store_name || '—',
+          shipping_method: o.shipping_method || '—',
+          date_due: o.date_due,
+          date_produced: o.date_produced,
+          date_shipped: o.date_shipped,
+          assigned_to: o.assigned_to || null,
+          order_status: o.order_status,
+          total_qty: o.total_quantity || 0,
+          processes: o.processes || [],
+          is_production_complete: o.is_production_complete || false,
+          products: o.products || [],
+          dispatched: dispatchedOrders.has(String(o.order_id)),
+        }));
+      } else {
+        // decoration_records — group by order_id first
+        const grouped = {};
+        for (const row of data || []) {
+          const key = row.order_id;
+          if (!key) continue;
+          if (!grouped[key]) {
+            grouped[key] = {
+              order_id: key,
+              customer_name: row.customer_name || 'Unknown',
+              store_name: row.store_name || '—',
+              shipping_method: row.shipping_method || '—',
+              date_due: row.date_due,
+              date_produced: row.date_produced,
+              date_shipped: row.date_shipped,
+              assigned_to: row.assigned_to || null,
+              order_status: row.order_status,
+              total_qty: 0,
+              processes: new Set(),
+              is_production_complete: !!row.date_produced,
+              products: [],
+            };
+          }
+          grouped[key].total_qty += Number(row.quantity || 0);
+          if (row.process_code) grouped[key].processes.add(row.process_code);
+        }
+        dispatchData = Object.values(grouped).map(o => ({
+          ...o,
+          processes: [...o.processes],
+          dispatched: dispatchedOrders.has(String(o.order_id)),
+        }));
+      }
 
       renderDispatch();
 
     } catch (err) {
       console.error('[Dispatch]', err);
+      // Always render even on error — shows empty state rather than broken tab
+      renderDispatch();
     }
   }
 
