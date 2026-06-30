@@ -764,6 +764,96 @@
       window.location.replace('./login.html');
     }
   </script>
+/* ═══════════════════════════════════════════════════════════════
+   FRIDAY WEEK-AHEAD AUTO-TRIGGER
+   Paste this as a new <script> block in index.html, placed AFTER
+   the existing "DAN BOT SCRIPT" block (which defines window.danToggle
+   and window.danSendText) and after app.js has loaded.
 
+   Simplest placement: just before the closing </body> tag, after
+   all your other <script src="..."> lines.
+
+   What it does:
+   - On page load, checks if today is Friday (local time)
+   - Checks localStorage to see if we've already auto-fired today
+   - If Friday + not yet shown today: opens the DAN panel and sends
+     "What's my week looking like next week?" automatically
+   - Resets each new day automatically (key includes today's date)
+   ═══════════════════════════════════════════════════════════════ */
+
+<script>
+(function () {
+  'use strict';
+
+  const STORAGE_KEY_PREFIX = 'atam-dan-friday-shown-';
+
+  function todayKey() {
+    return STORAGE_KEY_PREFIX + new Date().toISOString().slice(0, 10);
+  }
+
+  function isFriday() {
+    return new Date().getDay() === 5; // 0=Sun ... 5=Fri
+  }
+
+  function alreadyShownToday() {
+    try {
+      return localStorage.getItem(todayKey()) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  function markShownToday() {
+    try {
+      localStorage.setItem(todayKey(), 'true');
+    } catch { /* ignore */ }
+  }
+
+  function waitForDanReady(callback, attempts = 0) {
+    // window.danToggle and window.danSendText are defined inside the
+    // DAN BOT SCRIPT's IIFE and exposed globally — wait until they exist
+    if (typeof window.danToggle === 'function' && typeof window.danSendText === 'function') {
+      callback();
+    } else if (attempts < 50) {
+      setTimeout(() => waitForDanReady(callback, attempts + 1), 100);
+    }
+  }
+
+  function runFridayTrigger() {
+    const panel = document.getElementById('dan-panel');
+    if (!panel) return;
+
+    // Open the panel using the real toggle function (handles fab icon state too)
+    if (!panel.classList.contains('open')) {
+      window.danToggle();
+    }
+
+    // Give the greeting/insights render a moment, then send the question
+    // through the same path a real user message takes
+    setTimeout(() => {
+      window.danSendText("What's my week looking like next week?");
+    }, 900);
+  }
+
+  function maybeRunFridayTrigger() {
+    if (!isFriday()) return;
+    if (alreadyShownToday()) return;
+
+    markShownToday();
+
+    waitForDanReady(() => {
+      // Extra delay so this fires after the dashboard's own initial
+      // data load/render, not racing it
+      setTimeout(runFridayTrigger, 2000);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', maybeRunFridayTrigger);
+  } else {
+    maybeRunFridayTrigger();
+  }
+})();
+</script>
 </body>
 </html>
