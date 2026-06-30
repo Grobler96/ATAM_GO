@@ -2,10 +2,16 @@ const cfg = window.ATAM_GO_CONFIG || {};
 
 const todayIso = new Date().toISOString().slice(0, 10);
 
+function defaultStartIso() {
+  const d = new Date();
+  d.setDate(d.getDate() - 6); // Last 7 days, inclusive of today
+  return d.toISOString().slice(0, 10);
+}
+
 const state = {
-  dateFrom: todayIso,
+  dateFrom: defaultStartIso(),
   dateTo: todayIso,
-  range: 'today',
+  range: 'last7',
   store: '',
   type: '',
   search: '',
