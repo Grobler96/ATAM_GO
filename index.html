@@ -54,29 +54,33 @@
       transform: scale(0.9) rotate(20deg);
       background: linear-gradient(135deg, #ef4444, #f97316);
     }
+
+    /* ── DAN PANEL — now a full-height side drawer instead of a floating popup ── */
     #dan-panel {
       position: fixed;
-      bottom: 96px;
-      right: 24px;
-      width: 380px;
-      max-height: 580px;
-      border-radius: 20px;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 440px;
+      max-width: 92vw;
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
       overflow: hidden;
       z-index: 9998;
       display: flex;
       flex-direction: column;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      transform: scale(0.88) translateY(24px);
-      opacity: 0;
+      transform: translateX(100%);
+      opacity: 1;
       pointer-events: none;
-      transition: transform 0.26s cubic-bezier(.34,1.56,.64,1), opacity 0.2s ease;
-      border: 1px solid rgba(56,189,248,0.2);
-      box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.08), inset 0 1px 0 rgba(255,255,255,0.06);
+      transition: transform 0.32s cubic-bezier(.34,1.1,.4,1);
+      border-left: 1px solid rgba(56,189,248,0.2);
+      box-shadow: -24px 0 64px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
       background: #0d1a2e;
     }
     #dan-panel.open {
-      transform: scale(1) translateY(0);
-      opacity: 1;
+      transform: translateX(0);
       pointer-events: all;
     }
     #dan-header {
@@ -113,7 +117,7 @@
       transition: all 0.15s; line-height: 1;
     }
     #dan-close:hover { background: rgba(239,68,68,0.2); color: #f87171; border-color: rgba(239,68,68,0.3); }
-    #dan-insights { padding: 10px 12px 0; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    #dan-insights { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
     .dan-insight-card {
       display: flex; align-items: flex-start; gap: 10px;
       background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
@@ -130,16 +134,18 @@
     .dan-ic-text { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
     .dan-ic-text strong { color: #f8fafc; font-weight: 700; }
     .dan-ic-hint { font-size: 10px; color: rgba(56,189,248,0.7); margin-top: 3px; }
+
+    /* messages area now fills all remaining space in the drawer */
     #dan-messages {
-      flex: 1; overflow-y: auto; padding: 10px 12px;
-      display: flex; flex-direction: column; gap: 8px;
-      min-height: 80px; max-height: 260px;
+      flex: 1; overflow-y: auto; padding: 14px 16px;
+      display: flex; flex-direction: column; gap: 10px;
+      min-height: 0; max-height: none;
     }
-    #dan-messages::-webkit-scrollbar { width: 3px; }
+    #dan-messages::-webkit-scrollbar { width: 4px; }
     #dan-messages::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 2px; }
     .dan-msg {
-      max-width: 88%; padding: 10px 13px; border-radius: 14px;
-      font-size: 13px; line-height: 1.55; word-break: break-word;
+      max-width: 88%; padding: 11px 15px; border-radius: 14px;
+      font-size: 14px; line-height: 1.6; word-break: break-word;
       animation: dan-msg-in 0.2s ease;
     }
     @keyframes dan-msg-in { from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)} }
@@ -165,29 +171,29 @@
     .dan-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
     .dan-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes dan-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-4px);opacity:1} }
-    .dan-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .dan-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .dan-chip {
       background: rgba(56,189,248,0.1); color: #7dd3fc;
       border: 1px solid rgba(56,189,248,0.22); border-radius: 20px;
-      padding: 4px 10px; font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+      padding: 5px 11px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
     }
     .dan-chip:hover { background: rgba(56,189,248,0.2); color: #bae6fd; }
-    .dan-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 12px; flex-shrink: 0; }
+    .dan-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 16px; flex-shrink: 0; }
     #dan-input-row {
       display: flex; align-items: center; gap: 8px;
-      padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.06);
       background: rgba(0,0,0,0.2); flex-shrink: 0;
     }
     #dan-input {
       flex: 1; background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.1); border-radius: 22px;
-      padding: 9px 14px; font-size: 13px; color: #f8fafc; outline: none;
+      padding: 10px 16px; font-size: 14px; color: #f8fafc; outline: none;
       transition: border-color 0.15s, background 0.15s;
     }
     #dan-input::placeholder { color: #475569; }
     #dan-input:focus { border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.05); }
     #dan-send {
-      width: 36px; height: 36px; border-radius: 50%;
+      width: 38px; height: 38px; border-radius: 50%;
       background: linear-gradient(135deg, #38bdf8, #6366f1);
       color: #fff; border: none; cursor: pointer; font-size: 15px;
       display: flex; align-items: center; justify-content: center;
@@ -205,7 +211,7 @@
     }
     #signOutBtn:hover { background: rgba(249,115,22,0.28); }
     @media (max-width: 420px) {
-      #dan-panel { width: calc(100vw - 32px); right: 16px; bottom: 84px; }
+      #dan-panel { width: 100vw; }
       #dan-fab { bottom: 16px; right: 16px; }
     }
   </style>
@@ -270,6 +276,13 @@
       }
     }
 
+    // Cleans up model output that leans on em/en dashes as clause joiners.
+    // Leaves genuine hyphenated words (e.g. "at-risk", "re-order") untouched
+    // since those only ever use a plain hyphen, not — or –.
+    function cleanDashes(text) {
+      return String(text).replace(/\s*[—–]\s*/g, ', ');
+    }
+
     function buildInsights() {
       const s = window.state || {};
       const overview  = s.data?.overview?.[0]  || {};
@@ -294,7 +307,7 @@
         const totalQty = ready.reduce((sum, r) => sum + Number(r.total_quantity || 0), 0);
         insights.push({
           type: 'good', icon: '✅',
-          text: `<strong>${ready.length} order${ready.length > 1 ? 's' : ''} ready to ship</strong> — ${fmtNum(totalQty)} total units awaiting dispatch.`,
+          text: `<strong>${ready.length} order${ready.length > 1 ? 's' : ''} ready to ship</strong>, ${fmtNum(totalQty)} total units awaiting dispatch.`,
           hint: 'Tap to see the full list',
           prompt: "Give me the full ready to ship list with customer names and quantities"
         });
@@ -321,7 +334,7 @@
         const val = atRisk.reduce((s, c) => s + Number(c.last_order_value || 0), 0);
         insights.push({
           type: 'warning', icon: '💰',
-          text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong> — <strong>£${fmtNum(val)}</strong> potential value at risk.` +
+          text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong>, <strong>£${fmtNum(val)}</strong> potential value at risk.` +
                 (top ? ` ${top.name || top.company || 'A customer'} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''),
           hint: 'Tap to see who needs a call',
           prompt: `Which customers are most overdue for reorder and what's the value at risk?`
@@ -342,7 +355,7 @@
             type: 'info', icon: '📦',
             text: `Biggest active job: Order <strong>#${biggest[0]}</strong>` +
                   (row?.customer_name ? ` for <strong>${row.customer_name}</strong>` : '') +
-                  ` — <strong>${fmtNum(biggest[1])} units</strong>.`,
+                  `, <strong>${fmtNum(biggest[1])} units</strong>.`,
             hint: 'Tap to ask about this order',
             prompt: `Tell me everything about order #${biggest[0]}`
           });
@@ -389,7 +402,7 @@
       const ready = s.data?.ready?.length || 0;
       let statusLine = '';
       if (risk > 0) statusLine = `⚠️ You have <strong>${risk} order${risk>1?'s':''} needing attention</strong> right now.`;
-      else if (ready > 0) statusLine = `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong> — looking good.`;
+      else if (ready > 0) statusLine = `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong>, looking good.`;
       else statusLine = `Everything looks clear. Ask me anything about production.`;
       danAppendBot(`${greeting}! I'm <strong>DAN</strong>, your ATAM GO production analyst. 👋<br><br>${statusLine}`, true);
     }
@@ -474,8 +487,8 @@
         ready_to_ship:       (s.data?.ready         || []).length,
         customers_at_risk:   (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length,
         top_customers:       (s.data?.customers     || []).slice(0, 5).map(c => `${c.customer_name} (${c.total_quantity} units)`).join(', '),
-        risk_orders_detail:  (s.data?.risk          || []).slice(0, 3).map(r => `#${r.order_id} — ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '),
-        ready_orders_detail: (s.data?.ready         || []).slice(0, 3).map(r => `#${r.order_id} — ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', '),
+        risk_orders_detail:  (s.data?.risk          || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '),
+        ready_orders_detail: (s.data?.ready         || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', '),
       };
 
       try {
@@ -487,7 +500,8 @@
         danRemoveTyping();
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data  = await res.json();
-        const reply = data.reply || data.output || data.message || 'Sorry, no response received.';
+        const rawReply = data.reply || data.output || data.message || 'Sorry, no response received.';
+        const reply = cleanDashes(rawReply);
         danAppendBot(reply.replace(/\n/g, '<br>'), false);
       } catch (err) {
         danRemoveTyping();
@@ -511,9 +525,10 @@
       }).observe(_statusEl, { childList: true, characterData: true, subtree: true });
     }
 
-    window.danToggle  = danToggle;
-    window.danSend    = danSend;
-    window.danRefresh = renderInsights;
+    window.danToggle    = danToggle;
+    window.danSend      = danSend;
+    window.danSendText  = danSendText;
+    window.danRefresh   = renderInsights;
 
     function fmtNum(n) { return new Intl.NumberFormat('en-GB').format(Number(n || 0)); }
   })();
@@ -765,96 +780,77 @@
       window.location.replace('./login.html');
     }
   </script>
-/* ═══════════════════════════════════════════════════════════════
-   FRIDAY WEEK-AHEAD AUTO-TRIGGER
-   Paste this as a new <script> block in index.html, placed AFTER
-   the existing "DAN BOT SCRIPT" block (which defines window.danToggle
-   and window.danSendText) and after app.js has loaded.
 
-   Simplest placement: just before the closing </body> tag, after
-   all your other <script src="..."> lines.
+  <!-- ═══════════════════════════════════════════════════════════════
+       FRIDAY WEEK-AHEAD AUTO-TRIGGER
+       ═══════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    'use strict';
 
-   What it does:
-   - On page load, checks if today is Friday (local time)
-   - Checks localStorage to see if we've already auto-fired today
-   - If Friday + not yet shown today: opens the DAN panel and sends
-     "What's my week looking like next week?" automatically
-   - Resets each new day automatically (key includes today's date)
-   ═══════════════════════════════════════════════════════════════ */
+    const STORAGE_KEY_PREFIX = 'atam-dan-friday-shown-';
 
-<script>
-(function () {
-  'use strict';
-
-  const STORAGE_KEY_PREFIX = 'atam-dan-friday-shown-';
-
-  function todayKey() {
-    return STORAGE_KEY_PREFIX + new Date().toISOString().slice(0, 10);
-  }
-
-  function isFriday() {
-    return new Date().getDay() === 5; // 0=Sun ... 5=Fri
-  }
-
-  function alreadyShownToday() {
-    try {
-      return localStorage.getItem(todayKey()) === 'true';
-    } catch {
-      return false;
-    }
-  }
-
-  function markShownToday() {
-    try {
-      localStorage.setItem(todayKey(), 'true');
-    } catch { /* ignore */ }
-  }
-
-  function waitForDanReady(callback, attempts = 0) {
-    // window.danToggle and window.danSendText are defined inside the
-    // DAN BOT SCRIPT's IIFE and exposed globally — wait until they exist
-    if (typeof window.danToggle === 'function' && typeof window.danSendText === 'function') {
-      callback();
-    } else if (attempts < 50) {
-      setTimeout(() => waitForDanReady(callback, attempts + 1), 100);
-    }
-  }
-
-  function runFridayTrigger() {
-    const panel = document.getElementById('dan-panel');
-    if (!panel) return;
-
-    // Open the panel using the real toggle function (handles fab icon state too)
-    if (!panel.classList.contains('open')) {
-      window.danToggle();
+    function todayKey() {
+      return STORAGE_KEY_PREFIX + new Date().toISOString().slice(0, 10);
     }
 
-    // Give the greeting/insights render a moment, then send the question
-    // through the same path a real user message takes
-    setTimeout(() => {
-      window.danSendText("What's my week looking like next week?");
-    }, 900);
-  }
+    function isFriday() {
+      return new Date().getDay() === 5; // 0=Sun ... 5=Fri
+    }
 
-  function maybeRunFridayTrigger() {
-    if (!isFriday()) return;
-    if (alreadyShownToday()) return;
+    function alreadyShownToday() {
+      try {
+        return localStorage.getItem(todayKey()) === 'true';
+      } catch {
+        return false;
+      }
+    }
 
-    markShownToday();
+    function markShownToday() {
+      try {
+        localStorage.setItem(todayKey(), 'true');
+      } catch { /* ignore */ }
+    }
 
-    waitForDanReady(() => {
-      // Extra delay so this fires after the dashboard's own initial
-      // data load/render, not racing it
-      setTimeout(runFridayTrigger, 2000);
-    });
-  }
+    function waitForDanReady(callback, attempts = 0) {
+      if (typeof window.danToggle === 'function' && typeof window.danSendText === 'function') {
+        callback();
+      } else if (attempts < 50) {
+        setTimeout(() => waitForDanReady(callback, attempts + 1), 100);
+      }
+    }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', maybeRunFridayTrigger);
-  } else {
-    maybeRunFridayTrigger();
-  }
-})();
-</script>
+    function runFridayTrigger() {
+      const panel = document.getElementById('dan-panel');
+      if (!panel) return;
+
+      if (!panel.classList.contains('open')) {
+        window.danToggle();
+      }
+
+      setTimeout(() => {
+        window.danSendText("What's my week looking like next week?");
+      }, 900);
+    }
+
+    function maybeRunFridayTrigger() {
+      if (!isFriday()) return;
+      if (alreadyShownToday()) return;
+
+      markShownToday();
+
+      waitForDanReady(() => {
+        setTimeout(runFridayTrigger, 2000);
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', maybeRunFridayTrigger);
+    } else {
+      maybeRunFridayTrigger();
+    }
+  })();
+  </script>
+
 </body>
 </html>
