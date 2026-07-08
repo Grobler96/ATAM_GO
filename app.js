@@ -2,16 +2,30 @@ const cfg = window.ATAM_GO_CONFIG || {};
 
 const todayIso = new Date().toISOString().slice(0, 10);
 
-function defaultStartIso() {
+// Returns Monday of the current week (Mon-Sun)
+function currentWeekMonday() {
   const d = new Date();
-  d.setDate(d.getDate() - 6); // Last 7 days, inclusive of today
+  const day = d.getDay(); // 0=Sun, 1=Mon...6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // if Sunday, go back 6; else go back to Monday
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+// Returns Sunday of the current week (Mon-Sun)
+function currentWeekSunday() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? 0 : 7 - day; // if already Sunday stay; else go forward to Sunday
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
   return d.toISOString().slice(0, 10);
 }
 
 const state = {
-  dateFrom: defaultStartIso(),
-  dateTo: todayIso,
-  range: 'last7',
+  dateFrom: currentWeekMonday(),
+  dateTo: currentWeekSunday(),
+  range: 'week',
   store: '',
   type: '',
   search: '',
@@ -1132,6 +1146,11 @@ function setDateRange(range) {
   const start = new Date(today);
 
   state.range = range;
+
+  if (range === 'week') {
+    state.dateFrom = currentWeekMonday();
+    state.dateTo = currentWeekSunday();
+  }
 
   if (range === 'today') {
     state.dateFrom = formatDate(today);
