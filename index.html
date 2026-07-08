@@ -4,17 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ATAM GO</title>
-
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="enhancements.css" />
-
-  <!-- Supabase loaded in head so session check can run immediately -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-
 <body>
 
-  <!-- ── SESSION CHECK ── -->
+  <!-- SESSION CHECK -->
   <script>
     (async () => {
       const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
@@ -25,95 +21,49 @@
     })();
   </script>
 
-  <!-- ── DAN BOT STYLES ── -->
+  <!-- DAN BOT STYLES -->
   <style>
     #dan-fab {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      width: 58px;
-      height: 58px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #38bdf8, #6366f1);
-      color: #fff;
-      font-size: 24px;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 4px 24px rgba(56,189,248,0.5), 0 0 0 0 rgba(56,189,248,0.3);
-      z-index: 9999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: fixed; bottom: 24px; right: 24px; width: 58px; height: 58px;
+      border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: #fff; font-size: 24px; border: none; cursor: pointer;
+      box-shadow: 0 4px 24px rgba(56,189,248,0.5); z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
       transition: transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s;
     }
-    #dan-fab:hover {
-      transform: scale(1.12);
-      box-shadow: 0 8px 32px rgba(56,189,248,0.6), 0 0 0 6px rgba(56,189,248,0.12);
-    }
-    #dan-fab.dan-open {
-      transform: scale(0.9) rotate(20deg);
-      background: linear-gradient(135deg, #ef4444, #f97316);
-    }
-
+    #dan-fab:hover { transform: scale(1.12); box-shadow: 0 8px 32px rgba(56,189,248,0.6), 0 0 0 6px rgba(56,189,248,0.12); }
+    #dan-fab.dan-open { transform: scale(0.9) rotate(20deg); background: linear-gradient(135deg, #ef4444, #f97316); }
     #dan-panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 440px;
-      max-width: 92vw;
-      height: 100vh;
-      max-height: 100vh;
-      border-radius: 0;
-      overflow: hidden;
-      z-index: 9998;
-      display: flex;
-      flex-direction: column;
+      position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 92vw;
+      height: 100vh; border-radius: 0; overflow: hidden; z-index: 9998;
+      display: flex; flex-direction: column;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      transform: translateX(100%);
-      opacity: 1;
-      pointer-events: none;
+      transform: translateX(100%); opacity: 1; pointer-events: none;
       transition: transform 0.32s cubic-bezier(.34,1.1,.4,1);
       border-left: 1px solid rgba(56,189,248,0.2);
-      box-shadow: -24px 0 64px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
-      background: #0d1a2e;
+      box-shadow: -24px 0 64px rgba(0,0,0,0.55); background: #0d1a2e;
     }
-    #dan-panel.open {
-      transform: translateX(0);
-      pointer-events: all;
-    }
+    #dan-panel.open { transform: translateX(0); pointer-events: all; }
     #dan-header {
       background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(99,102,241,0.12));
       border-bottom: 1px solid rgba(56,189,248,0.15);
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
+      padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
     }
     #dan-header .dan-avatar {
       width: 36px; height: 36px; border-radius: 50%;
       background: linear-gradient(135deg, #38bdf8, #6366f1);
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
-      box-shadow: 0 0 12px rgba(56,189,248,0.4);
-      flex-shrink: 0;
+      font-size: 18px; box-shadow: 0 0 12px rgba(56,189,248,0.4); flex-shrink: 0;
     }
     #dan-header .dan-title-wrap { flex: 1; }
-    #dan-header .dan-name { font-size: 14px; font-weight: 700; color: #f8fafc; letter-spacing: -0.01em; }
+    #dan-header .dan-name { font-size: 14px; font-weight: 700; color: #f8fafc; }
     #dan-header .dan-subtitle { font-size: 11px; color: rgba(56,189,248,0.8); display: flex; align-items: center; gap: 5px; margin-top: 1px; }
-    .dan-live-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: #22c55e; box-shadow: 0 0 5px #22c55e;
-      animation: dan-pulse 2s infinite; flex-shrink: 0;
-    }
+    .dan-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 5px #22c55e; animation: dan-pulse 2s infinite; flex-shrink: 0; }
     @keyframes dan-pulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)} }
     #dan-close {
       background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
-      color: #94a3b8; cursor: pointer; font-size: 16px;
-      width: 28px; height: 28px; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s; line-height: 1;
+      color: #94a3b8; cursor: pointer; font-size: 16px; width: 28px; height: 28px;
+      border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
     }
     #dan-close:hover { background: rgba(239,68,68,0.2); color: #f87171; border-color: rgba(239,68,68,0.3); }
     #dan-insights { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
@@ -135,96 +85,44 @@
     .dan-ic-hint { font-size: 10px; color: rgba(56,189,248,0.7); margin-top: 3px; }
     #dan-messages {
       flex: 1; overflow-y: auto; padding: 14px 16px;
-      display: flex; flex-direction: column; gap: 10px;
-      min-height: 0; max-height: none;
+      display: flex; flex-direction: column; gap: 10px; min-height: 0;
     }
     #dan-messages::-webkit-scrollbar { width: 4px; }
     #dan-messages::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 2px; }
-    .dan-msg {
-      max-width: 88%; padding: 11px 15px; border-radius: 14px;
-      font-size: 14px; line-height: 1.6; word-break: break-word;
-      animation: dan-msg-in 0.2s ease;
-    }
+    .dan-msg { max-width: 88%; padding: 11px 15px; border-radius: 14px; font-size: 14px; line-height: 1.6; word-break: break-word; animation: dan-msg-in 0.2s ease; }
     @keyframes dan-msg-in { from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)} }
-    .dan-msg.bot {
-      background: rgba(255,255,255,0.06); color: #e2e8f0;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-bottom-left-radius: 4px; align-self: flex-start;
-    }
-    .dan-msg.user {
-      background: linear-gradient(135deg, #38bdf8, #6366f1);
-      color: #fff; border-bottom-right-radius: 4px; align-self: flex-end; border: none;
-    }
-    .dan-msg.typing {
-      color: #64748b; font-style: italic;
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
-    }
+    .dan-msg.bot { background: rgba(255,255,255,0.06); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.08); border-bottom-left-radius: 4px; align-self: flex-start; }
+    .dan-msg.user { background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; border-bottom-right-radius: 4px; align-self: flex-end; border: none; }
+    .dan-msg.typing { color: #64748b; font-style: italic; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); }
     .dan-typing-dots { display: inline-flex; gap: 3px; align-items: center; margin-left: 4px; }
-    .dan-typing-dots span {
-      width: 5px; height: 5px; border-radius: 50%;
-      background: #38bdf8; opacity: 0.5;
-      animation: dan-dot-bounce 1.2s infinite ease;
-    }
+    .dan-typing-dots span { width: 5px; height: 5px; border-radius: 50%; background: #38bdf8; opacity: 0.5; animation: dan-dot-bounce 1.2s infinite ease; }
     .dan-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
     .dan-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes dan-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-4px);opacity:1} }
     .dan-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-    .dan-chip {
-      background: rgba(56,189,248,0.1); color: #7dd3fc;
-      border: 1px solid rgba(56,189,248,0.22); border-radius: 20px;
-      padding: 5px 11px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
-    }
+    .dan-chip { background: rgba(56,189,248,0.1); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.22); border-radius: 20px; padding: 5px 11px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .dan-chip:hover { background: rgba(56,189,248,0.2); color: #bae6fd; }
     .dan-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 16px; flex-shrink: 0; }
-    #dan-input-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.06);
-      background: rgba(0,0,0,0.2); flex-shrink: 0;
-    }
-    #dan-input {
-      flex: 1; background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1); border-radius: 22px;
-      padding: 10px 16px; font-size: 14px; color: #f8fafc; outline: none;
-      transition: border-color 0.15s, background 0.15s;
-    }
+    #dan-input-row { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2); flex-shrink: 0; }
+    #dan-input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; padding: 10px 16px; font-size: 14px; color: #f8fafc; outline: none; transition: border-color 0.15s; }
     #dan-input::placeholder { color: #475569; }
     #dan-input:focus { border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.05); }
-    #dan-send {
-      width: 38px; height: 38px; border-radius: 50%;
-      background: linear-gradient(135deg, #38bdf8, #6366f1);
-      color: #fff; border: none; cursor: pointer; font-size: 15px;
-      display: flex; align-items: center; justify-content: center;
-      transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(56,189,248,0.3);
-    }
-    #dan-send:hover { transform: scale(1.1); box-shadow: 0 4px 14px rgba(56,189,248,0.45); }
+    #dan-send { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; border: none; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; flex-shrink: 0; box-shadow: 0 2px 8px rgba(56,189,248,0.3); }
+    #dan-send:hover { transform: scale(1.1); }
     #dan-send:disabled { background: #1e293b; box-shadow: none; cursor: not-allowed; }
-    #signOutBtn {
-      margin-top: 12px; width: 100%; padding: 8px;
-      background: rgba(249,115,22,0.15); color: #f97316;
-      border: 1px solid rgba(249,115,22,0.3); border-radius: 6px;
-      cursor: pointer; font-size: 12px; font-weight: 600;
-      letter-spacing: 0.05em; transition: background 0.15s;
-    }
+    #signOutBtn { margin-top: 12px; width: 100%; padding: 8px; background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.3); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; transition: background 0.15s; }
     #signOutBtn:hover { background: rgba(249,115,22,0.28); }
-    @media (max-width: 420px) {
-      #dan-panel { width: 100vw; }
-      #dan-fab { bottom: 16px; right: 16px; }
-    }
+    @media (max-width: 420px) { #dan-panel { width: 100vw; } #dan-fab { bottom: 16px; right: 16px; } }
   </style>
 
-  <!-- ── DAN BOT HTML ── -->
+  <!-- DAN BOT HTML -->
   <button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖</button>
-
   <div id="dan-panel">
     <div id="dan-header">
       <div class="dan-avatar">🤖</div>
       <div class="dan-title-wrap">
         <div class="dan-name">DAN</div>
-        <div class="dan-subtitle">
-          <span class="dan-live-dot"></span>
-          Analysing your production data
-        </div>
+        <div class="dan-subtitle"><span class="dan-live-dot"></span>Analysing your production data</div>
       </div>
       <button id="dan-close" onclick="danToggle()">✕</button>
     </div>
@@ -232,39 +130,24 @@
     <div class="dan-divider"></div>
     <div id="dan-messages"></div>
     <div id="dan-input-row">
-      <input id="dan-input" type="text"
-             placeholder="Ask DAN anything about your production…"
-             onkeydown="if(event.key==='Enter')danSend()"
-             autocomplete="off" />
+      <input id="dan-input" type="text" placeholder="Ask DAN anything about your production…" onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
       <button id="dan-send" onclick="danSend()">➤</button>
     </div>
   </div>
 
-  <!-- ── DAN BOT SCRIPT ── -->
+  <!-- DAN BOT SCRIPT -->
   <script>
   (function () {
     'use strict';
-
     const WEBHOOK_URL = 'https://danbotv2.grobleroliver.workers.dev/';
     const SESSION_ID  = 'dan-' + Math.random().toString(36).slice(2, 10);
-
-    let isOpen     = false;
-    let isBusy     = false;
-    let hasGreeted = false;
-
-    const QUICK_PROMPTS = [
-      "Today's production summary",
-      "What's ready to ship?",
-      "Any late orders?",
-      "Top customers this week",
-      "Who has the most work today?",
-      "Any reorder risks?",
-    ];
+    let isOpen = false, isBusy = false, hasGreeted = false;
+    const QUICK_PROMPTS = ["Today's production summary","What's ready to ship?","Any late orders?","Top customers this week","Who has the most work today?","Any reorder risks?"];
 
     function danToggle() {
       isOpen = !isOpen;
       const panel = document.getElementById('dan-panel');
-      const fab   = document.getElementById('dan-fab');
+      const fab = document.getElementById('dan-fab');
       panel.classList.toggle('open', isOpen);
       fab.classList.toggle('dan-open', isOpen);
       if (isOpen) {
@@ -273,98 +156,47 @@
       }
     }
 
-    function cleanDashes(text) {
-      return String(text).replace(/\s*[—–]\s*/g, ', ');
-    }
+    function cleanDashes(text) { return String(text).replace(/\s*[—–]\s*/g, ', '); }
 
     function buildInsights() {
       const s = window.state || {};
-      const overview  = s.data?.overview?.[0]  || {};
-      const risk      = s.data?.risk            || [];
-      const ready     = s.data?.ready           || [];
-      const customers = s.data?.customerAlerts  || [];
-      const activity  = s.data?.activity        || [];
-      const insights  = [];
-
+      const overview = s.data?.overview?.[0] || {};
+      const risk = s.data?.risk || [];
+      const ready = s.data?.ready || [];
+      const customers = s.data?.customerAlerts || [];
+      const activity = s.data?.activity || [];
+      const insights = [];
       if (risk.length > 0) {
         const worst = risk[0];
-        insights.push({
-          type: 'urgent', icon: '🚨',
-          text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` +
-                (worst ? `Order <strong>#${worst.order_id}</strong> for <strong>${worst.customer_name || 'Unknown'}</strong> needs attention now.` : ''),
-          hint: 'Tap to ask DAN what to do',
-          prompt: `What should I do about the ${risk.length} late or at-risk orders?`
-        });
+        insights.push({ type: 'urgent', icon: '🚨', text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` + (worst ? `Order <strong>#${worst.order_id}</strong> for <strong>${worst.customer_name || 'Unknown'}</strong> needs attention now.` : ''), hint: 'Tap to ask DAN what to do', prompt: `What should I do about the ${risk.length} late or at-risk orders?` });
       }
-
       if (ready.length > 0) {
         const totalQty = ready.reduce((sum, r) => sum + Number(r.total_quantity || 0), 0);
-        insights.push({
-          type: 'good', icon: '✅',
-          text: `<strong>${ready.length} order${ready.length > 1 ? 's' : ''} ready to ship</strong>, ${fmtNum(totalQty)} total units awaiting dispatch.`,
-          hint: 'Tap to see the full list',
-          prompt: "Give me the full ready to ship list with customer names and quantities"
-        });
+        insights.push({ type: 'good', icon: '✅', text: `<strong>${ready.length} order${ready.length > 1 ? 's' : ''} ready to ship</strong>, ${fmtNum(totalQty)} total units awaiting dispatch.`, hint: 'Tap to see the full list', prompt: "Give me the full ready to ship list with customer names and quantities" });
       }
-
       const total = Number(overview.total_decorations || 0);
-      const emb   = Number(overview.embroidery_total  || 0);
-      const prt   = Number(overview.print_total       || 0);
+      const emb = Number(overview.embroidery_total || 0);
+      const prt = Number(overview.print_total || 0);
       if (total > 0) {
-        const split = emb > prt
-          ? `Embroidery leads at <strong>${fmtNum(emb)}</strong> vs Print at <strong>${fmtNum(prt)}</strong>.`
-          : `Print leads at <strong>${fmtNum(prt)}</strong> vs Embroidery at <strong>${fmtNum(emb)}</strong>.`;
-        insights.push({
-          type: 'info', icon: '🏭',
-          text: `<strong>${fmtNum(total)} units decorated</strong> in the selected range. ${split}`,
-          hint: 'Tap for a full breakdown',
-          prompt: "Give me a detailed production breakdown for the current date range"
-        });
+        const split = emb > prt ? `Embroidery leads at <strong>${fmtNum(emb)}</strong> vs Print at <strong>${fmtNum(prt)}</strong>.` : `Print leads at <strong>${fmtNum(prt)}</strong> vs Embroidery at <strong>${fmtNum(emb)}</strong>.`;
+        insights.push({ type: 'info', icon: '🏭', text: `<strong>${fmtNum(total)} units decorated</strong> in the selected range. ${split}`, hint: 'Tap for a full breakdown', prompt: "Give me a detailed production breakdown for the current date range" });
       }
-
       const atRisk = customers.filter(c => c.reorder_status === 'At Risk');
       if (atRisk.length > 0) {
         const top = atRisk[0];
         const val = atRisk.reduce((s, c) => s + Number(c.last_order_value || 0), 0);
-        insights.push({
-          type: 'warning', icon: '💰',
-          text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong>, <strong>£${fmtNum(val)}</strong> potential value at risk.` +
-                (top ? ` ${top.name || top.company || 'A customer'} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''),
-          hint: 'Tap to see who needs a call',
-          prompt: `Which customers are most overdue for reorder and what's the value at risk?`
-        });
+        insights.push({ type: 'warning', icon: '💰', text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong>, <strong>£${fmtNum(val)}</strong> potential value at risk.` + (top ? ` ${top.name || top.company || 'A customer'} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''), hint: 'Tap to see who needs a call', prompt: `Which customers are most overdue for reorder and what's the value at risk?` });
       }
-
       if (activity.length > 0) {
         const grouped = {};
-        activity.forEach(r => {
-          const k = r.order_id;
-          if (!k) return;
-          grouped[k] = (grouped[k] || 0) + Number(r.quantity || 0);
-        });
+        activity.forEach(r => { const k = r.order_id; if (!k) return; grouped[k] = (grouped[k] || 0) + Number(r.quantity || 0); });
         const biggest = Object.entries(grouped).sort((a,b) => b[1]-a[1])[0];
         if (biggest && biggest[1] > 0) {
           const row = activity.find(r => String(r.order_id) === String(biggest[0]));
-          insights.push({
-            type: 'info', icon: '📦',
-            text: `Biggest active job: Order <strong>#${biggest[0]}</strong>` +
-                  (row?.customer_name ? ` for <strong>${row.customer_name}</strong>` : '') +
-                  `, <strong>${fmtNum(biggest[1])} units</strong>.`,
-            hint: 'Tap to ask about this order',
-            prompt: `Tell me everything about order #${biggest[0]}`
-          });
+          insights.push({ type: 'info', icon: '📦', text: `Biggest active job: Order <strong>#${biggest[0]}</strong>` + (row?.customer_name ? ` for <strong>${row.customer_name}</strong>` : '') + `, <strong>${fmtNum(biggest[1])} units</strong>.`, hint: 'Tap to ask about this order', prompt: `Tell me everything about order #${biggest[0]}` });
         }
       }
-
-      if (insights.length === 0) {
-        insights.push({
-          type: 'info', icon: '📡',
-          text: 'Loading your production data… refresh the dashboard to see live insights here.',
-          hint: null,
-          prompt: "What can you help me with?"
-        });
-      }
-
+      if (insights.length === 0) insights.push({ type: 'info', icon: '📡', text: 'Loading your production data… refresh the dashboard to see live insights here.', hint: null, prompt: "What can you help me with?" });
       return insights;
     }
 
@@ -376,12 +208,7 @@
         const card = document.createElement('div');
         card.className = `dan-insight-card ${ins.type}`;
         card.style.animationDelay = `${i * 70}ms`;
-        card.innerHTML = `
-          <div class="dan-ic-icon">${ins.icon}</div>
-          <div>
-            <div class="dan-ic-text">${ins.text}</div>
-            ${ins.hint ? `<div class="dan-ic-hint">${ins.hint} →</div>` : ''}
-          </div>`;
+        card.innerHTML = `<div class="dan-ic-icon">${ins.icon}</div><div><div class="dan-ic-text">${ins.text}</div>${ins.hint ? `<div class="dan-ic-hint">${ins.hint} →</div>` : ''}</div>`;
         card.onclick = () => danSendText(ins.prompt);
         container.appendChild(card);
       });
@@ -392,22 +219,13 @@
       const hour = new Date().getHours();
       const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
       const s = window.state || {};
-      const risk  = s.data?.risk?.length || 0;
+      const risk = s.data?.risk?.length || 0;
       const ready = s.data?.ready?.length || 0;
-      let statusLine = '';
-      if (risk > 0) statusLine = `⚠️ You have <strong>${risk} order${risk>1?'s':''} needing attention</strong> right now.`;
-      else if (ready > 0) statusLine = `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong>, looking good.`;
-      else statusLine = `Everything looks clear. Ask me anything about production.`;
+      let statusLine = risk > 0 ? `⚠️ You have <strong>${risk} order${risk>1?'s':''} needing attention</strong> right now.` : ready > 0 ? `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong>, looking good.` : `Everything looks clear. Ask me anything about production.`;
       danAppendBot(`${greeting}! I'm <strong>DAN</strong>, your ATAM GO production analyst. 👋<br><br>${statusLine}`, true);
     }
 
-    function danAppendUser(text) {
-      const el = document.createElement('div');
-      el.className = 'dan-msg user';
-      el.textContent = text;
-      document.getElementById('dan-messages').appendChild(el);
-      danScroll();
-    }
+    function danAppendUser(text) { const el = document.createElement('div'); el.className = 'dan-msg user'; el.textContent = text; document.getElementById('dan-messages').appendChild(el); danScroll(); }
 
     function danAppendBot(html, showChips) {
       const el = document.createElement('div');
@@ -416,13 +234,7 @@
       if (showChips) {
         const chips = document.createElement('div');
         chips.className = 'dan-chips';
-        QUICK_PROMPTS.forEach(p => {
-          const chip = document.createElement('button');
-          chip.className = 'dan-chip';
-          chip.textContent = p;
-          chip.onclick = () => danSendText(p);
-          chips.appendChild(chip);
-        });
+        QUICK_PROMPTS.forEach(p => { const chip = document.createElement('button'); chip.className = 'dan-chip'; chip.textContent = p; chip.onclick = () => danSendText(p); chips.appendChild(chip); });
         el.appendChild(chips);
       }
       document.getElementById('dan-messages').appendChild(el);
@@ -430,73 +242,29 @@
       return el;
     }
 
-    function danAppendTyping() {
-      const el = document.createElement('div');
-      el.className = 'dan-msg bot typing';
-      el.id = 'dan-typing';
-      el.innerHTML = 'DAN is thinking<span class="dan-typing-dots"><span></span><span></span><span></span></span>';
-      document.getElementById('dan-messages').appendChild(el);
-      danScroll();
-    }
-
-    function danRemoveTyping() {
-      const el = document.getElementById('dan-typing');
-      if (el) el.remove();
-    }
-
-    function danScroll() {
-      const msgs = document.getElementById('dan-messages');
-      msgs.scrollTop = msgs.scrollHeight;
-    }
+    function danAppendTyping() { const el = document.createElement('div'); el.className = 'dan-msg bot typing'; el.id = 'dan-typing'; el.innerHTML = 'DAN is thinking<span class="dan-typing-dots"><span></span><span></span><span></span></span>'; document.getElementById('dan-messages').appendChild(el); danScroll(); }
+    function danRemoveTyping() { const el = document.getElementById('dan-typing'); if (el) el.remove(); }
+    function danScroll() { const msgs = document.getElementById('dan-messages'); msgs.scrollTop = msgs.scrollHeight; }
 
     async function danSendText(text) {
       if (isBusy || !text.trim()) return;
       isBusy = true;
-
       const insights = document.getElementById('dan-insights');
-      if (insights && insights.children.length) {
-        insights.style.maxHeight = insights.offsetHeight + 'px';
-        insights.style.overflow = 'hidden';
-        insights.style.transition = 'max-height 0.3s ease, opacity 0.3s ease';
-        setTimeout(() => { insights.style.maxHeight = '0'; insights.style.opacity = '0'; insights.style.padding = '0'; }, 50);
-      }
-
+      if (insights && insights.children.length) { insights.style.maxHeight = insights.offsetHeight + 'px'; insights.style.overflow = 'hidden'; insights.style.transition = 'max-height 0.3s ease, opacity 0.3s ease'; setTimeout(() => { insights.style.maxHeight = '0'; insights.style.opacity = '0'; insights.style.padding = '0'; }, 50); }
       danAppendUser(text);
       document.getElementById('dan-input').value = '';
       document.getElementById('dan-send').disabled = true;
       danAppendTyping();
-
-      const s   = window.state || {};
-      const ov  = s.data?.overview?.[0] || {};
-      const ctx = {
-        dateFrom:            s.dateFrom || 'unknown',
-        dateTo:              s.dateTo   || 'unknown',
-        total_decorations:   ov.total_decorations  || 0,
-        embroidery_total:    ov.embroidery_total    || 0,
-        print_total:         ov.print_total         || 0,
-        unique_orders:       ov.unique_orders       || 0,
-        unique_customers:    ov.unique_customers    || 0,
-        decoration_lines:    ov.decoration_lines    || 0,
-        late_orders:         (s.data?.risk          || []).length,
-        ready_to_ship:       (s.data?.ready         || []).length,
-        customers_at_risk:   (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length,
-        top_customers:       (s.data?.customers     || []).slice(0, 5).map(c => `${c.customer_name} (${c.total_quantity} units)`).join(', '),
-        risk_orders_detail:  (s.data?.risk          || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '),
-        ready_orders_detail: (s.data?.ready         || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', '),
-      };
-
+      const s = window.state || {};
+      const ov = s.data?.overview?.[0] || {};
+      const ctx = { dateFrom: s.dateFrom || 'unknown', dateTo: s.dateTo || 'unknown', total_decorations: ov.total_decorations || 0, embroidery_total: ov.embroidery_total || 0, print_total: ov.print_total || 0, unique_orders: ov.unique_orders || 0, unique_customers: ov.unique_customers || 0, decoration_lines: ov.decoration_lines || 0, late_orders: (s.data?.risk || []).length, ready_to_ship: (s.data?.ready || []).length, customers_at_risk: (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length, top_customers: (s.data?.customers || []).slice(0, 5).map(c => `${c.customer_name} (${c.total_quantity} units)`).join(', '), risk_orders_detail: (s.data?.risk || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '), ready_orders_detail: (s.data?.ready || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', ') };
       try {
-        const res = await fetch(WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, sessionId: SESSION_ID, context: ctx })
-        });
+        const res = await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, sessionId: SESSION_ID, context: ctx }) });
         danRemoveTyping();
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data  = await res.json();
+        const data = await res.json();
         const rawReply = data.reply || data.output || data.message || 'Sorry, no response received.';
-        const reply = cleanDashes(rawReply);
-        danAppendBot(reply.replace(/\n/g, '<br>'), false);
+        danAppendBot(cleanDashes(rawReply).replace(/\n/g, '<br>'), false);
       } catch (err) {
         danRemoveTyping();
         danAppendBot('⚠️ Couldn\'t reach DAN right now. Make sure the <strong>DAN BOT workflow is active</strong> in n8n and try again.', false);
@@ -511,39 +279,30 @@
     function danSend() { danSendText(document.getElementById('dan-input').value.trim()); }
 
     const _statusEl = document.getElementById('connectionStatus');
-    if (_statusEl) {
-      new MutationObserver(() => {
-        if ((_statusEl.textContent || '').toLowerCase() === 'connected') {
-          setTimeout(() => { if (isOpen) renderInsights(); }, 200);
-        }
-      }).observe(_statusEl, { childList: true, characterData: true, subtree: true });
-    }
+    if (_statusEl) { new MutationObserver(() => { if ((_statusEl.textContent || '').toLowerCase() === 'connected') { setTimeout(() => { if (isOpen) renderInsights(); }, 200); } }).observe(_statusEl, { childList: true, characterData: true, subtree: true }); }
 
-    window.danToggle    = danToggle;
-    window.danSend      = danSend;
-    window.danSendText  = danSendText;
-    window.danRefresh   = renderInsights;
+    window.danToggle = danToggle;
+    window.danSend = danSend;
+    window.danSendText = danSendText;
+    window.danRefresh = renderInsights;
 
     function fmtNum(n) { return new Intl.NumberFormat('en-GB').format(Number(n || 0)); }
   })();
   </script>
 
-  <!-- ── APP SHELL ── -->
+  <!-- APP SHELL -->
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
         <img src="atam-go-logo.png?v=4" alt="ATAM GO logo" class="brand-logo-wide">
       </div>
-
       <nav class="sidebar-nav">
-        <button type="button" class="nav-link active" data-page="overview"><span>Production Overview</span></button>
+        <button type="button" class="nav-link active" data-page="overview"><span>Workwear Overview</span></button>
         <button type="button" class="nav-link" data-page="production"><span>Production</span></button>
-        <button type="button" class="nav-link" data-page="orders"><span>Orders</span></button>
         <button type="button" class="nav-link" data-page="customers"><span>Customers</span></button>
-        <button type="button" class="nav-link" data-page="activity"><span>Activity</span></button>
+        <button type="button" class="nav-link" data-page="activity"><span>Production Activity</span></button>
         <button type="button" class="nav-link" data-page="actions"><span>Actions</span></button>
       </nav>
-
       <div class="sidebar-footer">
         <p>Status</p>
         <strong id="connectionStatus">Connecting...</strong>
@@ -581,12 +340,13 @@
         </div>
       </header>
 
+      <!-- WORKWEAR OVERVIEW -->
       <section id="overview" class="dashboard-page active">
         <div class="page-header">
           <div>
-            <p class="eyebrow">Overview</p>
-            <h2>Daily Performance</h2>
-            <p class="page-subtitle">Live decoration volume, production split and customer/store breakdowns.</p>
+            <p class="eyebrow">Workwear Overview</p>
+            <h2>Production Summary</h2>
+            <p class="page-subtitle">Live decoration volume, production split and activity.</p>
           </div>
         </div>
         <div class="kpi-grid">
@@ -594,35 +354,28 @@
           <div class="kpi-card"><span>Embroidery</span><strong id="embroideryTotal">0</strong><small>Total embroidery quantity</small></div>
           <div class="kpi-card"><span>Print</span><strong id="printTotal">0</strong><small>Total print quantity</small></div>
           <div class="kpi-card"><span>Unique Orders</span><strong id="uniqueOrders">0</strong><small>Orders counted</small></div>
-          <div class="kpi-card"><span>Unique Customers</span><strong id="uniqueCustomers">0</strong><small>Customers in range</small></div>
+          <div class="kpi-card"><span>Avg Garments Per Order</span><strong id="avgGarmentsPerOrder">0</strong><small>Average order size</small></div>
           <div class="kpi-card"><span>Decoration Lines</span><strong id="decorationLines">0</strong><small>Individual decoration records</small></div>
         </div>
         <div class="chart-grid">
           <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Decoration Type</p><h3>Decoration Split</h3></div></div>
-            <div class="chart-box"><canvas id="decorationChart"></canvas></div>
+            <div class="panel-header"><div><p class="eyebrow">By Day</p><h3>Decoration Split by Day</h3></div></div>
+            <div class="chart-box"><canvas id="decorationByDayChart"></canvas></div>
           </div>
           <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Process Codes</p><h3>Production by Process</h3></div></div>
-            <div class="chart-box"><canvas id="processChart"></canvas></div>
+            <div class="panel-header"><div><p class="eyebrow">Decoration Type</p><h3>Decoration Split</h3></div></div>
+            <div class="chart-box"><canvas id="decorationChartByDay"></canvas></div>
           </div>
         </div>
-        <div class="table-grid">
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Customers</p><h3>Top Customers</h3></div></div>
-            <div class="table-wrap">
-              <table><thead><tr><th>Customer</th><th>Store</th><th>Qty</th><th>Orders</th></tr></thead><tbody id="customerTable"></tbody></table>
-            </div>
-          </div>
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Stores</p><h3>Store Breakdown</h3></div></div>
-            <div class="table-wrap">
-              <table><thead><tr><th>Store</th><th>Qty</th><th>Orders</th><th>Customers</th></tr></thead><tbody id="storeTable"></tbody></table>
-            </div>
+        <div class="panel">
+          <div class="panel-header"><div><p class="eyebrow">All Orders</p><h3>Production Activity</h3></div></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Time</th><th>Order</th><th>Customer</th><th>Product</th><th>Type</th><th>Process</th><th>Qty</th><th>Area</th></tr></thead><tbody id="overviewActivityTable"></tbody></table>
           </div>
         </div>
       </section>
 
+      <!-- PRODUCTION -->
       <section id="production" class="dashboard-page">
         <div class="page-header">
           <div><p class="eyebrow">Production</p><h2>Production Dashboard</h2><p class="page-subtitle">Live workload, decoration volume, due pressure and order breakdowns.</p></div>
@@ -668,28 +421,7 @@
         </div>
       </section>
 
-      <section id="orders" class="dashboard-page">
-        <div class="page-header"><div><p class="eyebrow">Orders</p><h2>Order Watchlist</h2><p class="page-subtitle">Production complete and at-risk order tracking.</p></div></div>
-        <div class="panel">
-          <div class="panel-header">
-            <div><p class="eyebrow">Ready</p><h3>Production Complete — Awaiting Dispatch</h3></div>
-            <button type="button" id="triggerReadyShipWorkflow" class="secondary-btn">Trigger Alert</button>
-          </div>
-          <div class="table-wrap">
-            <table><thead><tr><th>Order</th><th>Customer</th><th>Qty</th><th>Due Date</th><th>Shipping</th><th>Assigned To</th></tr></thead><tbody id="readyTable"></tbody></table>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-header">
-            <div><p class="eyebrow">Risk</p><h3>Late Or At-Risk Orders</h3></div>
-            <button type="button" id="triggerRiskWorkflow" class="secondary-btn">Trigger Risk Alert</button>
-          </div>
-          <div class="table-wrap">
-            <table><thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Due Date</th><th>Qty</th></tr></thead><tbody id="riskTable"></tbody></table>
-          </div>
-        </div>
-      </section>
-
+      <!-- CUSTOMERS -->
       <section id="customers" class="dashboard-page">
         <div class="page-header">
           <div><p class="eyebrow">Customer Reorder Monitor</p><h2>Customers / Reorder Risk</h2><p class="page-subtitle">Tracks customer reorder patterns from Airtable and Supabase.</p></div>
@@ -715,9 +447,10 @@
         </div>
       </section>
 
+      <!-- PRODUCTION ACTIVITY (formerly Activity) -->
       <section id="activity" class="dashboard-page">
         <div class="page-header">
-          <div><p class="eyebrow">Activity</p><h2>Recent Decoration Activity</h2><p class="page-subtitle">Search and inspect recently counted decoration records.</p></div>
+          <div><p class="eyebrow">Production Activity</p><h2>Decoration Activity Log</h2><p class="page-subtitle">Search and inspect recently counted decoration records.</p></div>
           <input id="searchInput" type="search" placeholder="Search orders, customers, products..." />
         </div>
         <div class="panel">
@@ -727,8 +460,9 @@
         </div>
       </section>
 
+      <!-- ACTIONS -->
       <section id="actions" class="dashboard-page">
-        <div class="page-header"><div><p class="eyebrow">Actions</p><h2>Workflow Triggers</h2><p class="page-subtitle">Buttons are ready for n8n webhook connections later.</p></div></div>
+        <div class="page-header"><div><p class="eyebrow">Actions</p><h2>Workflow Triggers</h2><p class="page-subtitle">Trigger n8n workflow automations.</p></div></div>
         <div class="action-grid">
           <button type="button" class="action-card" data-action="refreshDecoData"><strong>Refresh Deco Data</strong><span>Trigger a data refresh workflow.</span></button>
           <button type="button" class="action-card" data-action="recountToday"><strong>Recount Selected Range</strong><span>Ask n8n to recount production records.</span></button>
@@ -754,7 +488,7 @@
 
   <div id="toast" class="toast"></div>
 
-  <!-- ── SCRIPTS — order matters ── -->
+  <!-- SCRIPTS -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
@@ -763,7 +497,7 @@
   <script src="effects3d.js"></script>
   <script src="weekly-targets.js"></script>
 
-  <!-- ── SIGN OUT ── -->
+  <!-- SIGN OUT -->
   <script>
     async function signOut() {
       const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
@@ -774,68 +508,32 @@
     }
   </script>
 
-  <!-- ── FRIDAY WEEK-AHEAD AUTO-TRIGGER ── -->
+  <!-- FRIDAY WEEK-AHEAD AUTO-TRIGGER -->
   <script>
   (function () {
     'use strict';
-
     const STORAGE_KEY_PREFIX = 'atam-dan-friday-shown-';
-
-    function todayKey() {
-      return STORAGE_KEY_PREFIX + new Date().toISOString().slice(0, 10);
-    }
-
-    function isFriday() {
-      return new Date().getDay() === 5;
-    }
-
-    function alreadyShownToday() {
-      try {
-        return localStorage.getItem(todayKey()) === 'true';
-      } catch {
-        return false;
-      }
-    }
-
-    function markShownToday() {
-      try {
-        localStorage.setItem(todayKey(), 'true');
-      } catch { /* ignore */ }
-    }
-
+    function todayKey() { return STORAGE_KEY_PREFIX + new Date().toISOString().slice(0, 10); }
+    function isFriday() { return new Date().getDay() === 5; }
+    function alreadyShownToday() { try { return localStorage.getItem(todayKey()) === 'true'; } catch { return false; } }
+    function markShownToday() { try { localStorage.setItem(todayKey(), 'true'); } catch { } }
     function waitForDanReady(callback, attempts = 0) {
-      if (typeof window.danToggle === 'function' && typeof window.danSendText === 'function') {
-        callback();
-      } else if (attempts < 50) {
-        setTimeout(() => waitForDanReady(callback, attempts + 1), 100);
-      }
+      if (typeof window.danToggle === 'function' && typeof window.danSendText === 'function') { callback(); }
+      else if (attempts < 50) { setTimeout(() => waitForDanReady(callback, attempts + 1), 100); }
     }
-
     function runFridayTrigger() {
       const panel = document.getElementById('dan-panel');
       if (!panel) return;
-      if (!panel.classList.contains('open')) {
-        window.danToggle();
-      }
-      setTimeout(() => {
-        window.danSendText("What's my week looking like next week?");
-      }, 900);
+      if (!panel.classList.contains('open')) window.danToggle();
+      setTimeout(() => window.danSendText("What's my week looking like next week?"), 900);
     }
-
     function maybeRunFridayTrigger() {
-      if (!isFriday()) return;
-      if (alreadyShownToday()) return;
+      if (!isFriday() || alreadyShownToday()) return;
       markShownToday();
-      waitForDanReady(() => {
-        setTimeout(runFridayTrigger, 2000);
-      });
+      waitForDanReady(() => setTimeout(runFridayTrigger, 2000));
     }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', maybeRunFridayTrigger);
-    } else {
-      maybeRunFridayTrigger();
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', maybeRunFridayTrigger);
+    else maybeRunFridayTrigger();
   })();
   </script>
 
