@@ -55,7 +55,6 @@
       background: linear-gradient(135deg, #ef4444, #f97316);
     }
 
-    /* ── DAN PANEL — now a full-height side drawer instead of a floating popup ── */
     #dan-panel {
       position: fixed;
       top: 0;
@@ -134,8 +133,6 @@
     .dan-ic-text { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
     .dan-ic-text strong { color: #f8fafc; font-weight: 700; }
     .dan-ic-hint { font-size: 10px; color: rgba(56,189,248,0.7); margin-top: 3px; }
-
-    /* messages area now fills all remaining space in the drawer */
     #dan-messages {
       flex: 1; overflow-y: auto; padding: 14px 16px;
       display: flex; flex-direction: column; gap: 10px;
@@ -276,9 +273,6 @@
       }
     }
 
-    // Cleans up model output that leans on em/en dashes as clause joiners.
-    // Leaves genuine hyphenated words (e.g. "at-risk", "re-order") untouched
-    // since those only ever use a plain hyphen, not — or –.
     function cleanDashes(text) {
       return String(text).replace(/\s*[—–]\s*/g, ', ');
     }
@@ -542,7 +536,7 @@
       </div>
 
       <nav class="sidebar-nav">
-        <button type="button" class="nav-link active" data-page="overview"><span>Overview</span></button>
+        <button type="button" class="nav-link active" data-page="overview"><span>Production Overview</span></button>
         <button type="button" class="nav-link" data-page="production"><span>Production</span></button>
         <button type="button" class="nav-link" data-page="orders"><span>Orders</span></button>
         <button type="button" class="nav-link" data-page="customers"><span>Customers</span></button>
@@ -561,14 +555,13 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">ATAM Workwear</p>
-          <h1>ATAM GO</h1>
         </div>
         <div class="topbar-controls">
           <div class="date-range-controls">
             <div class="range-presets">
-              <button type="button" class="range-btn active" data-range="today">Today</button>
+              <button type="button" class="range-btn" data-range="today">Today</button>
               <button type="button" class="range-btn" data-range="yesterday">Yesterday</button>
-              <button type="button" class="range-btn" data-range="last7">Last 7 Days</button>
+              <button type="button" class="range-btn active" data-range="week">This Week</button>
               <button type="button" class="range-btn" data-range="month">This Month</button>
               <button type="button" class="range-btn" data-range="custom">Custom</button>
             </div>
@@ -676,10 +669,10 @@
       </section>
 
       <section id="orders" class="dashboard-page">
-        <div class="page-header"><div><p class="eyebrow">Orders</p><h2>Order Watchlist</h2><p class="page-subtitle">Ready-to-ship and at-risk order tracking.</p></div></div>
+        <div class="page-header"><div><p class="eyebrow">Orders</p><h2>Order Watchlist</h2><p class="page-subtitle">Production complete and at-risk order tracking.</p></div></div>
         <div class="panel">
           <div class="panel-header">
-            <div><p class="eyebrow">Ready</p><h3>Ready To Ship Orders</h3></div>
+            <div><p class="eyebrow">Ready</p><h3>Production Complete — Awaiting Dispatch</h3></div>
             <button type="button" id="triggerReadyShipWorkflow" class="secondary-btn">Trigger Alert</button>
           </div>
           <div class="table-wrap">
@@ -781,9 +774,7 @@
     }
   </script>
 
-  <!-- ═══════════════════════════════════════════════════════════════
-       FRIDAY WEEK-AHEAD AUTO-TRIGGER
-       ═══════════════════════════════════════════════════════════════ -->
+  <!-- ── FRIDAY WEEK-AHEAD AUTO-TRIGGER ── -->
   <script>
   (function () {
     'use strict';
@@ -795,7 +786,7 @@
     }
 
     function isFriday() {
-      return new Date().getDay() === 5; // 0=Sun ... 5=Fri
+      return new Date().getDay() === 5;
     }
 
     function alreadyShownToday() {
@@ -823,11 +814,9 @@
     function runFridayTrigger() {
       const panel = document.getElementById('dan-panel');
       if (!panel) return;
-
       if (!panel.classList.contains('open')) {
         window.danToggle();
       }
-
       setTimeout(() => {
         window.danSendText("What's my week looking like next week?");
       }, 900);
@@ -836,9 +825,7 @@
     function maybeRunFridayTrigger() {
       if (!isFriday()) return;
       if (alreadyShownToday()) return;
-
       markShownToday();
-
       waitForDanReady(() => {
         setTimeout(runFridayTrigger, 2000);
       });
