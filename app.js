@@ -256,9 +256,11 @@ async function overview() {
     rows.map(r => r.customer_id || r.customer_name).filter(Boolean)
   );
 
+  const totalQty = rows.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+
   state.data.overview = [
     {
-      total_decorations: rows.reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+      total_decorations: totalQty,
       embroidery_total: rows
         .filter(r => r.decoration_type === 'embroidery')
         .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
@@ -267,7 +269,8 @@ async function overview() {
         .reduce((sum, r) => sum + Number(r.quantity || 0), 0),
       unique_orders: orders.size,
       unique_customers: customers.size,
-      decoration_lines: rows.length
+      decoration_lines: rows.length,
+      avg_garments_per_order: orders.size > 0 ? Math.round(totalQty / orders.size) : 0
     }
   ];
 }
@@ -464,32 +467,23 @@ function render() {
   chartDeco();
   chartProcess();
 
+  // Overview production activity list
   table(
-    'customerTable',
-    state.data.customers,
+    'overviewActivityTable',
+    state.data.activity.slice(0, 50),
     r => `
       <tr>
-        <td><strong>${esc(r.customer_name || 'Unknown')}</strong></td>
-        <td>${esc(r.store_name || '—')}</td>
-        <td>${num(r.total_quantity)}</td>
-        <td>${num(r.unique_orders)}</td>
+        <td>${datetime(r.counted_at)}</td>
+        <td>${orderButton(r.order_id)}</td>
+        <td>${esc(r.customer_name || 'Unknown')}</td>
+        <td>${esc(r.product_name || '—')}</td>
+        <td><span class="badge ${esc(r.decoration_type)}">${title(r.decoration_type)}</span></td>
+        <td>${esc(r.process_code || '—')}</td>
+        <td>${num(r.quantity)}</td>
+        <td>${esc(r.area_name || '—')}</td>
       </tr>
     `,
-    4
-  );
-
-  table(
-    'storeTable',
-    state.data.stores,
-    r => `
-      <tr>
-        <td><strong>${esc(r.store_name || 'Unknown')}</strong></td>
-        <td>${num(r.total_quantity)}</td>
-        <td>${num(r.unique_orders)}</td>
-        <td>${num(r.unique_customers)}</td>
-      </tr>
-    `,
-    4
+    8
   );
 
   table(
@@ -537,18 +531,22 @@ function renderKpis() {
   if ($('embroideryTotal')) $('embroideryTotal').textContent = num(o.embroidery_total);
   if ($('printTotal')) $('printTotal').textContent = num(o.print_total);
   if ($('uniqueOrders')) $('uniqueOrders').textContent = num(o.unique_orders);
-  if ($('uniqueCustomers')) $('uniqueCustomers').textContent = num(o.unique_customers);
+  if ($('avgGarmentsPerOrder')) $('avgGarmentsPerOrder').textContent = num(o.avg_garments_per_order);
   if ($('decorationLines')) $('decorationLines').textContent = num(o.decoration_lines);
 }
 
 function chartDeco() {
+  // Decoration split pie — now goes in the second chart slot
   upchart(
-    'decorationChart',
+    'decorationChartByDay',
     'doughnut',
     state.data.deco.map(r => title(r.decoration_type)),
     state.data.deco.map(r => Number(r.total_quantity || 0)),
     true
   );
+
+  // Day-by-day decoration bar chart — goes in the first chart slot
+  chartDecoByDay();
 
   upchart(
     'decorationChartProduction',
@@ -557,6 +555,65 @@ function chartDeco() {
     state.data.deco.map(r => Number(r.total_quantity || 0)),
     true
   );
+}
+
+function chartDecoByDay() {
+  const rows = state.data.activity || [];
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const dayMap = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri' };
+
+  const embByDay = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 };
+  const prtByDay = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 };
+
+  for (const r of rows) {
+    if (!r.report_date) continue;
+    const dow = new Date(r.report_date).getDay();
+    const dayKey = dayMap[dow];
+    if (!dayKey) continue;
+    const qty = Number(r.quantity || 0);
+    if (r.decoration_type === 'embroidery') embByDay[dayKey] += qty;
+    else if (r.decoration_type === 'print') prtByDay[dayKey] += qty;
+  }
+
+  const el = $('decorationByDayChart');
+  if (!el) return;
+  if (state.charts['decorationByDayChart']) state.charts['decorationByDayChart'].destroy();
+
+  state.charts['decorationByDayChart'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: dayNames,
+      datasets: [
+        {
+          label: 'Embroidery',
+          data: dayNames.map(d => embByDay[d]),
+          backgroundColor: 'rgba(56,189,248,0.7)',
+          borderRadius: 6,
+          borderWidth: 0
+        },
+        {
+          label: 'Print',
+          data: dayNames.map(d => prtByDay[d]),
+          backgroundColor: 'rgba(244,114,182,0.7)',
+          borderRadius: 6,
+          borderWidth: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: true, labels: { color: '#cbd5e1' } },
+        tooltip: { enabled: true }
+      },
+      scales: {
+        x: { stacked: false, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,.06)' } },
+        y: { beginAtZero: true, stacked: false, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,.06)' } }
+      }
+    }
+  });
 }
 
 function chartProcess() {
