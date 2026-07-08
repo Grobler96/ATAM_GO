@@ -321,7 +321,12 @@
 
   function updateRangeLabel() {
     const range = getWorkingWeekRange();
-    const fmt = d => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    // Parse as local date to avoid UTC-to-local timezone shift
+    const parseLocal = d => {
+      const [y, m, day] = d.split('-').map(Number);
+      return new Date(y, m - 1, day);
+    };
+    const fmt = d => parseLocal(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
     const label = `Mon ${fmt(range.from)} – Fri ${fmt(range.to)}`;
     const el = $('wt-range-label');
     if (el) el.textContent = label;
