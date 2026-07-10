@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ATAM GO — Overdue Orders</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: radial-gradient(circle at top left, rgba(239,68,68,0.10), transparent 32%),
+                radial-gradient(circle at top right, rgba(56,189,248,0.08), transparent 30%),
+                linear-gradient(135deg, #020617 0%, #0f172a 45%, #020617 100%);
+    color: #f8fafc;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+  .wrap { display: flex; flex-direction: column; height: 100vh; padding: 28px 40px; }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 18px; }
+  .header-left img { height: 48px; background: rgba(255,255,255,0.92); padding: 6px; border-radius: 10px; }
+  .header-title { font-size: 13px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: #f87171; margin: 0; }
+  .header-title span { color: #94a3b8; font-weight: 700; letter-spacing: 0.06em; margin-left: 10px; }
+  .clock { font-size: 22px; font-weight: 800; color: #cbd5e1; font-variant-numeric: tabular-nums; }
+
+  .summary-bar {
+    display: flex; gap: 16px; margin-bottom: 20px; flex-shrink: 0;
+  }
+  .summary-card {
+    flex: 1; border-radius: 20px; padding: 18px 22px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15,23,42,0.82); backdrop-filter: blur(18px);
+    box-shadow: 0 22px 60px rgba(0,0,0,0.35);
+  }
+  .summary-card span { display: block; color: #94a3b8; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+  .summary-card strong { display: block; font-size: 34px; font-weight: 900; letter-spacing: -0.03em; }
+  .summary-card.danger strong { color: #f87171; }
+  .summary-card.amber strong { color: #fbbf24; }
+
+  .list-panel {
+    flex: 1; min-height: 0;
+    border-radius: 26px; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(15,23,42,0.82); backdrop-filter: blur(18px);
+    box-shadow: 0 22px 70px rgba(0,0,0,0.35);
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .list-head {
+    display: grid;
+    grid-template-columns: 110px 1fr 140px 130px 150px 160px;
+    gap: 12px; padding: 16px 26px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    color: #94a3b8; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .list-body { flex: 1; overflow-y: auto; }
+  .row {
+    display: grid;
+    grid-template-columns: 110px 1fr 140px 130px 150px 160px;
+    gap: 12px; padding: 18px 26px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    align-items: center;
+    font-size: 17px;
+  }
+  .row:nth-child(odd) { background: rgba(255,255,255,0.015); }
+  .row .order-cell { font-weight: 900; color: #38bdf8; }
+  .row .customer-cell { font-weight: 800; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .qty-cell { font-variant-numeric: tabular-nums; font-weight: 700; color: #cbd5e1; }
+  .row .due-cell { color: #cbd5e1; font-weight: 700; }
+  .row .assigned-cell { color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .overdue-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 6px 12px; border-radius: 999px; font-weight: 900; font-size: 14px;
+    background: rgba(239,68,68,0.16); color: #fca5a5; border: 1px solid rgba(248,113,113,0.35);
+  }
+  .overdue-pill.today { background: rgba(245,158,11,0.16); color: #fde68a; border-color: rgba(251,191,36,0.35); }
+
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #4ade80; gap: 14px;
+  }
+  .empty-state .big { font-size: 64px; }
+  .empty-state .msg { font-size: 26px; font-weight: 800; }
+
+  .footer { margin-top: 16px; text-align: right; color: #475569; font-size: 12px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<script>
+  // Session check — same pattern as index.html. Kiosk browsers stay signed in
+  // via Supabase's persisted session, so this only needs logging in once.
+  (async () => {
+    const cfg = window.ATAM_GO_CONFIG || {};
+    const _sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    const { data: { session } } = await _sb.auth.getSession();
+    if (!session) window.location.replace('./login.html');
+  })();
+</script>
+
+<div class="wrap">
+  <div class="header">
+    <div class="header-left">
+      <img src="atam-go-logo.png?v=4" alt="ATAM GO logo" />
+      <p class="header-title">Overdue Orders <span id="dateLabel"></span></p>
+    </div>
+    <div class="clock" id="clock">--:--</div>
+  </div>
+
+  <div class="summary-bar">
+    <div class="summary-card danger">
+      <span>Overdue Orders</span>
+      <strong id="overdueCount">—</strong>
+    </div>
+    <div class="summary-card amber">
+      <span>Total Units Overdue</span>
+      <strong id="overdueUnits">—</strong>
+    </div>
+    <div class="summary-card">
+      <span>Most Overdue</span>
+      <strong id="worstOverdue">—</strong>
+    </div>
+  </div>
+
+  <div class="list-panel">
+    <div class="list-head">
+      <div>Order</div>
+      <div>Customer</div>
+      <div>Qty</div>
+      <div>Due Date</div>
+      <div>Overdue By</div>
+      <div>Assigned To</div>
+    </div>
+    <div class="list-body" id="listBody"></div>
+  </div>
+
+  <div class="footer" id="lastRefreshed"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const cfg = window.ATAM_GO_CONFIG || {};
+  const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  const REFRESH_MS = 2 * 60 * 1000; // 2 minutes — fine for a TV, keeps load light
+
+  const $ = id => document.getElementById(id);
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  }
+  function num(v) { return new Intl.NumberFormat('en-GB').format(Number(v || 0)); }
+  function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+
+  function fmtDate(v) {
+    return v ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(v)) : '—';
+  }
+
+  function daysOverdue(dueDate, today) {
+    const due = startOfDay(dueDate);
+    const diffMs = today - due;
+    return Math.round(diffMs / 86400000);
+  }
+
+  function updateClock() {
+    const now = new Date();
+    $('clock').textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    $('dateLabel').textContent = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+
+  async function load() {
+    try {
+      const { data, error } = await sb
+        .from('late_or_at_risk_orders')
+        .select('*')
+        .order('date_due', { ascending: true, nullsFirst: false })
+        .limit(200);
+
+      if (error) throw error;
+
+      const today = startOfDay(new Date());
+
+      // "Overdue" = due date is today or earlier, and it hasn't shipped —
+      // the late_or_at_risk_orders view already excludes shipped orders,
+      // so we only need to filter out anything due in the future.
+      const overdue = (data || [])
+        .filter(r => r.date_due && startOfDay(r.date_due) <= today)
+        .map(r => ({ ...r, _daysOverdue: daysOverdue(r.date_due, today) }))
+        .sort((a, b) => b._daysOverdue - a._daysOverdue);
+
+      render(overdue);
+      $('lastRefreshed').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-GB');
+    } catch (e) {
+      console.error('Overdue load failed:', e);
+      $('listBody').innerHTML = `<div class="row" style="grid-template-columns:1fr"><div>Could not load data — check connection.</div></div>`;
+    }
+  }
+
+  function render(rows) {
+    const totalUnits = rows.reduce((s, r) => s + Number(r.total_quantity || 0), 0);
+    $('overdueCount').textContent = num(rows.length);
+    $('overdueUnits').textContent = num(totalUnits);
+    $('worstOverdue').textContent = rows.length ? `${rows[0]._daysOverdue}d — #${rows[0].order_id}` : '—';
+
+    const body = $('listBody');
+
+    if (rows.length === 0) {
+      body.innerHTML = '';
+      body.parentElement.querySelector('.empty-state')?.remove();
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = `<div class="big">✅</div><div class="msg">Nothing overdue right now</div>`;
+      body.after(empty);
+      body.style.display = 'none';
+      return;
+    }
+
+    body.style.display = '';
+    body.parentElement.querySelector('.empty-state')?.remove();
+
+    body.innerHTML = rows.map(r => `
+      <div class="row">
+        <div class="order-cell">#${esc(r.order_id)}</div>
+        <div class="customer-cell">${esc(r.customer_name || 'Unknown')}</div>
+        <div class="qty-cell">${num(r.total_quantity)}</div>
+        <div class="due-cell">${fmtDate(r.date_due)}</div>
+        <div><span class="overdue-pill ${r._daysOverdue === 0 ? 'today' : ''}">${r._daysOverdue === 0 ? 'Due today' : r._daysOverdue + 'd overdue'}</span></div>
+        <div class="assigned-cell">${esc(r.assigned_to || '—')}</div>
+      </div>
+    `).join('');
+  }
+
+  updateClock();
+  setInterval(updateClock, 30 * 1000);
+
+  load();
+  setInterval(load, REFRESH_MS);
+})();
+</script>
+
+</body>
+</html>
