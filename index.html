@@ -113,6 +113,23 @@
     #signOutBtn { margin-top: 12px; width: 100%; padding: 8px; background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.3); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; transition: background 0.15s; }
     #signOutBtn:hover { background: rgba(249,115,22,0.28); }
     @media (max-width: 420px) { #dan-panel { width: 100vw; } #dan-fab { bottom: 16px; right: 16px; } }
+
+    /* Overdue Orders sidebar link — deliberately styled apart from the
+       nav-link buttons since it opens a separate standalone page in a new
+       tab rather than switching one of the internal .dashboard-page views. */
+    .nav-link.external-link {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      text-decoration: none;
+      border-color: rgba(239,68,68,0.3);
+      background: rgba(239,68,68,0.08);
+      color: #fca5a5;
+    }
+    .nav-link.external-link:hover {
+      background: rgba(239,68,68,0.14);
+      color: #fecaca;
+      transform: translateX(3px);
+    }
+    .nav-link.external-link .ext-icon { font-size: 12px; opacity: 0.8; flex-shrink: 0; }
   </style>
 
   <!-- DAN BOT HTML -->
@@ -302,6 +319,10 @@
         <button type="button" class="nav-link" data-page="customers"><span>Customers</span></button>
         <button type="button" class="nav-link" data-page="activity"><span>Production Activity</span></button>
         <button type="button" class="nav-link" data-page="actions"><span>Actions</span></button>
+        <a href="overdue.html" target="_blank" rel="noopener" class="nav-link external-link">
+          <span>🚨 Overdue Orders</span>
+          <span class="ext-icon">↗</span>
+        </a>
       </nav>
       <div class="sidebar-footer">
         <p>Status</p>
