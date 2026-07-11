@@ -214,11 +214,23 @@
     return { text: `⚠️ Overdue by ${days} day${days === 1 ? '' : 's'}`, isToday: false };
   }
 
+  const STATUS_MAP = {
+    1: 'Quote', 2: 'Production Complete', 3: 'Shipped', 4: 'Cancelled',
+    5: 'On Hold', 6: 'Awaiting Stock', 7: 'Awaiting Artwork',
+    8: 'In Production', 9: 'Awaiting Payment'
+  };
+
   async function load() {
     try {
+      // upcoming_orders pulls every order regardless of production status —
+      // unlike late_or_at_risk_orders (built on decoration_records), it also
+      // catches orders that are overdue before any production work has even
+      // started (e.g. still "Awaiting Payment" or "Quote"), which decoration
+      // records never gets a row for.
       const { data, error } = await sb
-        .from('late_or_at_risk_orders')
+        .from('upcoming_orders')
         .select('*')
+        .is('date_shipped', null)
         .order('date_due', { ascending: true, nullsFirst: false })
         .limit(200);
 
@@ -230,7 +242,8 @@
 
       // Today's orders, plus yesterday's ONLY if still unshipped (a one-day
       // carry-over) — deliberately not a rolling backlog of weeks/months.
-      // The late_or_at_risk_orders view already excludes shipped orders.
+      // Shipped orders are already excluded by the .is('date_shipped', null)
+      // filter above.
       const overdue = (data || [])
         .filter(r => {
           if (!r.date_due) return false;
@@ -289,7 +302,7 @@
             </div>
             <div class="oc-meta-item">
               <span class="oc-meta-label">Status</span>
-              <span class="oc-meta-val">${esc(r.risk_status || 'Overdue')}</span>
+              <span class="oc-meta-val">${esc(STATUS_MAP[r.order_status] || `Status ${r.order_status}`)}</span>
             </div>
           </div>
 
