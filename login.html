@@ -302,7 +302,7 @@
 <script>
   // ── Supabase client ──────────────────────────────────────────────
   const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
-  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9zeXZsaGdreGhqeGtmemx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTA4NDAsImV4cCI6MjA5NjA4Njg0MH0.MwfoPHpa--9uiwCcgtzUn2nFMBcFawQAg44rmSdisyQ';
+  const SUPABASE_ANON = 'sb_publishable_4Ii8Z8bGgQ5OrSKB2at_GA_GubBsWC1';
 
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -311,7 +311,7 @@
   (async () => {
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
-      window.location.href = './index.html';
+      window.location.href = './progress.html';
     }
   })();
 
@@ -372,7 +372,7 @@
       showMsg(`Welcome back, ${profile?.full_name || email.split('@')[0]}. Redirecting…`, 'success');
 
       setTimeout(() => {
-        window.location.href = './index.html';
+        window.location.href = './progress.html';
       }, 900);
 
     } catch (err) {
