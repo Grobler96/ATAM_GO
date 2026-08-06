@@ -311,7 +311,7 @@
   (async () => {
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
-      window.location.href = './progress.html';
+      window.location.href = './index.html';
     }
   })();
 
@@ -372,7 +372,7 @@
       showMsg(`Welcome back, ${profile?.full_name || email.split('@')[0]}. Redirecting…`, 'success');
 
       setTimeout(() => {
-        window.location.href = './progress.html';
+        window.location.href = './index.html';
       }, 900);
 
     } catch (err) {
