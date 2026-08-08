@@ -549,8 +549,6 @@ function drawTrend(){
 }
 window.addEventListener('resize', ()=>{ if(months.length) drawTrend(); });
 
-boot();
-
 /* ================= Wire into ATAM GO's tab navigation ================= */
 // bindPageNavigation() in app.js owns the visual tab-switching (it sets .onclick
 // on every .nav-link, including this one). We attach via addEventListener instead
