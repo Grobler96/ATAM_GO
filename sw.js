@@ -3,7 +3,7 @@
 // offline resilience. Deliberately does NOT touch Supabase or n8n requests —
 // every dashboard number always comes straight from the network, never cache.
 
-const CACHE = 'atamgo-shell-v2';
+const CACHE = 'atamgo-shell-v3';
 
 const SHELL = [
   './',
@@ -12,6 +12,7 @@ const SHELL = [
   './styles.css',
   './enhancements.css',
   './revenue.css',
+  './mobile.css',
   './app.js',
   './enhancements.js',
   './dispatch.js',
