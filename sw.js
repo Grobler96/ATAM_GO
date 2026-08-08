@@ -1,9 +1,9 @@
 // ATAM GO — app-shell service worker.
-// Caches only static UI files (HTML/CSS/JS) for fast loads and basic offline
-// resilience. Deliberately does NOT touch Supabase or n8n requests — every
-// dashboard number always comes straight from the network, never from cache.
+// Caches only static UI files (HTML/CSS/JS/icons) for fast loads and basic
+// offline resilience. Deliberately does NOT touch Supabase or n8n requests —
+// every dashboard number always comes straight from the network, never cache.
 
-const CACHE = 'atamgo-shell-v1';
+const CACHE = 'atamgo-shell-v2';
 
 const SHELL = [
   './',
@@ -20,6 +20,10 @@ const SHELL = [
   './revenue.js',
   './config.js',
   './atam-go-logo.png',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png',
+  './favicon-32.png',
   './manifest.json'
 ];
 
