@@ -1,0 +1,101 @@
+/* ═══════════════════════════════════════════════════════════════
+   ATAM GO — mobile.css
+   Mobile-specific fixes. Load this AFTER styles.css, enhancements.css
+   and revenue.css so it wins the cascade without editing those files.
+   Targets phones (≤640px) and small tablets (≤900px).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ---------- Small tablets / large phones (≤900px) ---------- */
+@media (max-width: 900px) {
+  .main-content { padding: 16px; }
+  .topbar { padding: 14px 0; }
+  .topbar-controls { width: 100%; }
+  .date-range-controls { width: 100%; }
+  .range-presets { width: 100%; }
+  .range-btn { flex: 1 1 auto; text-align: center; padding: 10px 8px; font-size: 12px; }
+  .custom-date-range { width: 100%; }
+  .custom-date-range input[type="date"] { flex: 1; min-width: 0; }
+  .topbar-controls select,
+  .primary-btn,
+  .secondary-btn { width: 100%; }
+  .search-input { min-width: 0; width: 100%; }
+}
+
+/* ---------- Phones (≤640px) ---------- */
+@media (max-width: 640px) {
+
+  html, body { overflow-x: hidden; }
+
+  /* --- Sidebar: stop the cramped 3-column nav squeeze, go full-width stacked --- */
+  .sidebar { padding: 16px; }
+  .sidebar-nav { grid-template-columns: 1fr !important; gap: 8px; }
+  .nav-link { padding: 12px 14px; font-size: 13px; white-space: normal; }
+  .brand-logo-wide { max-width: 170px !important; }
+
+  /* --- KPI cards: single column, no clipped/hidden text --- */
+  .kpi-grid { grid-template-columns: 1fr !important; gap: 12px; }
+  .kpi-card { min-height: auto; padding: 16px; }
+  .kpi-card strong { font-size: 28px !important; }
+  .kpi-card span, .kpi-card small { white-space: normal; }
+
+  #biggestJobLabel {
+    max-width: none !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  /* --- Charts / tables: single column, natural width --- */
+  .chart-grid, .table-grid { grid-template-columns: 1fr !important; }
+  .chart-box { height: 240px; }
+  .panel { padding: 14px; border-radius: 16px; }
+  .panel-header { flex-direction: column; align-items: flex-start !important; gap: 10px; }
+  table { min-width: 640px; } /* keep tables scrollable, not squashed unreadable */
+
+  /* --- Action cards / order modal --- */
+  .action-grid { grid-template-columns: 1fr !important; }
+  .order-meta-grid { grid-template-columns: 1fr 1fr !important; }
+  .modal-card { padding: 16px; }
+
+  /* --- DAN chat panel: full-screen on phones instead of 440px fixed --- */
+  #dan-panel { width: 100vw !important; }
+  #dan-fab { bottom: 16px !important; right: 16px !important; width: 52px !important; height: 52px !important; }
+
+  /* ============ Revenue tab ============ */
+
+  #revenue .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+
+  /* Month overview strip: was 3 rigid columns, now stacks so figures aren't squashed */
+  #revenue .overview-strip { grid-template-columns: 1fr !important; gap: 12px; }
+  #revenue .ov-value { font-size: 22px !important; }
+
+  /* Target card: coin + info side-by-side was overflowing narrow screens — stack instead */
+  #revenue .target-card { flex-direction: column; gap: 18px; padding: 18px; }
+  #revenue .coin-wrap { margin: 0 auto; }
+  #revenue .coin { --coin-w: 120px !important; --coin-h: 144px !important; }
+  #revenue .target-headline { font-size: 26px !important; }
+
+  /* KPI row inside revenue tab: single column like the rest */
+  #revenue .kpis { grid-template-columns: 1fr !important; gap: 12px; }
+
+  /* Month tabs: allow horizontal scroll instead of squashing every tab unreadable */
+  #revenue .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap !important; }
+  #revenue .tabs::-webkit-scrollbar { display: none; }
+
+  /* Team grid: single column so names/values never get clipped */
+  #revenue .team-grid { grid-template-columns: 1fr !important; gap: 12px; }
+
+  /* Forecast bar labels: stack instead of cramming onto one line */
+  #revenue .fbar-labels { flex-direction: column; align-items: flex-start !important; gap: 8px; }
+
+  /* View nav (Overview/Team) + order week headers: comfortable tap targets */
+  #revenue .view-nav { width: 100%; }
+  #revenue .view-btn { flex: 1; text-align: center; }
+}
+
+/* ---------- Very small phones (≤380px) ---------- */
+@media (max-width: 380px) {
+  .kpi-card strong { font-size: 24px !important; }
+  #revenue .target-headline { font-size: 22px !important; }
+  #revenue .coin { --coin-w: 100px !important; --coin-h: 120px !important; }
+}
