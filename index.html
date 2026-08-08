@@ -6,6 +6,7 @@
   <title>ATAM GO</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="enhancements.css" />
+  <link rel="stylesheet" href="revenue.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -319,6 +320,7 @@
         <button type="button" class="nav-link" data-page="customers"><span>Customers</span></button>
         <button type="button" class="nav-link" data-page="activity"><span>Production Activity</span></button>
         <button type="button" class="nav-link" data-page="actions"><span>Actions</span></button>
+        <button type="button" class="nav-link" data-page="revenue"><span>💰 Revenue</span></button>
         <a href="overdue.html" target="_blank" rel="noopener" class="nav-link external-link">
           <span>🚨 Overdue Orders</span>
           <span class="ext-icon">↗</span>
@@ -491,6 +493,118 @@
           <button type="button" class="action-card" data-action="sendManagerAlert"><strong>Send Manager Alert</strong><span>Notify account managers about urgent work.</span></button>
         </div>
       </section>
+
+      <!-- REVENUE INTELLIGENCE (merged from ATAM_REVENUE) -->
+      <section id="revenue" class="dashboard-page">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Revenue Intelligence</p>
+            <h2>Revenue &amp; Billing</h2>
+            <p class="page-subtitle">Live WIP value, monthly target progress and team revenue — synced from DecoNetwork.</p>
+          </div>
+          <div class="muted" style="font-size:12px;text-align:right">Last synced<br><b id="revenue-sync-time" style="color:#e2e8f0">—</b></div>
+        </div>
+
+        <div id="revenue-loading" style="padding:60px 0;text-align:center;color:var(--muted,#94a3b8);font-size:13px">
+          Loading revenue data…
+        </div>
+
+  <div class="view-nav">
+    <div class="view-btn active" data-view="overview">Overview</div>
+    <div class="view-btn" data-view="team">Team</div>
+  </div>
+
+  <div class="view active" id="view-overview">
+
+  <div class="overview-strip" id="overview-strip"></div>
+
+  <div class="section-title">Monthly Target</div>
+  <div class="target-card">
+    <div class="coin-wrap">
+      <div class="coin" style="--coin-w:150px;--coin-h:180px">
+        <div class="coin-fill" id="target-coin-fill"></div>
+        <div class="coin-symbol" id="target-coin-symbol">£</div>
+        <div class="coin-glow" id="target-coin-glow"></div>
+        <div class="coin-pct" id="target-coin-pct">0%</div>
+      </div>
+    </div>
+    <div class="target-info">
+      <div class="k-label">This month vs target</div>
+      <div class="target-headline"><span id="target-current">£0.00</span> <small>of <span id="target-goal">£40,000.00</span></small></div>
+      <div class="target-bar-track"><div class="target-bar-fill" id="target-bar-fill"></div></div>
+      <div class="target-foot" id="target-foot">—</div>
+    </div>
+  </div>
+
+  <div class="tabs-wrap"><div class="tabs" id="tabs" role="tablist"></div></div>
+
+  <div class="kpis" id="kpis">
+    <div class="kpi kpi-total">
+      <div class="k-label">Total Pipeline</div>
+      <div class="k-value"><span class="pound">£</span><span id="kpi-total">0.00</span></div>
+      <div class="k-sub" id="kpi-total-sub">— orders</div>
+    </div>
+    <div class="kpi kpi-billed">
+      <div class="k-label">Billed</div>
+      <div class="k-value"><span class="pound">£</span><span id="kpi-billed">0.00</span></div>
+      <div class="k-sub" id="kpi-billed-sub">— orders dispatched</div>
+    </div>
+    <div class="kpi kpi-unbilled">
+      <div class="k-label">Unbilled WIP</div>
+      <div class="k-value"><span class="pound">£</span><span id="kpi-unbilled">0.00</span></div>
+      <div class="k-sub" id="kpi-unbilled-sub">— orders awaiting dispatch</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label">Billing %</div>
+      <div class="kpi-gauge" style="margin-top:10px">
+        <svg width="72" height="72" viewBox="0 0 72 72">
+          <circle cx="36" cy="36" r="30" fill="none" stroke="#131e34" stroke-width="7"/>
+          <circle id="gauge-arc" cx="36" cy="36" r="30" fill="none" stroke="#22c55e" stroke-width="7"
+            stroke-linecap="round" stroke-dasharray="188.5" stroke-dashoffset="188.5"
+            transform="rotate(-90 36 36)" style="transition:stroke-dashoffset .8s cubic-bezier(.22,.61,.36,1);filter:drop-shadow(0 0 5px rgba(34,197,94,.5))"/>
+        </svg>
+        <div>
+          <div class="gauge-num"><span id="kpi-pct">0</span>%</div>
+          <div class="k-sub" id="kpi-pct-sub">of month billed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Billing Forecast</div>
+  <div class="forecast-card">
+    <div class="fbar-wrap">
+      <div class="fbar-track" id="fbar">
+        <div class="fbar-seg billed" id="seg-billed"></div>
+        <div class="fbar-seg unbilled" id="seg-unbilled"></div>
+        <div class="fbar-seg spill" id="seg-spill"></div>
+      </div>
+      <div class="fbar-today" id="fbar-today" style="left:0%"></div>
+    </div>
+    <div class="fbar-labels">
+      <div class="fl"><span class="dot" style="background:var(--green)"></span><b id="fl-billed">£0.00</b><span>billed</span></div>
+      <div class="fl"><span class="dot" style="background:var(--amber)"></span><b id="fl-unbilled">£0.00</b><span>WIP due this month</span></div>
+      <div class="fl" id="fl-spill-wrap" style="display:none"><span class="dot" style="background:var(--indigo)"></span><b id="fl-spill">£0.00</b><span>spilling to next month</span></div>
+      <div class="fl"><b id="fl-total">£0.00</b><span>total pipeline</span></div>
+    </div>
+  </div>
+
+  <div class="section-title" id="orders-title">Orders</div>
+  <div id="orders"></div>
+
+  <div class="section-title">6-Month Revenue Trend</div>
+  <div class="trend-card"><svg id="trend" width="100%" height="240" role="img" aria-label="Billed revenue by month"></svg></div>
+  <div id="trend-tip"></div>
+
+  </div><!-- /view-overview -->
+
+  <div class="view" id="view-team">
+    <div class="section-title" id="team-title">Team Revenue — Month</div>
+    <div class="team-grid" id="team-grid"></div>
+  </div>
+
+      </section>
+
     </main>
   </div>
 
@@ -517,6 +631,7 @@
   <script src="dispatch.js"></script>
   <script src="effects3d.js"></script>
   <script src="weekly-targets.js"></script>
+  <script src="revenue.js"></script>
 
   <!-- SIGN OUT -->
   <script>
