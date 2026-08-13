@@ -95,8 +95,9 @@
 
   function renderCase(row) {
     const meta = TYPE_META[row.discrepancy_type] || TYPE_META.no_po_match;
+    const isNoMatch = row.discrepancy_type === 'no_po_match';
     const varianceTxt = row.variance_amount != null
-      ? (Number(row.variance_amount) >= 0 ? '+' : '') + fmtMoney(row.variance_amount)
+      ? (Number(row.variance_amount) >= 0 ? '+' : '') + fmtMoney(row.variance_amount) + (isNoMatch ? ' (incl. VAT)' : '')
       : '—';
 
     let whyText = '';
@@ -105,7 +106,7 @@
     } else if (row.discrepancy_type === 'amount_variance') {
       whyText = `The invoiced total differs from the PO's sub-total + tax by ${varianceTxt} (${row.variance_pct != null ? row.variance_pct + '%' : 'outside tolerance'}), beyond the agreed ±2%/£1 tolerance.`;
     } else {
-      whyText = `An invoice arrived from <b>${row.invoice_vendor || 'this vendor'}</b> with no PO number the system could match against DecoNetwork.`;
+      whyText = `An invoice arrived from <b>${row.invoice_vendor || 'this vendor'}</b> with no PO number the system could match against DecoNetwork. The <b>${fmtMoney(row.invoice_goods)}</b> goods + <b>${fmtMoney(row.invoice_vat)}</b> VAT (<b>${fmtMoney(row.variance_amount)}</b> total, incl. VAT) shown is the full invoice value, not a variance against anything — there's simply no PO on file to compare it to yet.`;
     }
 
     const decoFlag = row.deconetwork_correction_needed ? `
