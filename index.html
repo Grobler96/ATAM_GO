@@ -141,6 +141,79 @@
     .nav-link.external-link .ext-icon { font-size: 12px; opacity: 0.8; flex-shrink: 0; }
   </style>
 
+  <!-- DISCREPANCIES TAB STYLES (scoped under #discrepancies, does not
+       touch any existing global selectors or variable names) -->
+  <style>
+    #discrepancies { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #discrepancies .disc-summary-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-bottom:20px; overflow:hidden; }
+    #discrepancies .disc-summary-card { padding:16px 18px; border-right:1px solid rgba(255,255,255,0.08); }
+    #discrepancies .disc-summary-card:last-child { border-right:none; }
+    #discrepancies .disc-summary-card .disc-num { font-size:26px; font-weight:700; color:#f8fafc; font-variant-numeric:tabular-nums; line-height:1; }
+    #discrepancies .disc-summary-card.disc-attn .disc-num { color:#f87171; }
+    #discrepancies .disc-summary-card .disc-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-top:8px; }
+
+    #discrepancies .disc-export-bar { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 16px; margin-bottom:18px; flex-wrap:wrap; }
+    #discrepancies .disc-export-bar select, #discrepancies .disc-export-bar input[type=date] { padding:7px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; font-size:12.5px; background:#0d1a2e; color:#e2e8f0; }
+    #discrepancies .disc-export-bar .disc-spacer { flex:1; }
+    #discrepancies .disc-export-btn { display:flex; align-items:center; gap:6px; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:600; border:1px solid rgba(56,189,248,0.3); background:transparent; color:#7dd3fc; cursor:pointer; }
+    #discrepancies .disc-export-btn.primary { background:linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; border:none; }
+    #discrepancies .disc-export-btn:hover { opacity:.85; }
+
+    #discrepancies .disc-case { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:12px; overflow:hidden; cursor:pointer; transition:box-shadow .15s; }
+    #discrepancies .disc-case:hover { box-shadow:0 4px 18px rgba(0,0,0,0.25); }
+    #discrepancies .disc-case-head { display:flex; align-items:center; gap:14px; padding:14px 18px; }
+    #discrepancies .disc-stamp { width:38px; height:38px; border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
+    #discrepancies .disc-stamp.vendor { border-color:#f87171; color:#f87171; background:rgba(248,113,113,0.1); }
+    #discrepancies .disc-stamp.amount { border-color:#fbbf24; color:#fbbf24; background:rgba(251,191,36,0.1); }
+    #discrepancies .disc-stamp.nomatch { border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.1); }
+    #discrepancies .disc-case-main { flex:1; min-width:0; }
+    #discrepancies .disc-case-po { font-size:10.5px; color:#64748b; letter-spacing:.03em; }
+    #discrepancies .disc-case-title { font-size:15px; font-weight:700; color:#f8fafc; margin-top:2px; }
+    #discrepancies .disc-case-sub { font-size:12px; color:#94a3b8; margin-top:3px; }
+    #discrepancies .disc-case-meta { text-align:right; font-size:11px; color:#94a3b8; flex-shrink:0; }
+    #discrepancies .disc-case-meta .disc-amt { font-size:15px; font-weight:700; color:#f8fafc; display:block; margin-bottom:2px; }
+    #discrepancies .disc-badge-mini { display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.2); color:#a5b4fc; margin-top:5px; }
+
+    #discrepancies .disc-case-detail { display:none; border-top:1px solid rgba(255,255,255,0.08); padding:18px 20px 20px; background:rgba(0,0,0,0.15); }
+    #discrepancies .disc-case.open .disc-case-detail { display:block; }
+
+    #discrepancies .disc-why { background:rgba(248,113,113,0.08); border-left:3px solid #f87171; border-radius:0 8px 8px 0; padding:12px 14px; margin-bottom:16px; }
+    #discrepancies .disc-why .disc-why-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#f87171; font-weight:700; margin-bottom:4px; }
+    #discrepancies .disc-why p { margin:0; font-size:13px; line-height:1.55; color:#e2e8f0; }
+
+    #discrepancies .disc-compare { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:stretch; margin-bottom:16px; }
+    #discrepancies .disc-compare-card { border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px 14px; background:rgba(255,255,255,0.02); }
+    #discrepancies .disc-compare-card.mismatch { border-color:rgba(248,113,113,0.4); background:rgba(248,113,113,0.06); }
+    #discrepancies .disc-compare-card .disc-ct-label { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:6px; }
+    #discrepancies .disc-compare-card .disc-ct-vendor { font-size:14px; font-weight:700; color:#f8fafc; }
+    #discrepancies .disc-compare-card .disc-ct-row { display:flex; justify-content:space-between; font-size:11.5px; margin-top:6px; color:#94a3b8; }
+    #discrepancies .disc-compare-card .disc-ct-row b { color:#e2e8f0; }
+    #discrepancies .disc-compare-arrow { display:flex; align-items:center; color:#64748b; font-size:18px; }
+
+    #discrepancies .disc-fix { background:rgba(56,189,248,0.06); border:1px dashed rgba(56,189,248,0.35); border-radius:8px; padding:14px 16px; margin-bottom:16px; }
+    #discrepancies .disc-fix .disc-fix-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#38bdf8; font-weight:700; margin-bottom:8px; }
+    #discrepancies .disc-fix ol { margin:0; padding-left:18px; }
+    #discrepancies .disc-fix li { font-size:12.5px; line-height:1.6; margin-bottom:6px; color:#e2e8f0; }
+    #discrepancies .disc-fix .disc-where { display:inline-block; font-size:10.5px; background:rgba(56,189,248,0.15); color:#7dd3fc; padding:1px 6px; border-radius:4px; }
+
+    #discrepancies .disc-field { margin-bottom:12px; }
+    #discrepancies .disc-field label { display:block; font-size:10.5px; font-weight:700; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; }
+    #discrepancies .disc-field select, #discrepancies .disc-field textarea { width:100%; padding:8px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; font-size:12.5px; background:#0d1a2e; color:#e2e8f0; }
+    #discrepancies .disc-field textarea { resize:vertical; min-height:56px; }
+
+    #discrepancies .disc-deco-flag { background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25); border-radius:8px; padding:11px 13px; margin-bottom:14px; }
+    #discrepancies .disc-deco-flag label { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#a5b4fc; }
+    #discrepancies .disc-deco-flag .disc-df-note { font-size:11px; color:#94a3b8; margin-top:4px; line-height:1.5; }
+
+    #discrepancies .disc-actions { display:flex; gap:8px; margin-top:16px; }
+    #discrepancies .disc-btn { flex:1; padding:10px; border-radius:6px; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; border:1px solid rgba(255,255,255,0.12); cursor:pointer; background:transparent; color:#e2e8f0; }
+    #discrepancies .disc-btn.primary { background:linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; border:none; }
+    #discrepancies .disc-btn.danger { color:#f87171; border-color:rgba(248,113,113,0.3); }
+    #discrepancies .disc-btn:hover { opacity:.85; }
+
+    #discrepancies .disc-empty { text-align:center; padding:60px 20px; color:#64748b; font-size:13px; }
+  </style>
+
   <!-- DAN BOT HTML -->
   <button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖</button>
   <div id="dan-panel">
@@ -329,6 +402,7 @@
         <button type="button" class="nav-link" data-page="activity"><span>Production Activity</span></button>
         <button type="button" class="nav-link" data-page="actions"><span>Actions</span></button>
         <button type="button" class="nav-link" data-page="revenue"><span>💰 Revenue</span></button>
+        <button type="button" class="nav-link" data-page="discrepancies"><span>⚠️ Discrepancies</span></button>
         <a href="overdue.html" target="_blank" rel="noopener" class="nav-link external-link">
           <span>🚨 Overdue Orders</span>
           <span class="ext-icon">↗</span>
@@ -613,6 +687,39 @@
 
       </section>
 
+      <!-- DISCREPANCIES -->
+      <section id="discrepancies" class="dashboard-page">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Invoice Reconciliation</p>
+            <h2>Discrepancies</h2>
+            <p class="page-subtitle">PO / invoice mismatches flagged before posting to Xero. Alerts also go to accounts@cpi.co.uk.</p>
+          </div>
+        </div>
+
+        <div class="disc-summary-row">
+          <div class="disc-summary-card disc-attn"><div class="disc-num" id="discOpenCount">0</div><div class="disc-label">Open — needs review</div></div>
+          <div class="disc-summary-card"><div class="disc-num" id="discResolvedCount">0</div><div class="disc-label">Resolved this week</div></div>
+          <div class="disc-summary-card"><div class="disc-num" id="discOpenValue">£0.00</div><div class="disc-label">Variance value, open</div></div>
+          <div class="disc-summary-card"><div class="disc-num" id="discDecoOutstanding">0</div><div class="disc-label">Awaiting DecoNetwork fix</div></div>
+        </div>
+
+        <div class="disc-export-bar">
+          <span style="font-size:11.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Audit trail:</span>
+          <select id="discPeriodSelect">
+            <option value="today">Today</option>
+            <option value="week" selected>This week</option>
+            <option value="month">This month</option>
+            <option value="last30">Last 30 days</option>
+          </select>
+          <div class="disc-spacer"></div>
+          <button type="button" class="disc-export-btn" id="discExportPdfBtn">↓ PDF</button>
+          <button type="button" class="disc-export-btn primary" id="discExportXlsxBtn">↓ Excel</button>
+        </div>
+
+        <div id="discrepanciesList"><div class="disc-empty">Loading discrepancies…</div></div>
+      </section>
+
     </main>
   </div>
 
@@ -640,6 +747,7 @@
   <script src="effects3d.js"></script>
   <script src="weekly-targets.js"></script>
   <script src="revenue.js"></script>
+  <script src="discrepancies.js"></script>
 
   <!-- SIGN OUT -->
   <script>
