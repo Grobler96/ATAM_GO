@@ -91,6 +91,37 @@
       ? '<span class="rev-badge-mini">Medium confidence</span>'
       : '';
 
+    let whyHtml = '';
+    if (row.match_status === 'clean_match') {
+      whyHtml = `<div class="rev-why rev-why-good"><div class="rev-why-label">Looks good</div><p>Vendor and amount both line up with PO ${row.matched_po_number} within tolerance. Safe to approve as-is, or adjust anything below first if something looks off.</p></div>`;
+    } else if (row.match_status === 'vendor_mismatch') {
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>This invoice is from <b>${row.extracted_vendor || 'this vendor'}</b>, but the matched PO (${row.matched_po_number}) is recorded under <b>${row.matched_po_vendor || 'a different vendor'}</b> in DecoNetwork. Could be a genuine data-entry error on the PO, or the wrong PO matched.</p></div>
+        <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
+          <li>Check the amounts below actually match this PO — if they do, the vendor field in DecoNetwork is likely just wrong.</li>
+          <li>Update the <b>Vendor</b> field below to the correct one, then Approve — this fixes what gets posted to Xero regardless of DecoNetwork.</li>
+          <li>Separately, flag the PO for correction in <span class="rev-where">DecoNetwork → Business Hub</span> so it's right at the source too — that's a manual step outside this tab.</li>
+        </ol></div>`;
+    } else if (row.match_status === 'amount_variance') {
+      const poCombined = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0);
+      const invCombined = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
+      const diff = (invCombined - poCombined).toFixed(2);
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${row.matched_po_number}'s value (${fmtMoney(poCombined)}) — outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
+        <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
+          <li>Check the line items below against the PO for what caused the difference — an added charge, a partial delivery, or a genuine pricing change.</li>
+          <li>If it's genuine, just approve as-is — the <b>Total to post</b> field below already reflects what was actually invoiced.</li>
+          <li>If something looks wrong, correct the fields below before approving, or reject and follow up with the supplier.</li>
+        </ol></div>`;
+    } else if (row.match_status === 'no_po_match') {
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>No PO number was found on this invoice, or it didn't match anything in DecoNetwork. This could be a genuine order placed without a formal PO, or a PO that's outside the synced date range.</p></div>
+        <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
+          <li>Check DecoNetwork directly for a PO around this date and amount — if you find one, type its number into <b>PO Reference</b> below before approving.</li>
+          <li>If genuinely no PO exists, confirm the order was authorised, then approve anyway — the <b>PO Reference</b> field can stay blank.</li>
+          <li>If it looks wrong or unauthorised, reject and flag to Daniel.</li>
+        </ol></div>`;
+    } else {
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">Not yet matched</div><p>This invoice hasn't been checked against DecoNetwork POs yet.</p></div>`;
+    }
+
     let lineItemsHtml = '';
     try {
       const items = JSON.parse(row.extracted_line_items || '[]');
@@ -117,6 +148,7 @@
         </div>
 
         <div class="rev-case-detail">
+          ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
 
           <div class="rev-compare">
