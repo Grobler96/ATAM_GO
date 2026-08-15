@@ -504,6 +504,7 @@
         <button type="button" class="nav-link" data-page="actions"><span>Actions</span></button>
         <button type="button" class="nav-link" data-page="revenue"><span>💰 Revenue</span></button>
         <button type="button" class="nav-link" data-page="discrepancies"><span>⚠️ Discrepancies</span></button>
+        <button type="button" class="nav-link" data-page="review"><span>📥 Review</span></button>
         <a href="overdue.html" target="_blank" rel="noopener" class="nav-link external-link">
           <span>🚨 Overdue Orders</span>
           <span class="ext-icon">↗</span>
@@ -821,6 +822,90 @@
         <div id="discrepanciesList"><div class="disc-empty">Loading discrepancies…</div></div>
       </section>
 
+<style>
+        #review { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        #review .rev-summary-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-bottom:20px; overflow:hidden; }
+        #review .rev-summary-card { padding:16px 18px; border-right:1px solid rgba(255,255,255,0.08); }
+        #review .rev-summary-card:last-child { border-right:none; }
+        #review .rev-summary-card .rev-num { font-size:26px; font-weight:700; color:#f8fafc; font-variant-numeric:tabular-nums; line-height:1; }
+        #review .rev-summary-card.rev-attn .rev-num { color:#38bdf8; }
+        #review .rev-summary-card .rev-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-top:8px; }
+      
+        #review .rev-case { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:12px; overflow:hidden; cursor:pointer; transition:box-shadow .15s; }
+        #review .rev-case:hover { box-shadow:0 4px 18px rgba(0,0,0,0.25); }
+        #review .rev-case-head { display:flex; align-items:center; gap:14px; padding:14px 18px; }
+        #review .rev-stamp { width:38px; height:38px; border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
+        #review .rev-stamp.clean { border-color:#22c55e; color:#22c55e; background:rgba(34,197,94,0.1); }
+        #review .rev-stamp.vendor { border-color:#f87171; color:#f87171; background:rgba(248,113,113,0.1); }
+        #review .rev-stamp.amount { border-color:#fbbf24; color:#fbbf24; background:rgba(251,191,36,0.1); }
+        #review .rev-stamp.nomatch { border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.1); }
+        #review .rev-case-main { flex:1; min-width:0; }
+        #review .rev-case-ref { font-size:10.5px; color:#64748b; letter-spacing:.03em; }
+        #review .rev-case-title { font-size:15px; font-weight:700; color:#f8fafc; margin-top:2px; }
+        #review .rev-case-sub { font-size:12px; color:#94a3b8; margin-top:3px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        #review .rev-case-meta { text-align:right; font-size:11px; color:#94a3b8; flex-shrink:0; }
+        #review .rev-case-meta .rev-amt { font-size:15px; font-weight:700; color:#f8fafc; display:block; margin-bottom:2px; }
+        #review .rev-badge-mini { display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.2); color:#a5b4fc; }
+        #review .rev-badge-warn { background:rgba(251,191,36,0.2); color:#fbbf24; }
+      
+        #review .rev-case-detail { display:none; border-top:1px solid rgba(255,255,255,0.08); padding:18px 20px 20px; background:rgba(0,0,0,0.15); }
+        #review .rev-case.open .rev-case-detail { display:block; }
+      
+        #review .rev-notes-flag { background:rgba(251,191,36,0.08); border-left:3px solid #fbbf24; border-radius:0 8px 8px 0; padding:10px 14px; margin-bottom:16px; font-size:12.5px; color:#fde68a; }
+      
+        #review .rev-compare { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:stretch; margin-bottom:16px; }
+        #review .rev-compare-card { border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px 14px; background:rgba(255,255,255,0.02); }
+        #review .rev-compare-card.mismatch { border-color:rgba(248,113,113,0.4); background:rgba(248,113,113,0.06); }
+        #review .rev-ct-label { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:6px; }
+        #review .rev-ct-vendor { font-size:14px; font-weight:700; color:#f8fafc; }
+        #review .rev-ct-row { display:flex; justify-content:space-between; font-size:11.5px; margin-top:6px; color:#94a3b8; }
+        #review .rev-ct-row b { color:#e2e8f0; }
+        #review .rev-compare-arrow { display:flex; align-items:center; color:#64748b; font-size:18px; }
+      
+        #review .rev-line-items { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px 14px; margin-bottom:16px; }
+        #review .rev-li-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; margin-bottom:8px; }
+        #review .rev-li-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; font-size:12px; color:#cbd5e1; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+        #review .rev-li-row:last-child { border-bottom:none; }
+      
+        #review .rev-edit-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#38bdf8; font-weight:700; margin-bottom:10px; }
+        #review .rev-field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        #review .rev-field { margin-bottom:12px; }
+        #review .rev-field label { display:block; font-size:10.5px; font-weight:700; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; }
+        #review .rev-field input, #review .rev-field select, #review .rev-field textarea {
+          width:100%; padding:8px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:6px;
+          font-size:12.5px; background:#0d1a2e; color:#e2e8f0;
+        }
+        #review .rev-field textarea { resize:vertical; min-height:50px; }
+      
+        #review .rev-actions { display:flex; gap:8px; margin-top:16px; }
+        #review .rev-btn { flex:1; padding:10px; border-radius:6px; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; border:1px solid rgba(255,255,255,0.12); cursor:pointer; background:transparent; color:#e2e8f0; }
+        #review .rev-btn.primary { background:linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; border:none; }
+        #review .rev-btn.danger { color:#f87171; border-color:rgba(248,113,113,0.3); }
+        #review .rev-btn:hover { opacity:.85; }
+        #review .rev-post-note { font-size:11px; color:#64748b; margin-top:10px; text-align:center; }
+      
+        #review .rev-empty { text-align:center; padding:60px 20px; color:#64748b; font-size:13px; }
+      </style>
+      
+      <section id="review" class="dashboard-page">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Invoice Intake</p>
+            <h2>Review</h2>
+            <p class="page-subtitle">Invoices extracted and matched, waiting for approval — nothing here has reached Xero yet.</p>
+          </div>
+        </div>
+      
+        <div class="rev-summary-row">
+          <div class="rev-summary-card rev-attn"><div class="rev-num" id="revAwaitingCount">0</div><div class="rev-label">Awaiting review</div></div>
+          <div class="rev-summary-card"><div class="rev-num" id="revCleanCount">0</div><div class="rev-label">Clean matches</div></div>
+          <div class="rev-summary-card"><div class="rev-num" id="revLowConfCount">0</div><div class="rev-label">Low confidence — check</div></div>
+          <div class="rev-summary-card"><div class="rev-num" id="revTotalValue">£0.00</div><div class="rev-label">Total value waiting</div></div>
+        </div>
+      
+        <div id="reviewList"><div class="rev-empty">Loading…</div></div>
+      </section>
+
     </main>
   </div>
 
@@ -849,6 +934,7 @@
   <script src="weekly-targets.js"></script>
   <script src="revenue.js"></script>
   <script src="discrepancies.js"></script>
+  <script src="pending_invoices_review.js"></script>
 
   <!-- SIGN OUT -->
   <script>
