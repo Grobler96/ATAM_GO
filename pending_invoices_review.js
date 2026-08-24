@@ -19,6 +19,7 @@
   };
 
   let allRows = [];
+  let approvedRows = [];
 
   async function getSb() {
     if (window._atamSb) return window._atamSb;
@@ -52,6 +53,28 @@
     allRows = data || [];
     renderSummary();
     renderList();
+    await loadApproved();
+  }
+
+  async function loadApproved() {
+    const container = document.getElementById('approvedList');
+    if (!container) return; // index.html hasn't been updated with the new section yet
+
+    const sb = await getSb();
+    const { data, error } = await sb
+      .from('pending_invoices')
+      .select('*')
+      .eq('status', 'approved')
+      .is('xero_bill_id', null)
+      .order('reviewed_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('[Review] load approved error', error);
+      return;
+    }
+    approvedRows = data || [];
+    renderApprovedList();
   }
 
   function renderSummary() {
@@ -86,6 +109,68 @@
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
       if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
     });
+  }
+
+  function renderApprovedList() {
+    const container = document.getElementById('approvedList');
+    if (!container) return;
+
+    const countEl = document.getElementById('revApprovedCount');
+    if (countEl) countEl.textContent = approvedRows.length;
+
+    if (approvedRows.length === 0) {
+      container.innerHTML = '<div class="rev-empty" style="padding:24px 20px">Nothing sitting in approved-but-not-yet-posted right now.</div>';
+      return;
+    }
+
+    container.innerHTML = approvedRows.map(row => `
+      <div class="rev-case" id="rev-approved-${row.id}" style="cursor:default">
+        <div class="rev-case-head" style="cursor:default">
+          <div class="rev-stamp clean">✓</div>
+          <div class="rev-case-main">
+            <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Approved by ${row.reviewed_by || 'unknown'} at ${fmtDate(row.reviewed_at)}</div>
+            <div class="rev-case-title">${row.final_vendor || row.extracted_vendor || 'Unknown vendor'}</div>
+            <div class="rev-case-sub">${row.final_po_reference ? 'PO ' + row.final_po_reference : 'No PO reference'} · Waiting to post to Xero</div>
+          </div>
+          <div class="rev-case-meta">
+            <span class="rev-amt">${fmtMoney(row.final_total)}</span>
+          </div>
+        </div>
+        <div style="padding:0 20px 16px">
+          <button type="button" class="rev-btn danger" data-action="undo-approve" data-id="${row.id}" style="width:100%">↺ Undo Approval</button>
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('[data-action="undo-approve"]').forEach(btn => {
+      btn.addEventListener('click', () => undoApprove(btn.dataset.id, btn));
+    });
+  }
+
+  async function undoApprove(id, buttonEl) {
+    if (!confirm('Undo this approval and send it back to Awaiting Review?')) return;
+
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Undoing…';
+    }
+
+    const sb = await getSb();
+    const { error } = await sb.rpc('unapprove_pending_invoice', { p_id: id });
+
+    if (error) {
+      console.error('[Review] undo approve error', error);
+      alert(error.message && error.message.includes('already been posted')
+        ? 'This invoice has already been posted to Xero and cannot be undone here. Contact Daniel to reverse it.'
+        : 'Could not undo this approval. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '↺ Undo Approval';
+      }
+      return;
+    }
+
+    await loadPending();
   }
 
   function renderCase(row) {
