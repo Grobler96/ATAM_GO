@@ -1,10 +1,13 @@
 // pending_invoices_review.js
-// Powers the "Invoice Review" tab — the gate BEFORE anything reaches Xero.
+// Powers the "Invoice Review" tab, the gate BEFORE anything reaches Xero.
 // Every invoice sits here, fully editable, until approved. Nothing here
 // has touched Xero yet. Reuses window._atamSb same as discrepancies.js.
 
 (function () {
   'use strict';
+
+  const RETRY_MATCH_WEBHOOK = 'https://atamcpi.app.n8n.cloud/webhook/retry-po-match';
+  const RETRY_MATCH_TOKEN = '42f5d7bb154d98a8cfc5d8b7e2d83693a088e0f78b2357bf352c518ce25f07cc';
 
   const MATCH_META = {
     clean_match:        { stamp: '✓', cls: 'clean',  label: 'Clean match' },
@@ -78,17 +81,27 @@
 
       const approveBtn = el.querySelector('[data-action="approve"]');
       const rejectBtn = el.querySelector('[data-action="reject"]');
+      const retryBtn = el.querySelector('[data-action="retry-match"]');
       if (approveBtn) approveBtn.addEventListener('click', (e) => { e.stopPropagation(); approveRow(row.id); });
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
+      if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
     });
   }
 
   function renderCase(row) {
     const meta = MATCH_META[row.match_status] || MATCH_META.pending;
     const confBadge = row.extraction_confidence === 'low'
-      ? '<span class="rev-badge-mini rev-badge-warn">Low confidence — check carefully</span>'
+      ? '<span class="rev-badge-mini rev-badge-warn">Low confidence, check carefully</span>'
       : row.extraction_confidence === 'medium'
       ? '<span class="rev-badge-mini">Medium confidence</span>'
+      : '';
+
+    // Shown under the "How to fix this" list for anything that isn't already a clean
+    // match. Re-checks this invoice against the current DecoNetwork PO list on demand,
+    // using whatever's currently typed into Vendor / PO Reference below. Useful when a
+    // PO was raised or synced after this invoice first arrived.
+    const retryMatchButton = row.match_status !== 'clean_match'
+      ? `<button type="button" class="rev-btn" data-action="retry-match" style="margin-top:10px;width:100%">↻ Retry Match Against Current POs</button>`
       : '';
 
     let whyHtml = '';
@@ -97,29 +110,31 @@
     } else if (row.match_status === 'vendor_mismatch') {
       whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>This invoice is from <b>${row.extracted_vendor || 'this vendor'}</b>, but the matched PO (${row.matched_po_number}) is recorded under <b>${row.matched_po_vendor || 'a different vendor'}</b> in DecoNetwork. Could be a genuine data-entry error on the PO, or the wrong PO matched.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
-          <li>Check the amounts below actually match this PO — if they do, the vendor field in DecoNetwork is likely just wrong.</li>
-          <li>Update the <b>Vendor</b> field below to the correct one, then Approve — this fixes what gets posted to Xero regardless of DecoNetwork.</li>
-          <li>Separately, flag the PO for correction in <span class="rev-where">DecoNetwork → Business Hub</span> so it's right at the source too — that's a manual step outside this tab.</li>
-        </ol></div>`;
+          <li>Check the amounts below actually match this PO. If they do, the vendor field in DecoNetwork is likely just wrong.</li>
+          <li>Update the <b>Vendor</b> field below to the correct one, then hit <b>Retry Match</b> to confirm it now lines up before approving.</li>
+          <li>Separately, flag the PO for correction in <span class="rev-where">DecoNetwork → Business Hub</span> so it's right at the source too. That's a manual step outside this tab.</li>
+        </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'amount_variance') {
       const poCombined = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0);
       const invCombined = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
       const diff = (invCombined - poCombined).toFixed(2);
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${row.matched_po_number}'s value (${fmtMoney(poCombined)}) — outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${row.matched_po_number}'s value (${fmtMoney(poCombined)}), outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
-          <li>Check the line items below against the PO for what caused the difference — an added charge, a partial delivery, or a genuine pricing change.</li>
-          <li>If it's genuine, just approve as-is — the <b>Total to post</b> field below already reflects what was actually invoiced.</li>
+          <li>Check the line items below against the PO for what caused the difference: an added charge, a partial delivery, or a genuine pricing change.</li>
+          <li>If the PO itself has since been corrected in DecoNetwork, hit <b>Retry Match</b> to re-check against the current figures.</li>
+          <li>If the variance is genuine, just approve as-is. The <b>Total to post</b> field below already reflects what was actually invoiced.</li>
           <li>If something looks wrong, correct the fields below before approving, or reject and follow up with the supplier.</li>
-        </ol></div>`;
+        </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'no_po_match') {
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>No PO number was found on this invoice, or it didn't match anything in DecoNetwork. This could be a genuine order placed without a formal PO, or a PO that's outside the synced date range.</p></div>
-        <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
-          <li>Check DecoNetwork directly for a PO around this date and amount — if you find one, type its number into <b>PO Reference</b> below before approving.</li>
-          <li>If genuinely no PO exists, confirm the order was authorised, then approve anyway — the <b>PO Reference</b> field can stay blank.</li>
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>No PO number was found on this invoice, or it didn't match anything in DecoNetwork. This could mean the PO hasn't synced yet, was raised under a different number, or genuinely doesn't exist.</p></div>
+        <div class="rev-fix"><div class="rev-fix-label">How to fix this, in order</div><ol>
+          <li><b>Check DecoNetwork directly</b> for a PO around this date and amount. If you find one, type its number into <b>PO Reference</b> below, then hit <b>Retry Match</b>. This validates it against the real PO figures rather than just trusting the number.</li>
+          <li>If the PO was only just raised, it may not have synced yet (sync runs every 3 hours). Hit <b>Retry Match</b> again a little later.</li>
+          <li><b>Only if you've genuinely confirmed no PO exists</b> for this order (checked DecoNetwork yourself, and confirmed with whoever placed it that it was authorised), approve with the PO Reference field left blank. This should be the exception, not the default: every approval without a PO reference is a real gap in the audit trail.</li>
           <li>If it looks wrong or unauthorised, reject and flag to Daniel.</li>
-        </ol></div>`;
+        </ol>${retryMatchButton}</div>`;
     } else {
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">Not yet matched</div><p>This invoice hasn't been checked against DecoNetwork POs yet.</p></div>`;
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">Not yet matched</div><p>This invoice hasn't been checked against DecoNetwork POs yet.</p></div>${retryMatchButton}`;
     }
 
     let lineItemsHtml = '';
@@ -138,7 +153,7 @@
           <div class="rev-stamp ${meta.cls}">${meta.stamp}</div>
           <div class="rev-case-main">
             <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Received ${fmtDate(row.received_at)}</div>
-            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'} — ${meta.label}</div>
+            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'} · ${meta.label}</div>
             <div class="rev-case-sub">${row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet'} ${confBadge}</div>
           </div>
           <div class="rev-case-meta">
@@ -169,7 +184,7 @@
 
           ${lineItemsHtml ? `<div class="rev-line-items"><div class="rev-li-label">Line items</div>${lineItemsHtml}</div>` : ''}
 
-          <div class="rev-edit-label">Edit before posting — nothing reaches Xero until you approve</div>
+          <div class="rev-edit-label">Edit before posting. Nothing reaches Xero until you approve</div>
 
           <div class="rev-field-row">
             <div class="rev-field">
@@ -189,7 +204,7 @@
             <div class="rev-field">
               <label>Nominal code</label>
               <select id="nominal-${row.id}">
-                <option>311 — Workwear/Clothing COGS</option>
+                <option>311: Workwear/Clothing COGS</option>
               </select>
             </div>
           </div>
@@ -201,11 +216,49 @@
 
           <div class="rev-actions">
             <button type="button" class="rev-btn danger" data-action="reject">Reject</button>
-            <button type="button" class="rev-btn primary" data-action="approve">Approve — ready to post</button>
+            <button type="button" class="rev-btn primary" data-action="approve">Approve, ready to post</button>
           </div>
           <div class="rev-post-note">Approving stages this for posting to Xero once that connection is wired up. Nothing is sent automatically yet.</div>
         </div>
       </div>`;
+  }
+
+  async function retryMatch(id, buttonEl) {
+    const vendor = document.getElementById('vendor-' + id).value;
+    const poRef = document.getElementById('poref-' + id).value;
+    const row = allRows.find(r => r.id === id);
+    if (!row) return;
+
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Checking…';
+    }
+
+    try {
+      const res = await fetch(RETRY_MATCH_WEBHOOK, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Atam-Go-Token': RETRY_MATCH_TOKEN
+        },
+        body: JSON.stringify({
+          id: id,
+          vendor: vendor,
+          po_number: poRef,
+          goods_total: row.extracted_goods,
+          vat_total: row.extracted_vat
+        })
+      });
+      if (!res.ok) throw new Error('Retry match failed: ' + res.status);
+      await loadPending();
+    } catch (e) {
+      console.error('[Review] retry match error', e);
+      alert('Could not re-check this invoice. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '↻ Retry Match Against Current POs';
+      }
+    }
   }
 
   async function approveRow(id) {
@@ -228,7 +281,7 @@
       p_final_po_reference: poRef,
       p_review_notes: notes || null
     });
-    if (error) { console.error(error); alert('Could not approve — check console.'); return; }
+    if (error) { console.error(error); alert('Could not approve. Check the console.'); return; }
     await loadPending();
   }
 
@@ -243,7 +296,7 @@
       p_reviewed_by: reviewedBy,
       p_review_notes: notes || null
     });
-    if (error) { console.error(error); alert('Could not reject — check console.'); return; }
+    if (error) { console.error(error); alert('Could not reject. Check the console.'); return; }
     await loadPending();
   }
 
