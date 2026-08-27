@@ -505,6 +505,7 @@
         <button type="button" class="nav-link" data-page="revenue"><span>💰 Revenue</span></button>
         <button type="button" class="nav-link" data-page="discrepancies"><span>⚠️ Discrepancies</span></button>
         <button type="button" class="nav-link" data-page="review"><span>📥 Review</span></button>
+        <button type="button" class="nav-link" data-page="salesinvoices"><span>💷 Sales Invoices</span></button>
         <a href="overdue.html" target="_blank" rel="noopener" class="nav-link external-link">
           <span>🚨 Overdue Orders</span>
           <span class="ext-icon">↗</span>
@@ -912,6 +913,73 @@
         <div id="approvedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
       </section>
 
+      <!-- SALES INVOICES -->
+      <style>
+        #salesinvoices { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        #salesinvoices .si-summary-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-bottom:20px; overflow:hidden; }
+        #salesinvoices .si-summary-card { padding:16px 18px; border-right:1px solid rgba(255,255,255,0.08); }
+        #salesinvoices .si-summary-card:last-child { border-right:none; }
+        #salesinvoices .si-summary-card .si-num { font-size:26px; font-weight:700; color:#f8fafc; font-variant-numeric:tabular-nums; line-height:1; }
+        #salesinvoices .si-summary-card.si-attn .si-num { color:#f87171; }
+        #salesinvoices .si-summary-card .si-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-top:8px; }
+        #salesinvoices .si-filter-bar { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 16px; margin-bottom:18px; }
+        #salesinvoices .si-filter-bar select { padding:7px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; font-size:12.5px; background:#0d1a2e; color:#e2e8f0; }
+        #salesinvoices .si-filter-bar .si-spacer { flex:1; }
+        #salesinvoices .si-case { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:12px; overflow:hidden; cursor:pointer; transition:box-shadow .15s; }
+        #salesinvoices .si-case:hover { box-shadow:0 4px 18px rgba(0,0,0,0.25); }
+        #salesinvoices .si-case-head { display:flex; align-items:center; gap:14px; padding:14px 18px; }
+        #salesinvoices .si-stamp { width:38px; height:38px; border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
+        #salesinvoices .si-stamp.si-clean { border-color:#22c55e; color:#22c55e; background:rgba(34,197,94,0.1); }
+        #salesinvoices .si-stamp.si-vendor { border-color:#f87171; color:#f87171; background:rgba(248,113,113,0.1); }
+        #salesinvoices .si-stamp.si-amber { border-color:#fbbf24; color:#fbbf24; background:rgba(251,191,36,0.1); }
+        #salesinvoices .si-stamp.si-nomatch { border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.1); }
+        #salesinvoices .si-stamp.si-dup { border-color:#a78bfa; color:#a78bfa; background:rgba(167,139,250,0.1); }
+        #salesinvoices .si-case-main { flex:1; min-width:0; }
+        #salesinvoices .si-case-ref { font-size:10.5px; color:#64748b; letter-spacing:.03em; }
+        #salesinvoices .si-case-title { font-size:15px; font-weight:700; color:#f8fafc; margin-top:2px; }
+        #salesinvoices .si-case-sub { font-size:12px; color:#94a3b8; margin-top:3px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        #salesinvoices .si-case-meta { text-align:right; font-size:11px; color:#94a3b8; flex-shrink:0; }
+        #salesinvoices .si-case-meta .si-amt { font-size:15px; font-weight:700; color:#f8fafc; display:block; margin-bottom:2px; }
+        #salesinvoices .si-badge-mini { display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.2); color:#a5b4fc; }
+        #salesinvoices .si-case-detail { display:none; border-top:1px solid rgba(255,255,255,0.08); padding:16px 18px 18px; background:rgba(0,0,0,0.15); }
+        #salesinvoices .si-case.open .si-case-detail { display:block; }
+        #salesinvoices .si-detail-row { display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom:8px; }
+        #salesinvoices .si-detail-row b { color:#e2e8f0; }
+        #salesinvoices .si-notes { font-size:12.5px; line-height:1.55; color:#e2e8f0; background:rgba(251,191,36,0.08); border-left:3px solid #fbbf24; border-radius:0 8px 8px 0; padding:10px 14px; }
+        #salesinvoices .si-notes-muted { background:rgba(255,255,255,0.03); border-left-color:#334155; color:#64748b; }
+        #salesinvoices .si-empty { text-align:center; padding:60px 20px; color:#64748b; font-size:13px; }
+      </style>
+
+      <section id="salesinvoices" class="dashboard-page">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Sales Invoicing</p>
+            <h2>Sales Invoices</h2>
+            <p class="page-subtitle">Auto-posted customer invoices for shipped order lines, sent to Xero as draft. Nothing here has gone to the customer until approved in Xero.</p>
+          </div>
+        </div>
+
+        <div class="si-summary-row">
+          <div class="si-summary-card"><div class="si-num" id="siPostedToday">0</div><div class="si-label">Posted today</div></div>
+          <div class="si-summary-card si-attn"><div class="si-num" id="siNeedsAttention">0</div><div class="si-label">Needs attention</div></div>
+          <div class="si-summary-card"><div class="si-num" id="siPostedWeek">0</div><div class="si-label">Posted this week</div></div>
+          <div class="si-summary-card"><div class="si-num" id="siValueWeek">£0.00</div><div class="si-label">Value posted this week</div></div>
+        </div>
+
+        <div class="si-filter-bar">
+          <select id="siFilter">
+            <option value="all">All activity</option>
+            <option value="posted">Posted</option>
+            <option value="attention">Needs attention</option>
+            <option value="nominal">Nominal code not set</option>
+          </select>
+          <div class="si-spacer"></div>
+          <button type="button" class="disc-export-btn" id="siRefreshBtn">Refresh</button>
+        </div>
+
+        <div id="salesInvoicesList"><div class="si-empty">Loading…</div></div>
+      </section>
+
     </main>
   </div>
 
@@ -941,6 +1009,7 @@
   <script src="revenue.js"></script>
   <script src="discrepancies.js"></script>
   <script src="pending_invoices_review.js"></script>
+  <script src="sales_invoices_view.js"></script>
 
   <!-- SIGN OUT -->
   <script>
