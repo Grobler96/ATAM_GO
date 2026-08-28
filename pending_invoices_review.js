@@ -105,9 +105,11 @@
       const approveBtn = el.querySelector('[data-action="approve"]');
       const rejectBtn = el.querySelector('[data-action="reject"]');
       const retryBtn = el.querySelector('[data-action="retry-match"]');
+      const viewPdfBtn = el.querySelector('[data-action="view-pdf"]');
       if (approveBtn) approveBtn.addEventListener('click', (e) => { e.stopPropagation(); approveRow(row.id); });
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
       if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
+      if (viewPdfBtn) viewPdfBtn.addEventListener('click', (e) => { e.stopPropagation(); viewInvoicePdf(viewPdfBtn.dataset.path, viewPdfBtn); });
     });
   }
 
@@ -248,6 +250,7 @@
         </div>
 
         <div class="rev-case-detail">
+          ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${row.pdf_url}" style="margin-bottom:14px;width:100%">\ud83d\udcc4 View Original Invoice</button>` : ''}
           ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
 
@@ -289,7 +292,7 @@
             <div class="rev-field">
               <label>Nominal code</label>
               <select id="nominal-${row.id}">
-                <option>311: Workwear/Clothing COGS</option>
+                <option value="311">311: Workwear/Clothing COGS</option>
               </select>
             </div>
           </div>
@@ -306,6 +309,28 @@
           <div class="rev-post-note">Approving stages this for posting to Xero once that connection is wired up. Nothing is sent automatically yet.</div>
         </div>
       </div>`;
+  }
+
+  async function viewInvoicePdf(pdfPath, buttonEl) {
+    if (!pdfPath) return;
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Loading…';
+    }
+    try {
+      const sb = await getSb();
+      const { data, error } = await sb.storage.from('invoice-pdfs').createSignedUrl(pdfPath, 300);
+      if (error || !data?.signedUrl) throw error || new Error('No signed URL returned');
+      window.open(data.signedUrl, '_blank', 'noopener');
+    } catch (e) {
+      console.error('[Review] view invoice error', e);
+      alert('Could not open the original invoice. Check the console.');
+    } finally {
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '\ud83d\udcc4 View Original Invoice';
+      }
+    }
   }
 
   async function retryMatch(id, buttonEl) {
