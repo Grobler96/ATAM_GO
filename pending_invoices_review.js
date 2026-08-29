@@ -193,7 +193,10 @@
 
     let whyHtml = '';
     if (row.match_status === 'clean_match') {
-      whyHtml = `<div class="rev-why rev-why-good"><div class="rev-why-label">Looks good</div><p>Vendor and amount both line up with PO ${row.matched_po_number} within tolerance. Safe to approve as-is, or adjust anything below first if something looks off.</p></div>`;
+      const deliveryNote = Number(row.identified_delivery_charge) > 0
+        ? ` This includes a ${fmtMoney(row.identified_delivery_charge)} delivery/carriage charge, which was correctly netted out before matching since it isn't on the original PO.`
+        : '';
+      whyHtml = `<div class="rev-why rev-why-good"><div class="rev-why-label">Looks good</div><p>Vendor and amount both line up with PO ${row.matched_po_number} within tolerance.${deliveryNote} Safe to approve as-is, or adjust anything below first if something looks off.</p></div>`;
     } else if (row.match_status === 'vendor_mismatch') {
       whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>This invoice is from <b>${row.extracted_vendor || 'this vendor'}</b>, but the matched PO (${row.matched_po_number}) is recorded under <b>${row.matched_po_vendor || 'a different vendor'}</b> in DecoNetwork. Could be a genuine data-entry error on the PO, or the wrong PO matched.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
@@ -356,7 +359,8 @@
           vendor: vendor,
           po_number: poRef,
           goods_total: row.extracted_goods,
-          vat_total: row.extracted_vat
+          vat_total: row.extracted_vat,
+          delivery_charges_total: row.identified_delivery_charge || 0
         })
       });
       if (!res.ok) throw new Error('Retry match failed: ' + res.status);
