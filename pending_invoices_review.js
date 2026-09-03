@@ -20,6 +20,7 @@
 
   let allRows = [];
   let approvedRows = [];
+  let rejectedRows = [];
 
   async function getSb() {
     if (window._atamSb) return window._atamSb;
@@ -54,6 +55,7 @@
     renderSummary();
     renderList();
     await loadApproved();
+    await loadRejected();
   }
 
   async function loadApproved() {
@@ -75,6 +77,26 @@
     }
     approvedRows = data || [];
     renderApprovedList();
+  }
+
+  async function loadRejected() {
+    const container = document.getElementById('rejectedList');
+    if (!container) return; // index.html hasn't been updated with the new section yet
+
+    const sb = await getSb();
+    const { data, error } = await sb
+      .from('pending_invoices')
+      .select('*')
+      .eq('status', 'rejected')
+      .order('reviewed_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('[Review] load rejected error', error);
+      return;
+    }
+    rejectedRows = data || [];
+    renderRejectedList();
   }
 
   function renderSummary() {
@@ -168,6 +190,66 @@
       if (buttonEl) {
         buttonEl.disabled = false;
         buttonEl.textContent = '↺ Undo Approval';
+      }
+      return;
+    }
+
+    await loadPending();
+  }
+
+  function renderRejectedList() {
+    const container = document.getElementById('rejectedList');
+    if (!container) return;
+
+    const countEl = document.getElementById('revRejectedCount');
+    if (countEl) countEl.textContent = rejectedRows.length;
+
+    if (rejectedRows.length === 0) {
+      container.innerHTML = '<div class="rev-empty" style="padding:24px 20px">Nothing rejected recently.</div>';
+      return;
+    }
+
+    container.innerHTML = rejectedRows.map(row => `
+      <div class="rev-case" id="rev-rejected-${row.id}" style="cursor:default">
+        <div class="rev-case-head" style="cursor:default">
+          <div class="rev-stamp vendor">\u2715</div>
+          <div class="rev-case-main">
+            <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} \u00b7 Rejected by ${row.reviewed_by || 'unknown'} at ${fmtDate(row.reviewed_at)}</div>
+            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'}</div>
+            <div class="rev-case-sub">${row.review_notes ? row.review_notes : 'No reason given'}</div>
+          </div>
+          <div class="rev-case-meta">
+            <span class="rev-amt">${fmtMoney(row.extracted_total)}</span>
+          </div>
+        </div>
+        <div style="padding:0 20px 16px">
+          <button type="button" class="rev-btn" data-action="undo-reject" data-id="${row.id}" style="width:100%">\u21ba Undo Reject</button>
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('[data-action="undo-reject"]').forEach(btn => {
+      btn.addEventListener('click', () => undoReject(btn.dataset.id, btn));
+    });
+  }
+
+  async function undoReject(id, buttonEl) {
+    if (!confirm('Undo this rejection and send it back to Awaiting Review?')) return;
+
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Undoing\u2026';
+    }
+
+    const sb = await getSb();
+    const { error } = await sb.rpc('unreject_pending_invoice', { p_id: id });
+
+    if (error) {
+      console.error('[Review] undo reject error', error);
+      alert('Could not undo this rejection. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '\u21ba Undo Reject';
       }
       return;
     }
