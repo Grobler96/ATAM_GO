@@ -1,1001 +1,988 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ATAM GO</title>
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="enhancements.css" />
-  <link rel="stylesheet" href="revenue.css" />
-  <link rel="stylesheet" href="mobile.css" />
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0b0f1a">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="ATAM GO">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body>
+/* ═══════════════════════════════════════════════════════════════
+   ATAM GO — Dispatch Command Centre
+   Drop-in module. Reads window.state.data and window.ATAM_GO_CONFIG
+   Auto-refreshes every 60 seconds. Zero dependency on core files.
+   ═══════════════════════════════════════════════════════════════ */
 
-  <!-- SESSION CHECK -->
-  <script>
-    (async () => {
-      const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
-      const SUPABASE_ANON = 'sb_publishable_4Ii8Z8bGgQ5OrSKB2at_GA_GubBsWC1';
-      const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-      const { data: { session } } = await _sb.auth.getSession();
-      if (!session) window.location.replace('./login.html');
-    })();
-  </script>
+(function () {
 
-  <!-- DAN BOT STYLES -->
-  <style>
-    #dan-fab {
-      position: fixed; bottom: 24px; right: 24px; width: 58px; height: 58px;
-      border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #6366f1);
-      color: #fff; font-size: 24px; border: none; cursor: pointer;
-      box-shadow: 0 4px 24px rgba(56,189,248,0.5); z-index: 9999;
-      display: flex; align-items: center; justify-content: center;
-      transition: transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s;
-    }
-    #dan-fab:hover { transform: scale(1.12); box-shadow: 0 8px 32px rgba(56,189,248,0.6), 0 0 0 6px rgba(56,189,248,0.12); }
-    #dan-fab.dan-open { transform: scale(0.9) rotate(20deg); background: linear-gradient(135deg, #ef4444, #f97316); }
-    #dan-panel {
-      position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 92vw;
-      height: 100vh; border-radius: 0; overflow: hidden; z-index: 9998;
-      display: flex; flex-direction: column;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      transform: translateX(100%); opacity: 1; pointer-events: none;
-      transition: transform 0.32s cubic-bezier(.34,1.1,.4,1);
-      border-left: 1px solid rgba(56,189,248,0.2);
-      box-shadow: -24px 0 64px rgba(0,0,0,0.55); background: #0d1a2e;
-    }
-    #dan-panel.open { transform: translateX(0); pointer-events: all; }
-    #dan-header {
-      background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(99,102,241,0.12));
-      border-bottom: 1px solid rgba(56,189,248,0.15);
-      padding: 14px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
-    }
-    #dan-header .dan-avatar {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: linear-gradient(135deg, #38bdf8, #6366f1);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px; box-shadow: 0 0 12px rgba(56,189,248,0.4); flex-shrink: 0;
-    }
-    #dan-header .dan-title-wrap { flex: 1; }
-    #dan-header .dan-name { font-size: 14px; font-weight: 700; color: #f8fafc; }
-    #dan-header .dan-subtitle { font-size: 11px; color: rgba(56,189,248,0.8); display: flex; align-items: center; gap: 5px; margin-top: 1px; }
-    .dan-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 5px #22c55e; animation: dan-pulse 2s infinite; flex-shrink: 0; }
-    @keyframes dan-pulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)} }
-    #dan-close {
-      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
-      color: #94a3b8; cursor: pointer; font-size: 16px; width: 28px; height: 28px;
-      border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
-    }
-    #dan-close:hover { background: rgba(239,68,68,0.2); color: #f87171; border-color: rgba(239,68,68,0.3); }
-    #dan-voice-toggle {
-      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
-      color: #94a3b8; cursor: pointer; font-size: 13px; width: 28px; height: 28px;
-      border-radius: 8px; display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s; margin-right: 4px; flex-shrink: 0;
-    }
-    #dan-voice-toggle:hover { background: rgba(56,189,248,0.15); color: #7dd3fc; }
-    #dan-voice-toggle.active { background: rgba(56,189,248,0.2); color: #38bdf8; border-color: rgba(56,189,248,0.4); }
-    #dan-insights { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
-    .dan-insight-card {
-      display: flex; align-items: flex-start; gap: 10px;
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: all 0.15s;
-      animation: dan-card-in 0.35s ease both;
-    }
-    @keyframes dan-card-in { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
-    .dan-insight-card:hover { background: rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.25); }
-    .dan-insight-card.urgent { border-left: 3px solid #ef4444; }
-    .dan-insight-card.warning { border-left: 3px solid #f59e0b; }
-    .dan-insight-card.good { border-left: 3px solid #22c55e; }
-    .dan-insight-card.info { border-left: 3px solid #38bdf8; }
-    .dan-ic-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-    .dan-ic-text { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
-    .dan-ic-text strong { color: #f8fafc; font-weight: 700; }
-    .dan-ic-hint { font-size: 10px; color: rgba(56,189,248,0.7); margin-top: 3px; }
-    #dan-messages {
-      flex: 1; overflow-y: auto; padding: 14px 16px;
-      display: flex; flex-direction: column; gap: 10px; min-height: 0;
-    }
-    #dan-messages::-webkit-scrollbar { width: 4px; }
-    #dan-messages::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 2px; }
-    .dan-msg { max-width: 88%; padding: 11px 15px; border-radius: 14px; font-size: 14px; line-height: 1.6; word-break: break-word; animation: dan-msg-in 0.2s ease; }
-    @keyframes dan-msg-in { from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)} }
-    .dan-msg.bot { background: rgba(255,255,255,0.06); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.08); border-bottom-left-radius: 4px; align-self: flex-start; }
-    .dan-msg.user { background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; border-bottom-right-radius: 4px; align-self: flex-end; border: none; }
-    .dan-msg.typing { color: #64748b; font-style: italic; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); }
-    .dan-typing-dots { display: inline-flex; gap: 3px; align-items: center; margin-left: 4px; }
-    .dan-typing-dots span { width: 5px; height: 5px; border-radius: 50%; background: #38bdf8; opacity: 0.5; animation: dan-dot-bounce 1.2s infinite ease; }
-    .dan-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .dan-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dan-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-4px);opacity:1} }
-    .dan-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-    .dan-chip { background: rgba(56,189,248,0.1); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.22); border-radius: 20px; padding: 5px 11px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-    .dan-chip:hover { background: rgba(56,189,248,0.2); color: #bae6fd; }
-    .dan-speak-btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px; border-radius: 6px; margin-left: 6px;
-      background: rgba(56,189,248,0.1); border: none; color: #7dd3fc;
-      font-size: 11px; cursor: pointer; vertical-align: middle; flex-shrink: 0;
-    }
-    .dan-speak-btn:hover { background: rgba(56,189,248,0.2); }
-    .dan-speak-btn.speaking { background: rgba(239,68,68,0.2); color: #f87171; }
-    .dan-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 16px; flex-shrink: 0; }
-    #dan-input-row { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2); flex-shrink: 0; }
-    #dan-input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; padding: 10px 16px; font-size: 14px; color: #f8fafc; outline: none; transition: border-color 0.15s; }
-    #dan-input::placeholder { color: #475569; }
-    #dan-input:focus { border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.05); }
-    #dan-mic {
-      width: 38px; height: 38px; border-radius: 50%;
-      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
-      color: #94a3b8; cursor: pointer; font-size: 15px;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s; flex-shrink: 0;
-    }
-    #dan-mic:hover { background: rgba(56,189,248,0.12); color: #7dd3fc; border-color: rgba(56,189,248,0.3); }
-    #dan-mic.listening {
-      background: linear-gradient(135deg, #ef4444, #f97316); color: #fff; border: none;
-      animation: dan-mic-pulse 1.1s infinite;
-    }
-    @keyframes dan-mic-pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
-      50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
-    }
-    #dan-send { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; border: none; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; flex-shrink: 0; box-shadow: 0 2px 8px rgba(56,189,248,0.3); }
-    #dan-send:hover { transform: scale(1.1); }
-    #dan-send:disabled { background: #1e293b; box-shadow: none; cursor: not-allowed; }
-    #signOutBtn { margin-top: 12px; width: 100%; padding: 8px; background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.3); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; transition: background 0.15s; }
-    #signOutBtn:hover { background: rgba(249,115,22,0.28); }
-    @media (max-width: 420px) { #dan-panel { width: 100vw; } #dan-fab { bottom: 16px; right: 16px; } }
+  /* ── Constants ── */
+  const REFRESH_MS = 60_000;
+  const DISPATCH_CUTOFF_HOUR = 16; // 4pm = last dispatch
 
-    .nav-link.external-link {
-      display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      text-decoration: none;
-      border-color: rgba(239,68,68,0.3);
-      background: rgba(239,68,68,0.08);
-      color: #fca5a5;
-    }
-    .nav-link.external-link:hover {
-      background: rgba(239,68,68,0.14);
-      color: #fecaca;
-      transform: translateX(3px);
-    }
-    .nav-link.external-link .ext-icon { font-size: 12px; opacity: 0.8; flex-shrink: 0; }
-  </style>
+  const CARRIER_ICONS = {
+    'DPD': '🟥',
+    'Royal Mail': '🔴',
+    'Tracked Courier': '📦',
+    'Local Delivery': '🚐',
+    'Collated Delivery': '🗂️',
+    'Collection': '🏪',
+  };
 
-  <!-- DISCREPANCIES TAB STYLES -->
-  <style>
-    #discrepancies { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    #discrepancies .disc-summary-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-bottom:20px; overflow:hidden; }
-    #discrepancies .disc-summary-card { padding:16px 18px; border-right:1px solid rgba(255,255,255,0.08); }
-    #discrepancies .disc-summary-card:last-child { border-right:none; }
-    #discrepancies .disc-summary-card .disc-num { font-size:26px; font-weight:700; color:#f8fafc; font-variant-numeric:tabular-nums; line-height:1; }
-    #discrepancies .disc-summary-card.disc-attn .disc-num { color:#f87171; }
-    #discrepancies .disc-summary-card .disc-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-top:8px; }
-    #discrepancies .disc-export-bar { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 16px; margin-bottom:18px; flex-wrap:wrap; }
-    #discrepancies .disc-export-bar select, #discrepancies .disc-export-bar input[type=date] { padding:7px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; font-size:12.5px; background:#0d1a2e; color:#e2e8f0; }
-    #discrepancies .disc-export-bar .disc-spacer { flex:1; }
-    #discrepancies .disc-export-btn { display:flex; align-items:center; gap:6px; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:600; border:1px solid rgba(56,189,248,0.3); background:transparent; color:#7dd3fc; cursor:pointer; }
-    #discrepancies .disc-export-btn.primary { background:linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; border:none; }
-    #discrepancies .disc-export-btn:hover { opacity:.85; }
-    #discrepancies .disc-case { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:12px; overflow:hidden; cursor:pointer; transition:box-shadow .15s; }
-    #discrepancies .disc-case:hover { box-shadow:0 4px 18px rgba(0,0,0,0.25); }
-    #discrepancies .disc-case-head { display:flex; align-items:center; gap:14px; padding:14px 18px; }
-    #discrepancies .disc-stamp { width:38px; height:38px; border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
-    #discrepancies .disc-stamp.vendor { border-color:#f87171; color:#f87171; background:rgba(248,113,113,0.1); }
-    #discrepancies .disc-stamp.amount { border-color:#fbbf24; color:#fbbf24; background:rgba(251,191,36,0.1); }
-    #discrepancies .disc-stamp.nomatch { border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.1); }
-    #discrepancies .disc-case-main { flex:1; min-width:0; }
-    #discrepancies .disc-case-po { font-size:10.5px; color:#64748b; letter-spacing:.03em; }
-    #discrepancies .disc-case-title { font-size:15px; font-weight:700; color:#f8fafc; margin-top:2px; }
-    #discrepancies .disc-case-sub { font-size:12px; color:#94a3b8; margin-top:3px; }
-    #discrepancies .disc-case-meta { text-align:right; font-size:11px; color:#94a3b8; flex-shrink:0; }
-    #discrepancies .disc-case-meta .disc-amt { font-size:15px; font-weight:700; color:#f8fafc; display:block; margin-bottom:2px; }
-    #discrepancies .disc-badge-mini { display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.2); color:#a5b4fc; margin-top:5px; }
-    #discrepancies .disc-case-detail { display:none; border-top:1px solid rgba(255,255,255,0.08); padding:18px 20px 20px; background:rgba(0,0,0,0.15); }
-    #discrepancies .disc-case.open .disc-case-detail { display:block; }
-    #discrepancies .disc-why { background:rgba(248,113,113,0.08); border-left:3px solid #f87171; border-radius:0 8px 8px 0; padding:12px 14px; margin-bottom:16px; }
-    #discrepancies .disc-why .disc-why-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#f87171; font-weight:700; margin-bottom:4px; }
-    #discrepancies .disc-why p { margin:0; font-size:13px; line-height:1.55; color:#e2e8f0; }
-    #discrepancies .disc-compare { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:stretch; margin-bottom:16px; }
-    #discrepancies .disc-compare-card { border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px 14px; background:rgba(255,255,255,0.02); }
-    #discrepancies .disc-compare-card.mismatch { border-color:rgba(248,113,113,0.4); background:rgba(248,113,113,0.06); }
-    #discrepancies .disc-compare-card .disc-ct-label { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:6px; }
-    #discrepancies .disc-compare-card .disc-ct-vendor { font-size:14px; font-weight:700; color:#f8fafc; }
-    #discrepancies .disc-compare-card .disc-ct-row { display:flex; justify-content:space-between; font-size:11.5px; margin-top:6px; color:#94a3b8; }
-    #discrepancies .disc-compare-card .disc-ct-row b { color:#e2e8f0; }
-    #discrepancies .disc-compare-arrow { display:flex; align-items:center; color:#64748b; font-size:18px; }
-    #discrepancies .disc-fix { background:rgba(56,189,248,0.06); border:1px dashed rgba(56,189,248,0.35); border-radius:8px; padding:14px 16px; margin-bottom:16px; }
-    #discrepancies .disc-fix .disc-fix-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#38bdf8; font-weight:700; margin-bottom:8px; }
-    #discrepancies .disc-fix ol { margin:0; padding-left:18px; }
-    #discrepancies .disc-fix li { font-size:12.5px; line-height:1.6; margin-bottom:6px; color:#e2e8f0; }
-    #discrepancies .disc-fix .disc-where { display:inline-block; font-size:10.5px; background:rgba(56,189,248,0.15); color:#7dd3fc; padding:1px 6px; border-radius:4px; }
-    #discrepancies .disc-field { margin-bottom:12px; }
-    #discrepancies .disc-field label { display:block; font-size:10.5px; font-weight:700; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; }
-    #discrepancies .disc-field select, #discrepancies .disc-field textarea { width:100%; padding:8px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; font-size:12.5px; background:#0d1a2e; color:#e2e8f0; }
-    #discrepancies .disc-field textarea { resize:vertical; min-height:56px; }
-    #discrepancies .disc-deco-flag { background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25); border-radius:8px; padding:11px 13px; margin-bottom:14px; }
-    #discrepancies .disc-deco-flag label { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#a5b4fc; }
-    #discrepancies .disc-deco-flag .disc-df-note { font-size:11px; color:#94a3b8; margin-top:4px; line-height:1.5; }
-    #discrepancies .disc-actions { display:flex; gap:8px; margin-top:16px; }
-    #discrepancies .disc-btn { flex:1; padding:10px; border-radius:6px; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; border:1px solid rgba(255,255,255,0.12); cursor:pointer; background:transparent; color:#e2e8f0; }
-    #discrepancies .disc-btn.primary { background:linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; border:none; }
-    #discrepancies .disc-btn.danger { color:#f87171; border-color:rgba(248,113,113,0.3); }
-    #discrepancies .disc-btn:hover { opacity:.85; }
-    #discrepancies .disc-empty { text-align:center; padding:60px 20px; color:#64748b; font-size:13px; }
-  </style>
+  const STATUS_MAP = {
+    1: 'Quote',
+    2: 'Production Complete',
+    3: 'Shipped',
+    4: 'Cancelled',
+    5: 'On Hold',
+    6: 'Awaiting Stock',
+    7: 'Awaiting Artwork',
+    8: 'In Production',
+    9: 'Awaiting Payment',
+  };
 
-  <!-- DAN BOT HTML -->
-  <button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖</button>
-  <div id="dan-panel">
-    <div id="dan-header">
-      <div class="dan-avatar">🤖</div>
-      <div class="dan-title-wrap">
-        <div class="dan-name">DAN</div>
-        <div class="dan-subtitle"><span class="dan-live-dot"></span>Analysing your production data</div>
-      </div>
-      <button id="dan-voice-toggle" onclick="danToggleVoice()" title="Toggle spoken replies">🔊</button>
-      <button id="dan-close" onclick="danToggle()">✕</button>
-    </div>
-    <div id="dan-insights"></div>
-    <div class="dan-divider"></div>
-    <div id="dan-messages"></div>
-    <div id="dan-input-row">
-      <input id="dan-input" type="text" placeholder="Ask DAN anything about your production…" onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
-      <button id="dan-mic" onclick="danToggleListening()" title="Speak to DAN">🎤</button>
-      <button id="dan-send" onclick="danSend()">➤</button>
-    </div>
-  </div>
+  /* ── State ── */
+  let dispatchData = [];
+  let dispatchedOrders = new Set(
+    JSON.parse(localStorage.getItem('atam_dispatched') || '[]')
+  );
+  let dispatchTimer = null;
+  let countdownInterval = null;
+  let currentFilter = 'all';
 
-  <!-- DAN BOT SCRIPT -->
-  <script>
-  (function () {
-    'use strict';
-    const WEBHOOK_URL = 'https://danbotv2.grobleroliver.workers.dev/';
-    const SESSION_ID  = 'dan-' + Math.random().toString(36).slice(2, 10);
-    let isOpen = false, isBusy = false, hasGreeted = false;
-    const QUICK_PROMPTS = ["Today's production summary","What's ready to ship?","Any late orders?","Top customers this week","Who has the most work today?","Any reorder risks?"];
+  /* ── Init ── */
+  function initDispatch() {
+    console.log('[Dispatch] Initialising...');
+    injectStyles();
+    injectPage();
+    hookNavLink();
+    loadAndRender();
+    startCountdownTick();
 
-    let voiceEnabled = (localStorage.getItem('dan-voice-enabled') === 'true');
-    let isListening = false;
-    let recognition = null;
+    dispatchTimer = setInterval(loadAndRender, REFRESH_MS);
+    console.log('[Dispatch] Done — nav button injected:', !!document.querySelector('[data-page="dispatch"]'));
+  }
 
-    function danToggleVoice() {
-      voiceEnabled = !voiceEnabled;
-      localStorage.setItem('dan-voice-enabled', voiceEnabled);
-      document.getElementById('dan-voice-toggle')?.classList.toggle('active', voiceEnabled);
-      if (!voiceEnabled) window.speechSynthesis?.cancel();
-    }
+  /* ── Hook sidebar nav — fully integrates with app.js page system ── */
+  function hookNavLink() {
+    const dispatchBtn = document.querySelector('[data-page="dispatch"]');
+    if (!dispatchBtn) return;
 
-    function danSpeak(text) {
-      if (!voiceEnabled || !window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
-      const clean = text.replace(/[#*_`]/g, '').replace(/\n+/g, '. ');
-      const utter = new SpeechSynthesisUtterance(clean);
-      utter.rate = 1.02;
-      utter.pitch = 1.0;
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v => /en-GB/i.test(v.lang) && /natural|enhanced/i.test(v.name))
-        || voices.find(v => /en-GB/i.test(v.lang))
-        || voices.find(v => /en/i.test(v.lang));
-      if (preferred) utter.voice = preferred;
-      window.speechSynthesis.speak(utter);
-    }
+    dispatchBtn.addEventListener('click', () => {
+      // 1. Remove active from all nav links
+      document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+      dispatchBtn.classList.add('active');
 
-    function danToggleListening() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        danAppendBot("Your browser doesn't support voice input — Chrome or Edge work best for this.", false);
-        return;
+      // 2. Hide all pages
+      document.querySelectorAll('.dashboard-page').forEach(p => p.classList.remove('active'));
+
+      // 3. Show dispatch page
+      const dispatchPage = document.getElementById('dispatch');
+      if (dispatchPage) {
+        dispatchPage.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-      if (isListening) {
-        recognition?.stop();
-        return;
-      }
-      recognition = new SpeechRecognition();
-      recognition.lang = 'en-GB';
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
 
-      recognition.onstart = () => {
-        isListening = true;
-        document.getElementById('dan-mic')?.classList.add('listening');
-        document.getElementById('dan-input').placeholder = 'Listening…';
-      };
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        danSendText(transcript);
-      };
-      recognition.onerror = () => {
-        danAppendBot("Didn't catch that — mind trying again?", false);
-      };
-      recognition.onend = () => {
-        isListening = false;
-        document.getElementById('dan-mic')?.classList.remove('listening');
-        document.getElementById('dan-input').placeholder = 'Ask DAN anything about your production…';
-      };
-      recognition.start();
-    }
+      // 4. Hide global filter controls — not relevant for dispatch
+      const filterControls = document.querySelector('.topbar-controls');
+      if (filterControls) filterControls.style.display = 'none';
 
-    function danToggle() {
-      isOpen = !isOpen;
-      const panel = document.getElementById('dan-panel');
-      const fab = document.getElementById('dan-fab');
-      panel.classList.toggle('open', isOpen);
-      fab.classList.toggle('dan-open', isOpen);
-      document.getElementById('dan-voice-toggle')?.classList.toggle('active', voiceEnabled);
-      if (isOpen) {
-        if (!hasGreeted) { hasGreeted = true; showGreetingAndInsights(); }
-        setTimeout(() => document.getElementById('dan-input').focus(), 240);
-      }
-    }
+      // 5. Refresh data
+      loadAndRender();
+    });
+  }
 
-    function cleanDashes(text) { return String(text).replace(/\s*[—–]\s*/g, ', '); }
+  /* ── Load data from Supabase — always shows today + tomorrow ── */
+  async function loadAndRender() {
+    try {
+      const cfg = window.ATAM_GO_CONFIG || {};
+      if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return;
 
-    function buildInsights() {
-      const s = window.state || {};
-      const overview = s.data?.overview?.[0] || {};
-      const risk = s.data?.risk || [];
-      const ready = s.data?.ready || [];
-      const customers = s.data?.customerAlerts || [];
-      const activity = s.data?.activity || [];
-      const insights = [];
-      if (risk.length > 0) {
-        const worst = risk[0];
-        insights.push({ type: 'urgent', icon: '🚨', text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` + (worst ? `Order <strong>#${worst.order_id}</strong> for <strong>${worst.customer_name || 'Unknown'}</strong> needs attention now.` : ''), hint: 'Tap to ask DAN what to do', prompt: `What should I do about the ${risk.length} late or at-risk orders?` });
+      const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+      // ALL unshipped orders due by next14d (no lower bound — this is what
+      // catches genuinely old backlog like an order due 2 months ago that
+      // never shipped) + anything shipped in the last 48h (so recently
+      // dispatched orders still show briefly in the "Done" filter).
+      const from48h = new Date(Date.now() - 48 * 3600000).toISOString();
+      const next14d = new Date(Date.now() + 14 * 86400000).toISOString();
+
+      // Try upcoming_orders first (populated by WF3)
+      // Fall back to decoration_records if table is empty or errors
+      let data = null;
+      let source = 'upcoming_orders';
+
+      const { data: upcomingData, error: upcomingError } = await sb
+        .from('upcoming_orders')
+        .select('*')
+        .lte('date_due', next14d)
+        .or(`date_shipped.is.null,date_shipped.gte.${from48h}`)
+        .neq('order_status', 4) // exclude cancelled — don't resurrect these into the backlog
+        .order('date_due', { ascending: true });
+
+      if (!upcomingError && upcomingData && upcomingData.length > 0) {
+        // upcoming_orders has data — use it
+        data = upcomingData;
+        source = 'upcoming_orders';
+      } else {
+        // WF3 hasn't run yet — fall back to decoration_records
+        console.log('[Dispatch] upcoming_orders empty or error, falling back to decoration_records');
+        source = 'decoration_records';
+
+        const { data: fallbackData, error: fallbackError } = await sb
+          .from('decoration_records')
+          .select('*')
+          .lte('date_due', next14d)
+          .or(`date_shipped.is.null,date_shipped.gte.${from48h}`)
+          .neq('order_status', 4)
+          .order('date_due', { ascending: true });
+
+        if (!fallbackError) data = fallbackData;
       }
-      if (ready.length > 0) {
-        const totalQty = ready.reduce((sum, r) => sum + Number(r.total_quantity || 0), 0);
-        insights.push({ type: 'good', icon: '✅', text: `<strong>${ready.length} order${ready.length > 1 ? 's' : ''} ready to ship</strong>, ${fmtNum(totalQty)} total units awaiting dispatch.`, hint: 'Tap to see the full list', prompt: "Give me the full ready to ship list with customer names and quantities" });
-      }
-      const total = Number(overview.total_decorations || 0);
-      const emb = Number(overview.embroidery_total || 0);
-      const prt = Number(overview.print_total || 0);
-      if (total > 0) {
-        const split = emb > prt ? `Embroidery leads at <strong>${fmtNum(emb)}</strong> vs Print at <strong>${fmtNum(prt)}</strong>.` : `Print leads at <strong>${fmtNum(prt)}</strong> vs Embroidery at <strong>${fmtNum(emb)}</strong>.`;
-        insights.push({ type: 'info', icon: '🏭', text: `<strong>${fmtNum(total)} units decorated</strong> in the selected range. ${split}`, hint: 'Tap for a full breakdown', prompt: "Give me a detailed production breakdown for the current date range" });
-      }
-      const atRisk = customers.filter(c => c.reorder_status === 'At Risk');
-      if (atRisk.length > 0) {
-        const top = atRisk[0];
-        const val = atRisk.reduce((s, c) => s + Number(c.last_order_value || 0), 0);
-        insights.push({ type: 'warning', icon: '💰', text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong>, <strong>£${fmtNum(val)}</strong> potential value at risk.` + (top ? ` ${top.name || top.company || 'A customer'} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''), hint: 'Tap to see who needs a call', prompt: `Which customers are most overdue for reorder and what's the value at risk?` });
-      }
-      if (activity.length > 0) {
+
+      if (source === 'upcoming_orders') {
+        // upcoming_orders — already one row per order
+        dispatchData = (data || []).map(o => ({
+          order_id: o.order_id,
+          customer_name: o.customer_name || 'Unknown',
+          store_name: o.store_name || '—',
+          shipping_method: o.shipping_method || '—',
+          date_due: o.date_due,
+          date_produced: o.date_produced,
+          date_shipped: o.date_shipped,
+          assigned_to: o.assigned_to || null,
+          order_status: o.order_status,
+          total_qty: o.total_quantity || 0,
+          processes: o.processes || [],
+          is_production_complete: o.is_production_complete || false,
+          products: o.products || [],
+          dispatched: dispatchedOrders.has(String(o.order_id)),
+        }));
+      } else {
+        // decoration_records — group by order_id first
         const grouped = {};
-        activity.forEach(r => { const k = r.order_id; if (!k) return; grouped[k] = (grouped[k] || 0) + Number(r.quantity || 0); });
-        const biggest = Object.entries(grouped).sort((a,b) => b[1]-a[1])[0];
-        if (biggest && biggest[1] > 0) {
-          const row = activity.find(r => String(r.order_id) === String(biggest[0]));
-          insights.push({ type: 'info', icon: '📦', text: `Biggest active job: Order <strong>#${biggest[0]}</strong>` + (row?.customer_name ? ` for <strong>${row.customer_name}</strong>` : '') + `, <strong>${fmtNum(biggest[1])} units</strong>.`, hint: 'Tap to ask about this order', prompt: `Tell me everything about order #${biggest[0]}` });
+        for (const row of data || []) {
+          const key = row.order_id;
+          if (!key) continue;
+          if (!grouped[key]) {
+            grouped[key] = {
+              order_id: key,
+              customer_name: row.customer_name || 'Unknown',
+              store_name: row.store_name || '—',
+              shipping_method: row.shipping_method || '—',
+              date_due: row.date_due,
+              date_produced: row.date_produced,
+              date_shipped: row.date_shipped,
+              assigned_to: row.assigned_to || null,
+              order_status: row.order_status,
+              total_qty: 0,
+              processes: new Set(),
+              is_production_complete: !!row.date_produced,
+              products: [],
+            };
+          }
+          grouped[key].total_qty += Number(row.quantity || 0);
+          if (row.process_code) grouped[key].processes.add(row.process_code);
         }
+        dispatchData = Object.values(grouped).map(o => ({
+          ...o,
+          processes: [...o.processes],
+          dispatched: dispatchedOrders.has(String(o.order_id)),
+        }));
       }
-      if (insights.length === 0) insights.push({ type: 'info', icon: '📡', text: 'Loading your production data… refresh the dashboard to see live insights here.', hint: null, prompt: "What can you help me with?" });
-      return insights;
+
+      renderDispatch();
+
+    } catch (err) {
+      console.error('[Dispatch]', err);
+      // Always render even on error — shows empty state rather than broken tab
+      renderDispatch();
+    }
+  }
+
+  /* ── Render ── */
+  function renderDispatch() {
+    renderSummaryBar();
+    renderCards();
+  }
+
+  function renderSummaryBar() {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
+    const all = dispatchData;
+    const todayOrders   = all.filter(o => o.date_due && new Date(o.date_due).toISOString().slice(0, 10) === todayStr);
+    const overdueOrders = all.filter(o => o.date_due && new Date(o.date_due) < now && !o.dispatched && !o.date_shipped);
+    const dispatched    = all.filter(o => o.dispatched || o.date_shipped).length;
+    const upcoming      = all.filter(o => o.date_due && new Date(o.date_due) > now && !o.dispatched && !o.date_shipped).length;
+    const critical      = all.filter(o => getUrgency(o) === 'critical' && !o.dispatched && !o.date_shipped).length;
+
+    // Progress bar based on today's orders only
+    const todayDispatched = todayOrders.filter(o => o.dispatched || o.date_shipped).length;
+    const todayPct = todayOrders.length ? Math.round((todayDispatched / todayOrders.length) * 100) : 0;
+
+    const el = document.getElementById('dispatch-summary-bar');
+    if (!el) return;
+
+    el.innerHTML = `
+      <div class="dsb-stat">
+        <span class="dsb-num ${overdueOrders.length > 0 ? 'dsb-red pulse-num' : 'dsb-green'}">${overdueOrders.length}</span>
+        <span class="dsb-label">Overdue</span>
+      </div>
+      <div class="dsb-divider"></div>
+      <div class="dsb-stat">
+        <span class="dsb-num ${critical > 0 ? 'dsb-red' : 'dsb-green'}">${critical}</span>
+        <span class="dsb-label">Critical Today</span>
+      </div>
+      <div class="dsb-divider"></div>
+      <div class="dsb-stat">
+        <span class="dsb-num dsb-green">${dispatched}</span>
+        <span class="dsb-label">Dispatched</span>
+      </div>
+      <div class="dsb-divider"></div>
+      <div class="dsb-stat">
+        <span class="dsb-num dsb-amber">${upcoming}</span>
+        <span class="dsb-label">Upcoming</span>
+      </div>
+      <div class="dsb-progress-wrap">
+        <div class="dsb-progress-track">
+          <div class="dsb-progress-fill" style="width:${todayPct}%"></div>
+        </div>
+        <span class="dsb-progress-pct">Today: ${todayPct}% dispatched</span>
+      </div>
+    `;
+  }
+
+  function renderCards() {
+    const grid = document.getElementById('dispatch-card-grid');
+    if (!grid) return;
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    let orders = [...dispatchData];
+
+    // Filter
+    if (currentFilter === 'overdue') {
+      orders = orders.filter(o => o.date_due && new Date(o.date_due) < now && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'today') {
+      orders = orders.filter(o => o.date_due && new Date(o.date_due).toISOString().slice(0, 10) === todayStr);
+    } else if (currentFilter === 'upcoming') {
+      orders = orders.filter(o => o.date_due && new Date(o.date_due) > now && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'critical') {
+      orders = orders.filter(o => getUrgency(o) === 'critical' && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'pending') {
+      orders = orders.filter(o => !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'notproduced') {
+      orders = orders.filter(o => !o.date_produced && !o.dispatched && !o.date_shipped);
+    } else if (currentFilter === 'done') {
+      orders = orders.filter(o => o.dispatched || o.date_shipped);
     }
 
-    function renderInsights() {
-      const container = document.getElementById('dan-insights');
-      if (!container) return;
-      container.innerHTML = '';
-      buildInsights().forEach((ins, i) => {
-        const card = document.createElement('div');
-        card.className = `dan-insight-card ${ins.type}`;
-        card.style.animationDelay = `${i * 70}ms`;
-        card.innerHTML = `<div class="dan-ic-icon">${ins.icon}</div><div><div class="dan-ic-text">${ins.text}</div>${ins.hint ? `<div class="dan-ic-hint">${ins.hint} →</div>` : ''}</div>`;
-        card.onclick = () => danSendText(ins.prompt);
-        container.appendChild(card);
+    if (!orders.length) {
+      grid.innerHTML = `
+        <div class="dispatch-empty">
+          <div class="dispatch-empty-icon">✅</div>
+          <p>No orders match this filter.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Group orders by due date for day headers
+    const grouped = {};
+    orders.forEach(order => {
+      const dayKey = order.date_due
+        ? new Date(order.date_due).toISOString().slice(0, 10)
+        : 'no-date';
+      if (!grouped[dayKey]) grouped[dayKey] = [];
+      grouped[dayKey].push(order);
+    });
+
+    // Build HTML with day group headers
+    let html = '';
+    Object.keys(grouped).sort().forEach(dayKey => {
+      const dayOrders = grouped[dayKey];
+      const dayDate = dayKey !== 'no-date' ? new Date(dayKey) : null;
+      const isToday = dayKey === todayStr;
+      const isPast = dayDate && dayDate < now && !isToday;
+      const isTomorrow = dayKey === new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+      const dayLabel = dayDate
+        ? dayDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+        : 'No Date';
+
+      const badge = isToday ? '<span class="day-badge day-today">Today</span>'
+        : isPast ? '<span class="day-badge day-overdue">Overdue</span>'
+        : isTomorrow ? '<span class="day-badge day-tomorrow">Tomorrow</span>'
+        : '';
+
+      html += `
+        <div class="dispatch-day-header">
+          <span class="dispatch-day-label">${dayLabel}</span>
+          ${badge}
+          <span class="dispatch-day-count">${dayOrders.length} order${dayOrders.length !== 1 ? 's' : ''}</span>
+        </div>
+      `;
+      html += dayOrders.map(order => buildCard(order)).join('');
+    });
+
+    grid.innerHTML = html;
+
+    // Bind dispatch buttons
+    grid.querySelectorAll('.dispatch-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const orderId = btn.dataset.orderId;
+        markDispatched(orderId, btn);
       });
+    });
+  }
+
+  function buildCard(order) {
+    const urgency = getUrgency(order);
+    const isDone = order.dispatched || !!order.date_shipped;
+    const dueDate = order.date_due ? new Date(order.date_due) : null;
+    const timeStr = dueDate ? dueDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+    const dateStr = dueDate ? dueDate.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }) : '—';
+
+    const carrierIcon = Object.entries(CARRIER_ICONS).find(([k]) =>
+      order.shipping_method?.includes(k)
+    )?.[1] || '📬';
+
+    const statusLabel = STATUS_MAP[order.order_status] || `Status ${order.order_status}`;
+    const isProduced = !!order.date_produced;
+
+    const countdown = dueDate && !isDone ? getCountdown(dueDate) : null;
+    const countdownHtml = countdown
+      ? `<div class="dc-countdown ${countdown.urgent ? 'dc-countdown-urgent' : ''}" data-due="${order.date_due}">
+          ${countdown.text}
+        </div>`
+      : '';
+
+    return `
+      <div class="dispatch-card ${urgency} ${isDone ? 'dc-done' : ''}" data-order-id="${order.order_id}">
+        <div class="dc-header">
+          <div class="dc-order-id">
+            <span class="dc-hash">#</span>${order.order_id}
+          </div>
+          <div class="dc-urgency-dot ${urgency}"></div>
+        </div>
+
+        <div class="dc-customer">${esc(order.customer_name)}</div>
+        <div class="dc-store">${esc(order.store_name)}</div>
+
+        <div class="dc-meta-row">
+          <div class="dc-meta-item">
+            <span class="dc-meta-label">Due</span>
+            <span class="dc-meta-val">${dateStr} <strong>${timeStr}</strong></span>
+          </div>
+          <div class="dc-meta-item">
+            <span class="dc-meta-label">Carrier</span>
+            <span class="dc-meta-val">${carrierIcon} ${esc(order.shipping_method)}</span>
+          </div>
+        </div>
+
+        <div class="dc-meta-row">
+          <div class="dc-meta-item">
+            <span class="dc-meta-label">Qty</span>
+            <span class="dc-meta-val"><strong>${order.total_qty}</strong> items</span>
+          </div>
+          <div class="dc-meta-item">
+            <span class="dc-meta-label">Assigned</span>
+            <span class="dc-meta-val">${esc(order.assigned_to || 'Unassigned')}</span>
+          </div>
+        </div>
+
+        <div class="dc-tags-row">
+          ${order.processes.map(p => `<span class="dc-tag">${esc(p)}</span>`).join('')}
+          <span class="dc-tag dc-tag-status ${isProduced ? 'dc-tag-produced' : ''}">${isProduced ? '✓ Produced' : statusLabel}</span>
+        </div>
+
+        ${countdownHtml}
+
+        <div class="dc-actions">
+          ${isDone
+            ? `<div class="dc-dispatched-badge">✓ Dispatched ${order.date_shipped ? new Date(order.date_shipped).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</div>`
+            : `<button class="dispatch-btn ${!isProduced ? 'dispatch-btn-warn' : ''}" data-order-id="${order.order_id}">
+                ${!isProduced ? '⚠️ Mark Dispatched' : '✓ Mark Dispatched'}
+              </button>`
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  /* ── Urgency logic ── */
+  function getUrgency(order) {
+    if (order.dispatched || order.date_shipped) return 'done';
+
+    const now = new Date();
+    const due = order.date_due ? new Date(order.date_due) : null;
+    if (!due) return 'normal';
+
+    const msLeft = due - now;
+    const hoursLeft = msLeft / 3600000;
+
+    if (msLeft < 0) return 'critical'; // overdue
+    if (hoursLeft <= 1) return 'critical';
+    if (hoursLeft <= 3) return 'warning';
+    return 'normal';
+  }
+
+  /* ── Countdown ── */
+  function getCountdown(dueDate) {
+    const now = new Date();
+    const msLeft = dueDate - now;
+
+    if (msLeft < 0) {
+      const overBy = Math.abs(msLeft);
+      const h = Math.floor(overBy / 3600000);
+      const m = Math.floor((overBy % 3600000) / 60000);
+      return { text: `⚠️ Overdue by ${h}h ${m}m`, urgent: true };
     }
 
-    function showGreetingAndInsights() {
-      renderInsights();
-      const hour = new Date().getHours();
-      const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-      const s = window.state || {};
-      const risk = s.data?.risk?.length || 0;
-      const ready = s.data?.ready?.length || 0;
-      let statusLine = risk > 0 ? `⚠️ You have <strong>${risk} order${risk>1?'s':''} needing attention</strong> right now.` : ready > 0 ? `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong>, looking good.` : `Everything looks clear. Ask me anything about production.`;
-      danAppendBot(`${greeting}! I'm <strong>DAN</strong>, your ATAM GO production analyst. 👋<br><br>${statusLine}`, true);
+    const h = Math.floor(msLeft / 3600000);
+    const m = Math.floor((msLeft % 3600000) / 60000);
+    const s = Math.floor((msLeft % 60000) / 1000);
+
+    if (h > 6) return null; // no countdown needed if plenty of time
+    if (h === 0 && m <= 30) {
+      return { text: `🔴 ${m}m ${s}s remaining`, urgent: true };
     }
+    return { text: `⏱ ${h}h ${m}m remaining`, urgent: h === 0 };
+  }
 
-    function danAppendUser(text) { const el = document.createElement('div'); el.className = 'dan-msg user'; el.textContent = text; document.getElementById('dan-messages').appendChild(el); danScroll(); }
-
-    function danAppendBot(html, showChips) {
-      const el = document.createElement('div');
-      el.className = 'dan-msg bot';
-      el.innerHTML = html;
-
-      const speakBtn = document.createElement('button');
-      speakBtn.className = 'dan-speak-btn';
-      speakBtn.title = 'Read this aloud';
-      speakBtn.innerHTML = '🔊';
-      speakBtn.onclick = (e) => {
-        e.stopPropagation();
-        const wasVoiceEnabled = voiceEnabled;
-        voiceEnabled = true;
-        danSpeak(el.textContent);
-        voiceEnabled = wasVoiceEnabled;
-      };
-      el.appendChild(speakBtn);
-
-      if (showChips) {
-        const chips = document.createElement('div');
-        chips.className = 'dan-chips';
-        QUICK_PROMPTS.forEach(p => { const chip = document.createElement('button'); chip.className = 'dan-chip'; chip.textContent = p; chip.onclick = () => danSendText(p); chips.appendChild(chip); });
-        el.appendChild(chips);
-      }
-      document.getElementById('dan-messages').appendChild(el);
-      danScroll();
-
-      danSpeak(el.textContent);
-
-      return el;
-    }
-
-    function danAppendTyping() { const el = document.createElement('div'); el.className = 'dan-msg bot typing'; el.id = 'dan-typing'; el.innerHTML = 'DAN is thinking<span class="dan-typing-dots"><span></span><span></span><span></span></span>'; document.getElementById('dan-messages').appendChild(el); danScroll(); }
-    function danRemoveTyping() { const el = document.getElementById('dan-typing'); if (el) el.remove(); }
-    function danScroll() { const msgs = document.getElementById('dan-messages'); msgs.scrollTop = msgs.scrollHeight; }
-
-    async function danSendText(text) {
-      if (isBusy || !text.trim()) return;
-      isBusy = true;
-      const insights = document.getElementById('dan-insights');
-      if (insights && insights.children.length) { insights.style.maxHeight = insights.offsetHeight + 'px'; insights.style.overflow = 'hidden'; insights.style.transition = 'max-height 0.3s ease, opacity 0.3s ease'; setTimeout(() => { insights.style.maxHeight = '0'; insights.style.opacity = '0'; insights.style.padding = '0'; }, 50); }
-      danAppendUser(text);
-      document.getElementById('dan-input').value = '';
-      document.getElementById('dan-send').disabled = true;
-      danAppendTyping();
-      const s = window.state || {};
-      const ov = s.data?.overview?.[0] || {};
-      const ctx = { dateFrom: s.dateFrom || 'unknown', dateTo: s.dateTo || 'unknown', total_decorations: ov.total_decorations || 0, embroidery_total: ov.embroidery_total || 0, print_total: ov.print_total || 0, unique_orders: ov.unique_orders || 0, unique_customers: ov.unique_customers || 0, decoration_lines: ov.decoration_lines || 0, late_orders: (s.data?.risk || []).length, ready_to_ship: (s.data?.ready || []).length, customers_at_risk: (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length, top_customers: (s.data?.customers || []).slice(0, 5).map(c => `${c.customer_name} (${c.total_quantity} units)`).join(', '), risk_orders_detail: (s.data?.risk || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '), ready_orders_detail: (s.data?.ready || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', ') };
-      try {
-        const res = await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, sessionId: SESSION_ID, context: ctx }) });
-        danRemoveTyping();
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        const rawReply = data.reply || data.output || data.message || 'Sorry, no response received.';
-        danAppendBot(cleanDashes(rawReply).replace(/\n/g, '<br>'), false);
-      } catch (err) {
-        danRemoveTyping();
-        danAppendBot('⚠️ Couldn\'t reach DAN right now. Make sure the <strong>DAN BOT workflow is active</strong> in n8n and try again.', false);
-        console.error('[DAN BOT]', err);
-      } finally {
-        isBusy = false;
-        document.getElementById('dan-send').disabled = false;
-        document.getElementById('dan-input').focus();
-      }
-    }
-
-    function danSend() { danSendText(document.getElementById('dan-input').value.trim()); }
-
-    const _statusEl = document.getElementById('connectionStatus');
-    if (_statusEl) { new MutationObserver(() => { if ((_statusEl.textContent || '').toLowerCase() === 'connected') { setTimeout(() => { if (isOpen) renderInsights(); }, 200); } }).observe(_statusEl, { childList: true, characterData: true, subtree: true }); }
-
-    window.danToggle = danToggle;
-    window.danSend = danSend;
-    window.danSendText = danSendText;
-    window.danRefresh = renderInsights;
-    window.danToggleVoice = danToggleVoice;
-    window.danToggleListening = danToggleListening;
-
-    function fmtNum(n) { return new Intl.NumberFormat('en-GB').format(Number(n || 0)); }
-  })();
-  </script>
-
-  <!-- APP SHELL -->
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <img src="atam-go-logo.png?v=4" alt="ATAM GO logo" class="brand-logo-wide">
-      </div>
-      <nav class="sidebar-nav">
-        <button type="button" class="nav-link active" data-page="overview"><span>Workwear Overview</span></button>
-        <button type="button" class="nav-link" data-page="production"><span>Production</span></button>
-        <button type="button" class="nav-link" data-page="customers"><span>Customers</span></button>
-        <button type="button" class="nav-link" data-page="activity"><span>Production Activity</span></button>
-        <button type="button" class="nav-link" data-page="actions"><span>Actions</span></button>
-        <button type="button" class="nav-link" data-page="revenue"><span>💰 Revenue</span></button>
-        <button type="button" class="nav-link" data-page="discrepancies"><span>⚠️ Discrepancies</span></button>
-        <button type="button" class="nav-link" data-page="review"><span>📥 Purchase Order Review</span></button>
-        <a href="overdue.html" target="_blank" rel="noopener" class="nav-link external-link">
-          <span>🚨 Overdue Orders</span>
-          <span class="ext-icon">↗</span>
-        </a>
-      </nav>
-      <div class="sidebar-footer">
-        <p>Status</p>
-        <strong id="connectionStatus">Connecting...</strong>
-        <button type="button" id="signOutBtn" onclick="signOut()">Sign Out</button>
-      </div>
-    </aside>
-
-    <main class="main-content">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">ATAM Workwear</p>
-        </div>
-        <div class="topbar-controls">
-          <div class="date-range-controls">
-            <div class="range-presets">
-              <button type="button" class="range-btn" data-range="today">Today</button>
-              <button type="button" class="range-btn" data-range="yesterday">Yesterday</button>
-              <button type="button" class="range-btn active" data-range="week">This Week</button>
-              <button type="button" class="range-btn" data-range="month">This Month</button>
-              <button type="button" class="range-btn" data-range="custom">Custom</button>
-            </div>
-            <div class="custom-date-range" id="customDateRange">
-              <input id="dateFromInput" type="date" />
-              <span>to</span>
-              <input id="dateToInput" type="date" />
-            </div>
-          </div>
-          <select id="storeFilter"><option value="">All stores</option></select>
-          <select id="decorationFilter">
-            <option value="">All decoration types</option>
-            <option value="embroidery">Embroidery</option>
-            <option value="print">Print</option>
-          </select>
-          <button type="button" id="refreshBtn" class="primary-btn">Refresh</button>
-        </div>
-      </header>
-
-      <!-- WORKWEAR OVERVIEW -->
-      <section id="overview" class="dashboard-page active">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Workwear Overview</p>
-            <h2>Production Summary</h2>
-            <p class="page-subtitle">Live decoration volume, production split and activity.</p>
-          </div>
-        </div>
-        <div class="kpi-grid">
-          <div class="kpi-card"><span>Total Decorations</span><strong id="totalDecorations">0</strong><small>Total production quantity</small></div>
-          <div class="kpi-card"><span>Embroidery</span><strong id="embroideryTotal">0</strong><small>Total embroidery quantity</small></div>
-          <div class="kpi-card"><span>Print</span><strong id="printTotal">0</strong><small>Total print quantity</small></div>
-          <div class="kpi-card"><span>Unique Orders</span><strong id="uniqueOrders">0</strong><small>Orders counted</small></div>
-          <div class="kpi-card"><span>Avg Garments Per Order</span><strong id="avgGarmentsPerOrder">0</strong><small>Average order size</small></div>
-          <div class="kpi-card"><span>Decoration Lines</span><strong id="decorationLines">0</strong><small>Individual decoration records</small></div>
-        </div>
-        <div class="chart-grid">
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">By Day</p><h3>Decoration Split by Day</h3></div></div>
-            <div class="chart-box"><canvas id="decorationByDayChart"></canvas></div>
-          </div>
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Decoration Type</p><h3>Decoration Split</h3></div></div>
-            <div class="chart-box"><canvas id="decorationChartByDay"></canvas></div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-header"><div><p class="eyebrow">All Orders</p><h3>Production Activity</h3></div></div>
-          <div class="table-wrap">
-            <table><thead><tr><th>Time</th><th>Order</th><th>Customer</th><th>Product</th><th>Type</th><th>Process</th><th>Qty</th><th>Area</th></tr></thead><tbody id="overviewActivityTable"></tbody></table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PRODUCTION -->
-      <section id="production" class="dashboard-page">
-        <div class="page-header">
-          <div><p class="eyebrow">Production</p><h2>Production Dashboard</h2><p class="page-subtitle">Live workload, decoration volume, due pressure and order breakdowns.</p></div>
-        </div>
-        <div class="section-header"><div><p class="eyebrow">Production Insights</p><h2>Workload Breakdown</h2></div></div>
-        <div class="kpi-grid production-pressure-grid">
-          <div class="kpi-card"><span>Due Today</span><strong id="dueTodayCount">0</strong><small>orders needing attention today</small></div>
-          <div class="kpi-card"><span>Due Tomorrow</span><strong id="dueTomorrowCount">0</strong><small>orders due next working day</small></div>
-          <div class="kpi-card"><span>Due This Week</span><strong id="dueWeekCount">0</strong><small>orders due in the next 7 days</small></div>
-          <div class="kpi-card"><span>Biggest Job</span><strong id="biggestJobQty">0</strong><small id="biggestJobLabel">No job selected</small></div>
-        </div>
-        <div class="chart-grid production-insight-grid">
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Areas</p><h3>Top Decoration Areas</h3></div></div>
-            <div class="chart-box"><canvas id="areaChart"></canvas></div>
-          </div>
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Team</p><h3>Workload by Assignee</h3></div></div>
-            <div class="chart-box"><canvas id="assigneeChart"></canvas></div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-header"><div><p class="eyebrow">Largest Orders</p><h3>Biggest Live Jobs</h3></div></div>
-          <div class="table-wrap">
-            <table><thead><tr><th>Order</th><th>Customer</th><th>Store</th><th>Total Qty</th><th>Due Date</th><th>Assigned To</th></tr></thead><tbody id="biggestJobsTable"></tbody></table>
-          </div>
-        </div>
-        <div class="chart-grid">
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Decoration Type</p><h3>Production Split</h3></div></div>
-            <div class="chart-box"><canvas id="decorationChartProduction"></canvas></div>
-          </div>
-          <div class="panel">
-            <div class="panel-header"><div><p class="eyebrow">Process Codes</p><h3>Production by Process</h3></div></div>
-            <div class="chart-box"><canvas id="processChartProduction"></canvas></div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-header"><div><p class="eyebrow">Activity</p><h3>Production Activity</h3></div></div>
-          <div class="table-wrap">
-            <table><thead><tr><th>Time</th><th>Order</th><th>Customer</th><th>Product</th><th>Type</th><th>Process</th><th>Qty</th><th>Area</th></tr></thead><tbody id="productionActivityTable"></tbody></table>
-          </div>
-        </div>
-      </section>
-
-      <!-- CUSTOMERS -->
-      <section id="customers" class="dashboard-page">
-        <div class="page-header">
-          <div><p class="eyebrow">Customer Reorder Monitor</p><h2>Customers / Reorder Risk</h2><p class="page-subtitle">Tracks customer reorder patterns from Airtable and Supabase.</p></div>
-          <input id="customerSearchInput" class="search-input" type="search" placeholder="Search customers, companies or emails..." />
-        </div>
-        <div class="kpi-grid customer-kpis">
-          <div class="kpi-card"><span>Total Customers</span><strong id="reorderTotalCustomers">0</strong><small>Customers tracked</small></div>
-          <div class="kpi-card danger-kpi"><span>At Risk</span><strong id="reorderAtRisk">0</strong><small>Customers overdue for reorder</small></div>
-          <div class="kpi-card warning-kpi"><span>Due Soon</span><strong id="reorderDueSoon">0</strong><small>Approaching reorder threshold</small></div>
-          <div class="kpi-card"><span>Potential Value at Risk</span><strong id="reorderValueAtRisk">£0</strong><small>Based on last order value</small></div>
-        </div>
-        <div class="panel">
-          <div class="panel-header">
-            <div><p class="eyebrow">Reorder Risk</p><h3>Customer Watchlist</h3><p class="muted">Customers are ranked by priority, overdue status and last order value.</p></div>
-            <button type="button" class="secondary-btn" id="refreshCustomersBtn">Refresh Customers</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Customer</th><th>Company</th><th>Last Order</th><th>Days Since</th><th>Mean Reorder</th><th>Status</th><th>Last Value</th><th>Action</th></tr></thead>
-              <tbody id="reorderCustomerTable"><tr><td colspan="8">Loading customer data...</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PRODUCTION ACTIVITY -->
-      <section id="activity" class="dashboard-page">
-        <div class="page-header">
-          <div><p class="eyebrow">Production Activity</p><h2>Decoration Activity Log</h2><p class="page-subtitle">Search and inspect recently counted decoration records.</p></div>
-          <input id="searchInput" type="search" placeholder="Search orders, customers, products..." />
-        </div>
-        <div class="panel">
-          <div class="table-wrap">
-            <table><thead><tr><th>Time</th><th>Order</th><th>Customer</th><th>Product</th><th>Type</th><th>Process</th><th>Qty</th><th>Area</th></tr></thead><tbody id="activityTable"></tbody></table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ACTIONS -->
-      <section id="actions" class="dashboard-page">
-        <div class="page-header"><div><p class="eyebrow">Actions</p><h2>Workflow Triggers</h2><p class="page-subtitle">Trigger n8n workflow automations.</p></div></div>
-        <div class="action-grid">
-          <button type="button" class="action-card" data-action="refreshDecoData"><strong>Refresh Deco Data</strong><span>Trigger a data refresh workflow.</span></button>
-          <button type="button" class="action-card" data-action="recountToday"><strong>Recount Selected Range</strong><span>Ask n8n to recount production records.</span></button>
-          <button type="button" class="action-card" data-action="sendDailySummary"><strong>Send Daily Summary</strong><span>Push a summary to email, Slack or GHL.</span></button>
-          <button type="button" class="action-card" data-action="sendManagerAlert"><strong>Send Manager Alert</strong><span>Notify account managers about urgent work.</span></button>
-        </div>
-      </section>
-
-      <!-- REVENUE INTELLIGENCE -->
-      <section id="revenue" class="dashboard-page">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Revenue Intelligence</p>
-            <h2>Revenue &amp; Billing</h2>
-            <p class="page-subtitle">Live WIP value, monthly target progress and team revenue — synced from DecoNetwork.</p>
-          </div>
-          <div class="muted" style="font-size:12px;text-align:right">Last synced<br><b id="revenue-sync-time" style="color:#e2e8f0">—</b></div>
-        </div>
-
-        <div id="revenue-loading" style="padding:60px 0;text-align:center;color:var(--muted,#94a3b8);font-size:13px">
-          Loading revenue data…
-        </div>
-
-  <div class="view-nav">
-    <div class="view-btn active" data-view="overview">Overview</div>
-    <div class="view-btn" data-view="team">Team</div>
-  </div>
-
-  <div class="view active" id="view-overview">
-
-  <div class="overview-strip" id="overview-strip"></div>
-
-  <div class="section-title">Monthly Target</div>
-  <div class="target-card">
-    <div class="coin-wrap">
-      <div class="coin" style="--coin-w:150px;--coin-h:180px">
-        <div class="coin-fill" id="target-coin-fill"></div>
-        <div class="coin-symbol" id="target-coin-symbol">£</div>
-        <div class="coin-glow" id="target-coin-glow"></div>
-        <div class="coin-pct" id="target-coin-pct">0%</div>
-      </div>
-    </div>
-    <div class="target-info">
-      <div class="k-label">This month vs target</div>
-      <div class="target-headline"><span id="target-current">£0.00</span> <small>of <span id="target-goal">£40,000.00</span></small></div>
-      <div class="target-bar-track"><div class="target-bar-fill" id="target-bar-fill"></div></div>
-      <div class="target-foot" id="target-foot">—</div>
-    </div>
-  </div>
-
-  <div class="tabs-wrap"><div class="tabs" id="tabs" role="tablist"></div></div>
-
-  <div class="kpis" id="kpis">
-    <div class="kpi kpi-total">
-      <div class="k-label">Total Pipeline</div>
-      <div class="k-value"><span class="pound">£</span><span id="kpi-total">0.00</span></div>
-      <div class="k-sub" id="kpi-total-sub">— orders</div>
-    </div>
-    <div class="kpi kpi-billed">
-      <div class="k-label">Billed</div>
-      <div class="k-value"><span class="pound">£</span><span id="kpi-billed">0.00</span></div>
-      <div class="k-sub" id="kpi-billed-sub">— orders dispatched</div>
-    </div>
-    <div class="kpi kpi-unbilled">
-      <div class="k-label">Unbilled WIP</div>
-      <div class="k-value"><span class="pound">£</span><span id="kpi-unbilled">0.00</span></div>
-      <div class="k-sub" id="kpi-unbilled-sub">— orders awaiting dispatch</div>
-    </div>
-    <div class="kpi">
-      <div class="k-label">Billing %</div>
-      <div class="kpi-gauge" style="margin-top:10px">
-        <svg width="72" height="72" viewBox="0 0 72 72">
-          <circle cx="36" cy="36" r="30" fill="none" stroke="#131e34" stroke-width="7"/>
-          <circle id="gauge-arc" cx="36" cy="36" r="30" fill="none" stroke="#22c55e" stroke-width="7"
-            stroke-linecap="round" stroke-dasharray="188.5" stroke-dashoffset="188.5"
-            transform="rotate(-90 36 36)" style="transition:stroke-dashoffset .8s cubic-bezier(.22,.61,.36,1);filter:drop-shadow(0 0 5px rgba(34,197,94,.5))"/>
-        </svg>
-        <div>
-          <div class="gauge-num"><span id="kpi-pct">0</span>%</div>
-          <div class="k-sub" id="kpi-pct-sub">of month billed</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section-title">Billing Forecast</div>
-  <div class="forecast-card">
-    <div class="fbar-wrap">
-      <div class="fbar-track" id="fbar">
-        <div class="fbar-seg billed" id="seg-billed"></div>
-        <div class="fbar-seg unbilled" id="seg-unbilled"></div>
-        <div class="fbar-seg spill" id="seg-spill"></div>
-      </div>
-      <div class="fbar-today" id="fbar-today" style="left:0%"></div>
-    </div>
-    <div class="fbar-labels">
-      <div class="fl"><span class="dot" style="background:var(--green)"></span><b id="fl-billed">£0.00</b><span>billed</span></div>
-      <div class="fl"><span class="dot" style="background:var(--amber)"></span><b id="fl-unbilled">£0.00</b><span>WIP due this month</span></div>
-      <div class="fl" id="fl-spill-wrap" style="display:none"><span class="dot" style="background:var(--indigo)"></span><b id="fl-spill">£0.00</b><span>spilling to next month</span></div>
-      <div class="fl"><b id="fl-total">£0.00</b><span>total pipeline</span></div>
-    </div>
-  </div>
-
-  <div class="section-title" id="orders-title">Orders</div>
-  <div id="orders"></div>
-
-  <div class="section-title">6-Month Revenue Trend</div>
-  <div class="trend-card"><svg id="trend" width="100%" height="240" role="img" aria-label="Billed revenue by month"></svg></div>
-  <div id="trend-tip"></div>
-
-  </div><!-- /view-overview -->
-
-  <div class="view" id="view-team">
-    <div class="section-title" id="team-title">Team Revenue — Month</div>
-    <div class="team-grid" id="team-grid"></div>
-  </div>
-
-      </section>
-
-      <!-- DISCREPANCIES -->
-      <section id="discrepancies" class="dashboard-page">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Invoice Reconciliation</p>
-            <h2>Discrepancies</h2>
-            <p class="page-subtitle">PO / invoice mismatches flagged before posting to Xero. Alerts also go to accounts@cpi.co.uk.</p>
-          </div>
-        </div>
-
-        <div class="disc-summary-row">
-          <div class="disc-summary-card disc-attn"><div class="disc-num" id="discOpenCount">0</div><div class="disc-label">Open — needs review</div></div>
-          <div class="disc-summary-card"><div class="disc-num" id="discResolvedCount">0</div><div class="disc-label">Resolved this week</div></div>
-          <div class="disc-summary-card"><div class="disc-num" id="discOpenValue">£0.00</div><div class="disc-label">Variance value, open</div></div>
-          <div class="disc-summary-card"><div class="disc-num" id="discDecoOutstanding">0</div><div class="disc-label">Awaiting DecoNetwork fix</div></div>
-        </div>
-
-        <div class="disc-export-bar">
-          <span style="font-size:11.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Audit trail:</span>
-          <select id="discPeriodSelect">
-            <option value="today">Today</option>
-            <option value="week" selected>This week</option>
-            <option value="month">This month</option>
-            <option value="last30">Last 30 days</option>
-          </select>
-          <div class="disc-spacer"></div>
-          <button type="button" class="disc-export-btn" id="discExportPdfBtn">↓ PDF</button>
-          <button type="button" class="disc-export-btn primary" id="discExportXlsxBtn">↓ Excel</button>
-        </div>
-
-        <div id="discrepanciesList"><div class="disc-empty">Loading discrepancies…</div></div>
-      </section>
-
-<style>
-        #review { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        #review .rev-summary-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03); margin-bottom:20px; overflow:hidden; }
-        #review .rev-summary-card { padding:16px 18px; border-right:1px solid rgba(255,255,255,0.08); }
-        #review .rev-summary-card:last-child { border-right:none; }
-        #review .rev-summary-card .rev-num { font-size:26px; font-weight:700; color:#f8fafc; font-variant-numeric:tabular-nums; line-height:1; }
-        #review .rev-summary-card.rev-attn .rev-num { color:#38bdf8; }
-        #review .rev-summary-card .rev-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-top:8px; }
-      
-        #review .rev-case { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:12px; overflow:hidden; cursor:pointer; transition:box-shadow .15s; }
-        #review .rev-case:hover { box-shadow:0 4px 18px rgba(0,0,0,0.25); }
-        #review .rev-case-head { display:flex; align-items:center; gap:14px; padding:14px 18px; }
-        #review .rev-stamp { width:38px; height:38px; border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
-        #review .rev-stamp.clean { border-color:#22c55e; color:#22c55e; background:rgba(34,197,94,0.1); }
-        #review .rev-stamp.vendor { border-color:#f87171; color:#f87171; background:rgba(248,113,113,0.1); }
-        #review .rev-stamp.amount { border-color:#fbbf24; color:#fbbf24; background:rgba(251,191,36,0.1); }
-        #review .rev-stamp.nomatch { border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.1); }
-        #review .rev-case-main { flex:1; min-width:0; }
-        #review .rev-case-ref { font-size:10.5px; color:#64748b; letter-spacing:.03em; }
-        #review .rev-case-title { font-size:15px; font-weight:700; color:#f8fafc; margin-top:2px; }
-        #review .rev-case-sub { font-size:12px; color:#94a3b8; margin-top:3px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-        #review .rev-case-meta { text-align:right; font-size:11px; color:#94a3b8; flex-shrink:0; }
-        #review .rev-case-meta .rev-amt { font-size:15px; font-weight:700; color:#f8fafc; display:block; margin-bottom:2px; }
-        #review .rev-badge-mini { display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.2); color:#a5b4fc; }
-        #review .rev-badge-warn { background:rgba(251,191,36,0.2); color:#fbbf24; }
-      
-        #review .rev-case-detail { display:none; border-top:1px solid rgba(255,255,255,0.08); padding:18px 20px 20px; background:rgba(0,0,0,0.15); }
-        #review .rev-case.open .rev-case-detail { display:block; }
-      
-        #review .rev-notes-flag { background:rgba(251,191,36,0.08); border-left:3px solid #fbbf24; border-radius:0 8px 8px 0; padding:10px 14px; margin-bottom:16px; font-size:12.5px; color:#fde68a; }
-      
-        #review .rev-compare { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:stretch; margin-bottom:16px; }
-        #review .rev-compare-card { border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:12px 14px; background:rgba(255,255,255,0.02); }
-        #review .rev-compare-card.mismatch { border-color:rgba(248,113,113,0.4); background:rgba(248,113,113,0.06); }
-        #review .rev-ct-label { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:6px; }
-        #review .rev-ct-vendor { font-size:14px; font-weight:700; color:#f8fafc; }
-        #review .rev-ct-row { display:flex; justify-content:space-between; font-size:11.5px; margin-top:6px; color:#94a3b8; }
-        #review .rev-ct-row b { color:#e2e8f0; }
-        #review .rev-compare-arrow { display:flex; align-items:center; color:#64748b; font-size:18px; }
-      
-        #review .rev-line-items { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px 14px; margin-bottom:16px; }
-        #review .rev-li-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; margin-bottom:8px; }
-        #review .rev-li-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; font-size:12px; color:#cbd5e1; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
-        #review .rev-li-row:last-child { border-bottom:none; }
-      
-        #review .rev-edit-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#38bdf8; font-weight:700; margin-bottom:10px; }
-        #review .rev-field-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-        #review .rev-field { margin-bottom:12px; }
-        #review .rev-field label { display:block; font-size:10.5px; font-weight:700; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; }
-        #review .rev-field input, #review .rev-field select, #review .rev-field textarea {
-          width:100%; padding:8px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:6px;
-          font-size:12.5px; background:#0d1a2e; color:#e2e8f0;
+  /* ── Live countdown tick ── */
+  function startCountdownTick() {
+    countdownInterval = setInterval(() => {
+      document.querySelectorAll('[data-due]').forEach(el => {
+        const due = new Date(el.dataset.due);
+        const result = getCountdown(due);
+        if (result) {
+          el.textContent = result.text;
+          el.classList.toggle('dc-countdown-urgent', result.urgent);
         }
-        #review .rev-field textarea { resize:vertical; min-height:50px; }
-      
-        #review .rev-actions { display:flex; gap:8px; margin-top:16px; }
-        #review .rev-btn { flex:1; padding:10px; border-radius:6px; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; border:1px solid rgba(255,255,255,0.12); cursor:pointer; background:transparent; color:#e2e8f0; }
-        #review .rev-btn.primary { background:linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; border:none; }
-        #review .rev-btn.danger { color:#f87171; border-color:rgba(248,113,113,0.3); }
-        #review .rev-btn:hover { opacity:.85; }
-        #review .rev-post-note { font-size:11px; color:#64748b; margin-top:10px; text-align:center; }
-      
-        #review .rev-empty { text-align:center; padding:60px 20px; color:#64748b; font-size:13px; }
-      </style>
-      
-      <section id="review" class="dashboard-page">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Invoice Intake</p>
-            <h2>Purchase Order Review</h2>
-            <p class="page-subtitle">Invoices extracted and matched, waiting for approval. Nothing here has reached Xero yet.</p>
-          </div>
-        </div>
-      
-        <div class="rev-summary-row">
-          <div class="rev-summary-card rev-attn"><div class="rev-num" id="revAwaitingCount">0</div><div class="rev-label">Awaiting review</div></div>
-          <div class="rev-summary-card"><div class="rev-num" id="revCleanCount">0</div><div class="rev-label">Clean matches</div></div>
-          <div class="rev-summary-card"><div class="rev-num" id="revLowConfCount">0</div><div class="rev-label">Low confidence — check</div></div>
-          <div class="rev-summary-card"><div class="rev-num" id="revTotalValue">£0.00</div><div class="rev-label">Total value waiting</div></div>
-        </div>
-      
-        <div id="reviewList"><div class="rev-empty">Loading…</div></div>
-
-        <div class="section-title" style="margin-top:28px">Recently Approved · Not Yet Posted <span id="revApprovedCount" style="color:#64748b;font-weight:600">0</span></div>
-        <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:12px">
-          Made a mistake? You can undo an approval here as long as it hasn't reached Xero yet.
-        </p>
-        <div id="approvedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
-
-        <div class="section-title" style="margin-top:28px">Recently Rejected <span id="revRejectedCount" style="color:#64748b;font-weight:600">0</span></div>
-        <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:12px">
-          Rejected something by mistake? Undo it here, safe any time since rejected invoices never reach Xero.
-        </p>
-        <div id="rejectedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
-      </section>
-
-    </main>
-  </div>
-
-  <div id="orderModal" class="modal-backdrop">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div><p class="eyebrow">Order Details</p><h2 id="modalOrderTitle">Order</h2></div>
-        <button type="button" id="closeOrderModal" class="modal-close">×</button>
-      </div>
-      <div id="modalOrderMeta" class="order-meta-grid"></div>
-      <div class="table-wrap">
-        <table><thead><tr><th>Product</th><th>Type</th><th>Process</th><th>View</th><th>Area</th><th>Qty</th></tr></thead><tbody id="modalOrderLines"></tbody></table>
-      </div>
-    </div>
-  </div>
-
-  <div id="toast" class="toast"></div>
-
-  <!-- SCRIPTS -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="config.js"></script>
-  <script src="app.js"></script>
-  <script src="enhancements.js"></script>
-  <script src="dispatch.js"></script>
-  <script src="effects3d.js"></script>
-  <script src="weekly-targets.js"></script>
-  <script src="revenue.js"></script>
-  <script src="discrepancies.js"></script>
-  <script src="pending_invoices_review.js"></script>
-
-  <!-- SIGN OUT -->
-  <script>
-    async function signOut() {
-      const SUPABASE_URL  = 'https://aobosyvlhgkxhjxkfzlz.supabase.co';
-      const SUPABASE_ANON = 'sb_publishable_4Ii8Z8bGgQ5OrSKB2at_GA_GubBsWC1';
-      const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-      await _sb.auth.signOut();
-      window.location.replace('./login.html');
-    }
-  </script>
-
-  <!-- FRIDAY WEEK-AHEAD AUTO-TRIGGER -->
-  <script>
-  (function () {
-    'use strict';
-    const STORAGE_KEY_PREFIX = 'atam-dan-friday-shown-';
-    function todayKey() { return STORAGE_KEY_PREFIX + new Date().toISOString().slice(0, 10); }
-    function isFriday() { return new Date().getDay() === 5; }
-    function alreadyShownToday() { try { return localStorage.getItem(todayKey()) === 'true'; } catch { return false; } }
-    function markShownToday() { try { localStorage.setItem(todayKey(), 'true'); } catch { } }
-    function waitForDanReady(callback, attempts = 0) {
-      if (typeof window.danToggle === 'function' && typeof window.danSendText === 'function') { callback(); }
-      else if (attempts < 50) { setTimeout(() => waitForDanReady(callback, attempts + 1), 100); }
-    }
-    function runFridayTrigger() {
-      const panel = document.getElementById('dan-panel');
-      if (!panel) return;
-      if (!panel.classList.contains('open')) window.danToggle();
-      setTimeout(() => window.danSendText("What's my week looking like next week?"), 900);
-    }
-    function maybeRunFridayTrigger() {
-      if (!isFriday() || alreadyShownToday()) return;
-      markShownToday();
-      waitForDanReady(() => setTimeout(runFridayTrigger, 2000));
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', maybeRunFridayTrigger);
-    else maybeRunFridayTrigger();
-  })();
-  </script>
-
-  <!-- PWA SERVICE WORKER -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(console.error);
       });
-    }
-  </script>
 
-</body>
-</html>
+      // Re-render summary bar every tick
+      renderSummaryBar();
+
+      // Re-render cards every minute to update urgency classes
+    }, 1000);
+  }
+
+  /* ── Mark dispatched ── */
+  function markDispatched(orderId, btn) {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+    }
+
+    dispatchedOrders.add(String(orderId));
+    localStorage.setItem('atam_dispatched', JSON.stringify([...dispatchedOrders]));
+
+    // Update local data
+    const order = dispatchData.find(o => String(o.order_id) === String(orderId));
+    if (order) order.dispatched = true;
+
+    // Animate card out briefly then re-render
+    const card = document.querySelector(`.dispatch-card[data-order-id="${orderId}"]`);
+    if (card) {
+      card.classList.add('dc-flash-green');
+      setTimeout(() => renderDispatch(), 600);
+    } else {
+      renderDispatch();
+    }
+
+    // Optional: push to webhook if configured
+    const cfg = window.ATAM_GO_CONFIG || {};
+    const webhookUrl = cfg.WEBHOOKS?.dispatchConfirm;
+    if (webhookUrl && order) {
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Atam-Go-Token': '42f5d7bb154d98a8cfc5d8b7e2d83693a088e0f78b2357bf352c518ce25f07cc'
+        },
+        body: JSON.stringify({
+          action: 'dispatch_confirmed',
+          order_id: orderId,
+          customer_name: order.customer_name,
+          shipping_method: order.shipping_method,
+          confirmed_at: new Date().toISOString(),
+          source: 'ATAM GO Dispatch'
+        })
+      }).catch(() => {});
+    }
+  }
+
+  /* ── Filter buttons ── */
+  function bindFilterButtons() {
+    document.querySelectorAll('.dispatch-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.dispatch-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderCards();
+      });
+    });
+  }
+
+  /* ── Inject page HTML ── */
+  function injectPage() {
+    // Add nav link
+    const nav = document.querySelector('.sidebar-nav');
+    if (nav && !document.querySelector('[data-page="dispatch"]')) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'nav-link';
+      btn.dataset.page = 'dispatch';
+      btn.innerHTML = '<span>Dispatch</span>';
+      nav.appendChild(btn);
+    }
+
+    // Patch existing nav links so they also hide the dispatch page
+    // and restore the global filter controls
+    document.querySelectorAll('.nav-link:not([data-page="dispatch"])').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dispatchPage = document.getElementById('dispatch');
+        const dispatchBtn = document.querySelector('[data-page="dispatch"]');
+        if (dispatchPage) dispatchPage.classList.remove('active');
+        if (dispatchBtn) dispatchBtn.classList.remove('active');
+
+        // Restore global filter controls
+        const filterControls = document.querySelector('.topbar-controls');
+        if (filterControls) filterControls.style.display = '';
+      });
+    });
+
+    // Add page section
+    const main = document.querySelector('.main-content');
+    if (!main || document.getElementById('dispatch')) return;
+
+    const section = document.createElement('section');
+    section.id = 'dispatch';
+    section.className = 'dashboard-page';
+    section.innerHTML = `
+      <div class="page-header">
+        <div>
+          <p class="eyebrow">Dispatch Command Centre</p>
+          <h2>Today's Dispatch</h2>
+          <p class="page-subtitle">Live order dispatch tracking — auto-refreshes every 60 seconds.</p>
+        </div>
+        <button type="button" class="primary-btn" onclick="window._dispatchRefresh()">↺ Refresh</button>
+      </div>
+
+      <div id="dispatch-summary-bar" class="dispatch-summary-bar">
+        <div class="dsb-stat">
+          <span class="dsb-num">—</span>
+          <span class="dsb-label">Loading…</span>
+        </div>
+      </div>
+
+      <div class="dispatch-filter-row">
+        <button class="dispatch-filter-btn active" data-filter="all">All</button>
+        <button class="dispatch-filter-btn" data-filter="overdue">🔴 Overdue</button>
+        <button class="dispatch-filter-btn" data-filter="today">Today</button>
+        <button class="dispatch-filter-btn" data-filter="upcoming">Upcoming</button>
+        <button class="dispatch-filter-btn" data-filter="critical">⚡ Critical</button>
+        <button class="dispatch-filter-btn" data-filter="pending">Pending</button>
+        <button class="dispatch-filter-btn" data-filter="notproduced">⚠️ Not Produced</button>
+        <button class="dispatch-filter-btn" data-filter="done">✓ Done</button>
+      </div>
+
+      <div id="dispatch-card-grid" class="dispatch-card-grid">
+        <div class="dispatch-empty">
+          <div class="dispatch-empty-icon">⏳</div>
+          <p>Loading dispatch data…</p>
+        </div>
+      </div>
+    `;
+
+    main.appendChild(section);
+    bindFilterButtons();
+
+    window._dispatchRefresh = loadAndRender;
+  }
+
+  /* ── Inject styles ── */
+  function injectStyles() {
+    if (document.getElementById('dispatch-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'dispatch-styles';
+    style.textContent = `
+      /* ── Summary Bar ── */
+      .dispatch-summary-bar {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        background: #0d1525;
+        border: 1px solid #1e2d45;
+        border-radius: 12px;
+        padding: 20px 28px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .dsb-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 80px;
+      }
+      .dsb-num {
+        font-size: 32px;
+        font-weight: 800;
+        line-height: 1;
+        color: #e8edf5;
+        font-variant-numeric: tabular-nums;
+      }
+      .dsb-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-top: 4px;
+      }
+      .dsb-green { color: #22c55e !important; }
+      .dsb-amber { color: #f59e0b !important; }
+      .dsb-red   { color: #ef4444 !important; }
+      .dsb-divider {
+        width: 1px;
+        height: 40px;
+        background: #1e2d45;
+        margin: 0 20px;
+      }
+      .dsb-progress-wrap {
+        flex: 1;
+        min-width: 160px;
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .dsb-progress-track {
+        height: 6px;
+        background: #1e2d45;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .dsb-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #22c55e, #16a34a);
+        border-radius: 3px;
+        transition: width 0.6s ease;
+      }
+      .dsb-progress-pct {
+        font-size: 11px;
+        color: #64748b;
+        font-weight: 600;
+      }
+      .pulse-num {
+        animation: pulse-red 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse-red {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+
+      /* ── Filter Row ── */
+      .dispatch-filter-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .dispatch-filter-btn {
+        padding: 7px 16px;
+        border-radius: 20px;
+        border: 1px solid #1e2d45;
+        background: #0d1525;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        letter-spacing: 0.04em;
+        transition: all 0.15s;
+      }
+      .dispatch-filter-btn:hover { border-color: #f97316; color: #f97316; }
+      .dispatch-filter-btn.active {
+        background: #f97316;
+        border-color: #f97316;
+        color: #fff;
+      }
+
+      /* ── Card Grid ── */
+      .dispatch-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+      }
+
+      /* ── Cards ── */
+      .dispatch-card {
+        background: #0d1525;
+        border: 1px solid #1e2d45;
+        border-radius: 12px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transition: transform 0.15s, box-shadow 0.15s;
+        position: relative;
+        overflow: hidden;
+      }
+      .dispatch-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 4px;
+        height: 100%;
+        border-radius: 12px 0 0 12px;
+      }
+      .dispatch-card.normal::before  { background: #22c55e; }
+      .dispatch-card.warning::before { background: #f59e0b; }
+      .dispatch-card.critical::before { background: #ef4444; }
+      .dispatch-card.done::before    { background: #334155; }
+
+      .dispatch-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      }
+      .dispatch-card.dc-done {
+        opacity: 0.55;
+      }
+      .dispatch-card.dc-flash-green {
+        animation: flash-green 0.6s ease;
+      }
+      @keyframes flash-green {
+        0%   { background: #0d1525; }
+        40%  { background: rgba(34,197,94,0.2); border-color: #22c55e; }
+        100% { background: #0d1525; }
+      }
+
+      .dc-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .dc-order-id {
+        font-size: 18px;
+        font-weight: 800;
+        color: #e8edf5;
+        letter-spacing: -0.5px;
+      }
+      .dc-hash { color: #64748b; font-weight: 400; }
+
+      .dc-urgency-dot {
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .dc-urgency-dot.normal   { background: #22c55e; }
+      .dc-urgency-dot.warning  { background: #f59e0b; animation: pulse-amber 2s infinite; }
+      .dc-urgency-dot.critical { background: #ef4444; animation: pulse-red-dot 1s infinite; }
+      .dc-urgency-dot.done     { background: #334155; }
+      @keyframes pulse-amber {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
+        50%       { box-shadow: 0 0 0 6px rgba(245,158,11,0); }
+      }
+      @keyframes pulse-red-dot {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+        50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+      }
+
+      .dc-customer {
+        font-size: 15px;
+        font-weight: 700;
+        color: #e8edf5;
+        line-height: 1.2;
+      }
+      .dc-store {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: -6px;
+      }
+
+      .dc-meta-row {
+        display: flex;
+        gap: 16px;
+      }
+      .dc-meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+      }
+      .dc-meta-label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #475569;
+      }
+      .dc-meta-val {
+        font-size: 13px;
+        color: #94a3b8;
+      }
+      .dc-meta-val strong { color: #e8edf5; }
+
+      .dc-tags-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .dc-tag {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 4px;
+        background: #1e2d45;
+        color: #64748b;
+      }
+      .dc-tag-status { background: #1e293b; color: #94a3b8; }
+      .dc-tag-produced { background: rgba(34,197,94,0.15); color: #22c55e; }
+
+      .dc-countdown {
+        font-size: 13px;
+        font-weight: 700;
+        color: #94a3b8;
+        background: #131929;
+        border-radius: 6px;
+        padding: 6px 10px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .dc-countdown-urgent {
+        color: #ef4444;
+        background: rgba(239,68,68,0.08);
+        animation: flicker 1.5s ease-in-out infinite;
+      }
+      @keyframes flicker {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+
+      .dc-actions {
+        margin-top: 4px;
+      }
+      .dispatch-btn {
+        width: 100%;
+        padding: 10px;
+        background: rgba(249,115,22,0.15);
+        border: 1px solid rgba(249,115,22,0.4);
+        border-radius: 8px;
+        color: #f97316;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+        letter-spacing: 0.03em;
+      }
+      .dispatch-btn:hover {
+        background: #f97316;
+        color: #fff;
+      }
+      .dispatch-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .dispatch-btn-warn {
+        border-color: rgba(245,158,11,0.4);
+        color: #f59e0b;
+        background: rgba(245,158,11,0.1);
+      }
+      .dispatch-btn-warn:hover {
+        background: #f59e0b;
+        color: #fff;
+        border-color: #f59e0b;
+      }
+      .dc-dispatched-badge {
+        text-align: center;
+        color: #22c55e;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 8px;
+        background: rgba(34,197,94,0.08);
+        border-radius: 8px;
+        border: 1px solid rgba(34,197,94,0.2);
+      }
+
+      /* ── Day group headers ── */
+      .dispatch-day-header {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0 6px;
+        border-bottom: 1px solid #1e2d45;
+        margin-bottom: 4px;
+        margin-top: 8px;
+      }
+      .dispatch-day-header:first-child { margin-top: 0; }
+      .dispatch-day-label {
+        font-size: 14px;
+        font-weight: 700;
+        color: #e8edf5;
+        letter-spacing: -0.2px;
+      }
+      .dispatch-day-count {
+        font-size: 12px;
+        color: #64748b;
+        margin-left: auto;
+        font-weight: 600;
+      }
+      .day-badge {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 4px;
+      }
+      .day-today    { background: rgba(249,115,22,0.15); color: #f97316; }
+      .day-tomorrow { background: rgba(34,197,94,0.12);  color: #22c55e; }
+      .day-overdue  { background: rgba(239,68,68,0.15);  color: #ef4444; animation: pulse-red 1.5s infinite; }
+
+      /* ── Empty state ── */
+      .dispatch-empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 60px 20px;
+        color: #64748b;
+      }
+      .dispatch-empty-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 600px) {
+        .dispatch-card-grid { grid-template-columns: 1fr; }
+        .dispatch-summary-bar { gap: 16px; justify-content: center; }
+        .dsb-divider { display: none; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /* ── Utility ── */
+  function esc(val = '') {
+    return String(val)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ── Boot — retry until sidebar nav exists ── */
+  function boot() {
+    const nav = document.querySelector('.sidebar-nav');
+    if (nav) {
+      initDispatch();
+    } else {
+      // Sidebar not ready yet — retry every 100ms
+      setTimeout(boot, 100);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 500));
+  } else {
+    setTimeout(boot, 500);
+  }
+
+})();
