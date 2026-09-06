@@ -90,7 +90,10 @@
 
       const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
-      // Last 48 hours (overdue/missed) + next 14 days (upcoming) from WF3 table
+      // ALL unshipped orders due by next14d (no lower bound — this is what
+      // catches genuinely old backlog like an order due 2 months ago that
+      // never shipped) + anything shipped in the last 48h (so recently
+      // dispatched orders still show briefly in the "Done" filter).
       const from48h = new Date(Date.now() - 48 * 3600000).toISOString();
       const next14d = new Date(Date.now() + 14 * 86400000).toISOString();
 
@@ -102,8 +105,9 @@
       const { data: upcomingData, error: upcomingError } = await sb
         .from('upcoming_orders')
         .select('*')
-        .gte('date_due', from48h)
         .lte('date_due', next14d)
+        .or(`date_shipped.is.null,date_shipped.gte.${from48h}`)
+        .neq('order_status', 4) // exclude cancelled — don't resurrect these into the backlog
         .order('date_due', { ascending: true });
 
       if (!upcomingError && upcomingData && upcomingData.length > 0) {
@@ -118,8 +122,9 @@
         const { data: fallbackData, error: fallbackError } = await sb
           .from('decoration_records')
           .select('*')
-          .gte('date_due', from48h)
           .lte('date_due', next14d)
+          .or(`date_shipped.is.null,date_shipped.gte.${from48h}`)
+          .neq('order_status', 4)
           .order('date_due', { ascending: true });
 
         if (!fallbackError) data = fallbackData;
