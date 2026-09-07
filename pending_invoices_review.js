@@ -319,6 +319,16 @@
       }
     } catch (e) { /* ignore malformed line items */ }
 
+    // Show the identified delivery/carriage charge on the PO side of the comparison
+    // too (per Daniel), not just as a note under the invoice-side numbers. The PO
+    // itself in DecoNetwork doesn't actually carry a carriage line - this shows what
+    // was identified and netted out, alongside the PO's own totals, so both sides of
+    // the comparison box are visibly accounting for it rather than it only showing up
+    // buried in a sentence under clean-match cases.
+    const deliveryChargeRow = Number(row.identified_delivery_charge) > 0
+      ? `<div class="rev-ct-row"><span>Carriage (identified, not on PO)</span><b>${fmtMoney(row.identified_delivery_charge)}</b></div>`
+      : '';
+
     return `
       <div class="rev-case" id="rev-${row.id}">
         <div class="rev-case-head">
@@ -345,6 +355,7 @@
               <div class="rev-ct-vendor">${row.matched_po_vendor || 'No match'}</div>
               <div class="rev-ct-row"><span>Sub-total</span><b>${fmtMoney(row.matched_po_sub_total)}</b></div>
               <div class="rev-ct-row"><span>Tax</span><b>${fmtMoney(row.matched_po_tax)}</b></div>
+              ${deliveryChargeRow}
             </div>
             <div class="rev-compare-arrow">→</div>
             <div class="rev-compare-card ${row.match_status !== 'clean_match' ? 'mismatch' : ''}">
@@ -377,7 +388,7 @@
             <div class="rev-field">
               <label>Nominal code</label>
               <select id="nominal-${row.id}">
-                <option value="311">311: Workwear/Clothing COGS</option>
+                <option value="310">310</option>
               </select>
             </div>
           </div>
