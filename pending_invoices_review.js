@@ -454,9 +454,20 @@
     // was identified and netted out, alongside the PO's own totals, so both sides of
     // the comparison box are visibly accounting for it rather than it only showing up
     // buried in a sentence under clean-match cases.
-    const deliveryChargeRow = Number(row.identified_delivery_charge) > 0
-      ? `<div class="rev-ct-row"><span>Carriage (identified, not on PO)</span><b>${fmtMoney(row.identified_delivery_charge)}</b></div>`
+    const deliveryCharge = Number(row.identified_delivery_charge) || 0;
+    const deliveryChargeRow = deliveryCharge > 0
+      ? `<div class="rev-ct-row"><span>Carriage (identified, not on PO)</span><b>${fmtMoney(deliveryCharge)}</b></div>`
       : '';
+
+    // Totals for each side, so the two cards can be compared at a glance rather than
+    // having to add up Sub-total/Tax/Carriage or Goods/VAT by eye. The PO-side total
+    // includes the identified carriage charge even though it isn't actually on the
+    // PO itself - that's what makes it directly comparable to the invoice total,
+    // which already has carriage baked into the Goods figure from extraction.
+    const poTotal = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + deliveryCharge;
+    const invTotal = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
+    const poTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(poTotal)}</b></div>`;
+    const invTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(invTotal)}</b></div>`;
 
     return `
       <div class="rev-case" id="rev-${row.id}">
@@ -485,6 +496,7 @@
               <div class="rev-ct-row"><span>Sub-total</span><b>${fmtMoney(row.matched_po_sub_total)}</b></div>
               <div class="rev-ct-row"><span>Tax</span><b>${fmtMoney(row.matched_po_tax)}</b></div>
               ${deliveryChargeRow}
+              ${poTotalRow}
             </div>
             <div class="rev-compare-arrow">→</div>
             <div class="rev-compare-card ${row.match_status !== 'clean_match' ? 'mismatch' : ''}">
@@ -492,6 +504,7 @@
               <div class="rev-ct-vendor">${row.extracted_vendor || '—'}</div>
               <div class="rev-ct-row"><span>Goods</span><b>${fmtMoney(row.extracted_goods)}</b></div>
               <div class="rev-ct-row"><span>VAT</span><b>${fmtMoney(row.extracted_vat)}</b></div>
+              ${invTotalRow}
             </div>
           </div>
 
