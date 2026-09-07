@@ -288,9 +288,18 @@
         </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'amount_variance') {
       const poCombined = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0);
-      const invCombined = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
+      const deliveryCharge = Number(row.identified_delivery_charge) || 0;
+      // Net out the identified delivery/carriage charge before comparing, same as the
+      // backend matching logic already does - otherwise this on-screen variance looks
+      // wrong (e.g. shows a "£36 over" gap that's actually just carriage) even when the
+      // real match underneath was already correct.
+      const invCombinedRaw = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
+      const invCombined = invCombinedRaw - deliveryCharge;
       const diff = (invCombined - poCombined).toFixed(2);
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${row.matched_po_number}'s value (${fmtMoney(poCombined)}), outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
+      const deliveryNote = deliveryCharge > 0
+        ? ` (${fmtMoney(deliveryCharge)} identified delivery/carriage charge already netted out of this comparison)`
+        : '';
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total${deliveryNote} (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${row.matched_po_number}'s value (${fmtMoney(poCombined)}), outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
           <li>Check the line items below against the PO for what caused the difference: an added charge, a partial delivery, or a genuine pricing change.</li>
           <li>If the PO itself has since been corrected in DecoNetwork, hit <b>Retry Match</b> to re-check against the current figures.</li>
