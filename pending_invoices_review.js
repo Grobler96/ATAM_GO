@@ -21,6 +21,7 @@
   let allRows = [];
   let approvedRows = [];
   let rejectedRows = [];
+  let inReviewRows = [];
 
   async function getSb() {
     if (window._atamSb) return window._atamSb;
@@ -56,6 +57,27 @@
     renderList();
     await loadApproved();
     await loadRejected();
+    await loadInReview();
+  }
+
+  async function loadInReview() {
+    const container = document.getElementById('inReviewList');
+    if (!container) return; // index.html hasn't been updated with the new section yet
+
+    const sb = await getSb();
+    const { data, error } = await sb
+      .from('pending_invoices')
+      .select('*')
+      .eq('status', 'in_review')
+      .order('snoozed_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error('[Review] load in_review error', error);
+      return;
+    }
+    inReviewRows = data || [];
+    renderInReviewList();
   }
 
   async function loadApproved() {
@@ -126,10 +148,12 @@
 
       const approveBtn = el.querySelector('[data-action="approve"]');
       const rejectBtn = el.querySelector('[data-action="reject"]');
+      const snoozeBtn = el.querySelector('[data-action="snooze"]');
       const retryBtn = el.querySelector('[data-action="retry-match"]');
       const viewPdfBtn = el.querySelector('[data-action="view-pdf"]');
       if (approveBtn) approveBtn.addEventListener('click', (e) => { e.stopPropagation(); approveRow(row.id); });
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
+      if (snoozeBtn) snoozeBtn.addEventListener('click', (e) => { e.stopPropagation(); snoozeRow(row.id, snoozeBtn); });
       if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
       if (viewPdfBtn) viewPdfBtn.addEventListener('click', (e) => { e.stopPropagation(); viewInvoicePdf(viewPdfBtn.dataset.path, viewPdfBtn); });
     });
@@ -190,6 +214,102 @@
       if (buttonEl) {
         buttonEl.disabled = false;
         buttonEl.textContent = '↺ Undo Approval';
+      }
+      return;
+    }
+
+    await loadPending();
+  }
+
+  function renderInReviewList() {
+    const container = document.getElementById('inReviewList');
+    if (!container) return;
+
+    const countEl = document.getElementById('revInReviewCount');
+    if (countEl) countEl.textContent = inReviewRows.length;
+
+    if (inReviewRows.length === 0) {
+      container.innerHTML = '<div class="rev-empty" style="padding:24px 20px">Nothing tagged for later review right now.</div>';
+      return;
+    }
+
+    container.innerHTML = inReviewRows.map(row => `
+      <div class="rev-case" id="rev-inreview-${row.id}" style="cursor:default">
+        <div class="rev-case-head" style="cursor:default">
+          <div class="rev-stamp nomatch">🔖</div>
+          <div class="rev-case-main">
+            <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Tagged by ${row.snoozed_by || 'unknown'} at ${fmtDate(row.snoozed_at)}</div>
+            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'}</div>
+            <div class="rev-case-sub">${row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet'}</div>
+          </div>
+          <div class="rev-case-meta">
+            <span class="rev-amt">${fmtMoney(row.extracted_total)}</span>
+          </div>
+        </div>
+        <div style="padding:0 20px 16px">
+          ${row.snooze_note ? `<div class="rev-notes-flag">📝 ${row.snooze_note}</div>` : '<div class="rev-notes-flag" style="opacity:.6">No note left</div>'}
+          <button type="button" class="rev-btn primary" data-action="resume-review" data-id="${row.id}" style="width:100%">↩ Resume Review</button>
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('[data-action="resume-review"]').forEach(btn => {
+      btn.addEventListener('click', () => resumeReview(btn.dataset.id, btn));
+    });
+  }
+
+  async function resumeReview(id, buttonEl) {
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Moving back…';
+    }
+
+    const sb = await getSb();
+    const { error } = await sb.rpc('unsnooze_pending_invoice', { p_id: id });
+
+    if (error) {
+      console.error('[Review] resume review error', error);
+      alert('Could not move this back to Awaiting Review. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '↩ Resume Review';
+      }
+      return;
+    }
+
+    await loadPending();
+  }
+
+  async function snoozeRow(id, buttonEl) {
+    const notesEl = document.getElementById('notes-' + id);
+    const note = notesEl ? notesEl.value : '';
+
+    if (!note.trim()) {
+      const confirmed = confirm('No note added - move to In Review without one? (Recommended: add a note first so it\'s clear why this was set aside.)');
+      if (!confirmed) return;
+    }
+
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Moving…';
+    }
+
+    const sb = await getSb();
+    const { data: { session } } = await sb.auth.getSession();
+    const snoozedBy = session?.user?.email || 'unknown';
+
+    const { error } = await sb.rpc('snooze_pending_invoice', {
+      p_id: id,
+      p_note: note || null,
+      p_snoozed_by: snoozedBy
+    });
+
+    if (error) {
+      console.error('[Review] snooze error', error);
+      alert('Could not move this to In Review. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '🔖 Move to In Review';
       }
       return;
     }
@@ -409,9 +529,10 @@
 
           <div class="rev-actions">
             <button type="button" class="rev-btn danger" data-action="reject">Reject</button>
+            <button type="button" class="rev-btn" data-action="snooze">🔖 Move to In Review</button>
             <button type="button" class="rev-btn primary" data-action="approve">Approve, ready to post</button>
           </div>
-          <div class="rev-post-note">Approving stages this for posting to Xero once that connection is wired up. Nothing is sent automatically yet.</div>
+          <div class="rev-post-note">Approving stages this for posting to Xero once that connection is wired up. Nothing is sent automatically yet. Moving to In Review uses whatever's in the Review notes field above as the tag note, and takes it out of this list until you resume it from the In Review section below.</div>
         </div>
       </div>`;
   }
