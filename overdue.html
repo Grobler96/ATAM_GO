@@ -152,7 +152,7 @@
   <div class="header">
     <div class="header-left">
       <img src="atam-go-logo.png?v=4" alt="ATAM GO logo" />
-      <p class="header-title">Today's Overdue Orders <span id="dateLabel"></span></p>
+      <p class="header-title">Overdue Orders <span id="dateLabel"></span></p>
     </div>
     <div class="clock" id="clock">--:--</div>
   </div>
@@ -237,18 +237,17 @@
       if (error) throw error;
 
       const today = startOfDay(new Date());
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
 
-      // Today's orders, plus yesterday's ONLY if still unshipped (a one-day
-      // carry-over) — deliberately not a rolling backlog of weeks/months.
-      // Shipped orders are already excluded by the .is('date_shipped', null)
-      // filter above.
+      // Any unshipped order whose due date is today or earlier is overdue —
+      // a genuine backlog, not just a one-day carry-over. An order that
+      // missed Friday's ship date and is still sitting untouched will keep
+      // showing here every day (Sat, Sun, Mon, ...) until it's shipped,
+      // however long that takes.
       const overdue = (data || [])
         .filter(r => {
           if (!r.date_due) return false;
           const due = startOfDay(r.date_due);
-          return due.getTime() === today.getTime() || due.getTime() === yesterday.getTime();
+          return due.getTime() <= today.getTime();
         })
         .sort((a, b) => new Date(a.date_due) - new Date(b.date_due));
 
