@@ -125,6 +125,22 @@
   .oc-countdown.today { color: #fde68a; background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); }
   @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
 
+  .oc-actions { display: flex; gap: 8px; }
+  .oc-btn {
+    flex: 1; border: none; border-radius: 8px; padding: 9px 10px;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
+    cursor: pointer; transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .oc-btn:active { transform: scale(0.97); }
+  .oc-btn:disabled { opacity: 0.5; cursor: default; }
+  .oc-btn-done { background: #16a34a; color: #f0fdf4; }
+  .oc-btn-done:hover:not(:disabled) { background: #15803d; }
+  .oc-btn-hide { background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.14); }
+  .oc-btn-hide:hover:not(:disabled) { background: rgba(255,255,255,0.14); }
+
+  .card-fading { animation: card-fade-out 0.35s ease forwards; }
+  @keyframes card-fade-out { to { opacity: 0; transform: scale(0.96); } }
+
   .empty-state {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     color: #4ade80; gap: 14px;
@@ -231,6 +247,7 @@
         .from('upcoming_orders')
         .select('*')
         .is('date_shipped', null)
+        .is('dismissed_at', null)
         .order('date_due', { ascending: true, nullsFirst: false })
         .limit(200);
 
@@ -274,7 +291,7 @@
     grid.innerHTML = rows.map(r => {
       const overdue = overdueText(r.date_due, today);
       return `
-        <div class="order-card">
+        <div class="order-card" data-order-id="${esc(r.order_id)}">
           <div class="oc-header">
             <div class="oc-order-id"><span class="oc-hash">#</span>${esc(r.order_id)}</div>
             <div class="oc-urgency-dot"></div>
@@ -306,10 +323,54 @@
           </div>
 
           <div class="oc-countdown ${overdue.isToday ? 'today' : ''}">${overdue.text}</div>
+
+          <div class="oc-actions">
+            <button class="oc-btn oc-btn-done" data-action="confirmed_done" data-order-id="${esc(r.order_id)}">✔ Confirm Done</button>
+            <button class="oc-btn oc-btn-hide" data-action="hidden" data-order-id="${esc(r.order_id)}">Hide</button>
+          </div>
         </div>
       `;
     }).join('');
   }
+
+  // Marks an order as manually resolved (shipped-but-not-yet-synced, or just
+  // not something we want cluttering the board) so it drops off this page
+  // for everyone, immediately, without waiting on the hourly DecoNetwork sync.
+  async function dismissOrder(orderId, reason, cardEl) {
+    const buttons = cardEl.querySelectorAll('.oc-btn');
+    buttons.forEach(b => b.disabled = true);
+
+    try {
+      const { error } = await sb
+        .from('upcoming_orders')
+        .update({ dismissed_at: new Date().toISOString(), dismissed_reason: reason })
+        .eq('order_id', orderId);
+
+      if (error) throw error;
+
+      // Optimistic removal — don't wait for the next poll.
+      cardEl.classList.add('card-fading');
+      setTimeout(() => {
+        cardEl.remove();
+        const remaining = $('cardGrid').querySelectorAll('.order-card').length;
+        if (remaining === 0) {
+          $('cardGrid').innerHTML = `<div class="empty-state"><div class="big">✅</div><div class="msg">Nothing overdue right now</div></div>`;
+        }
+        $('overdueCount').textContent = num(remaining);
+      }, 320);
+    } catch (e) {
+      console.error('Dismiss failed:', e);
+      buttons.forEach(b => b.disabled = false);
+      alert('Could not update that order — check your connection and try again.');
+    }
+  }
+
+  $('cardGrid').addEventListener('click', (e) => {
+    const btn = e.target.closest('.oc-btn');
+    if (!btn) return;
+    const card = btn.closest('.order-card');
+    dismissOrder(btn.dataset.orderId, btn.dataset.action, card);
+  });
 
   updateClock();
   setInterval(updateClock, 30 * 1000);
