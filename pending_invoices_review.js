@@ -7,6 +7,7 @@
   'use strict';
 
   const RETRY_MATCH_WEBHOOK = 'https://atamcpi.app.n8n.cloud/webhook/retry-po-match';
+  const CREATE_XERO_SUPPLIER_WEBHOOK = 'https://atamcpi.app.n8n.cloud/webhook/create-xero-supplier';
   const RETRY_MATCH_TOKEN = '42f5d7bb154d98a8cfc5d8b7e2d83693a088e0f78b2357bf352c518ce25f07cc';
 
   const MATCH_META = {
@@ -150,11 +151,13 @@
       const rejectBtn = el.querySelector('[data-action="reject"]');
       const snoozeBtn = el.querySelector('[data-action="snooze"]');
       const retryBtn = el.querySelector('[data-action="retry-match"]');
+      const createSupplierBtn = el.querySelector('[data-action="create-xero-supplier"]');
       const viewPdfBtn = el.querySelector('[data-action="view-pdf"]');
       if (approveBtn) approveBtn.addEventListener('click', (e) => { e.stopPropagation(); approveRow(row.id); });
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
       if (snoozeBtn) snoozeBtn.addEventListener('click', (e) => { e.stopPropagation(); snoozeRow(row.id, snoozeBtn); });
       if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
+      if (createSupplierBtn) createSupplierBtn.addEventListener('click', (e) => { e.stopPropagation(); createXeroSupplier(row.id, createSupplierBtn); });
       if (viewPdfBtn) viewPdfBtn.addEventListener('click', (e) => { e.stopPropagation(); viewInvoicePdf(viewPdfBtn.dataset.path, viewPdfBtn); });
     });
   }
@@ -317,6 +320,49 @@
     await loadPending();
   }
 
+  async function createXeroSupplier(id, buttonEl) {
+    const row = allRows.find(r => r.id === id);
+    if (!row) return;
+
+    const vendorInput = document.getElementById('vendor-' + id);
+    const vendor = vendorInput ? vendorInput.value : row.extracted_vendor;
+
+    if (!vendor || vendor.trim().length < 3) {
+      alert('Vendor name is missing or too short - fix the Vendor field first, then try again.');
+      return;
+    }
+
+    if (!confirm(`Create "${vendor}" as an active supplier contact in Xero?\n\nThis only affects Xero - DecoNetwork still needs this supplier added manually there separately.`)) return;
+
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Checking Xero…';
+    }
+
+    try {
+      const res = await fetch(CREATE_XERO_SUPPLIER_WEBHOOK, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Atam-Go-Token': RETRY_MATCH_TOKEN
+        },
+        body: JSON.stringify({ id, vendor })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.error || 'Request failed: ' + res.status);
+
+      alert(data.message || (data.created ? 'Created a new Xero supplier contact.' : 'A matching Xero contact already existed - linked instead.'));
+      await loadPending();
+    } catch (e) {
+      console.error('[Review] create xero supplier error', e);
+      alert('Could not create/check the Xero contact. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '🏢 Create Account in Xero';
+      }
+    }
+  }
+
   function renderRejectedList() {
     const container = document.getElementById('rejectedList');
     if (!container) return;
@@ -469,6 +515,22 @@
     const poTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(poTotal)}</b></div>`;
     const invTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(invTotal)}</b></div>`;
 
+    // New-supplier flag: no supplier_nominal_mapping row exists for this vendor at
+    // all. This is a free (no extra Xero API call) proxy computed once at intake -
+    // see Parse Extraction + Match Against POs. The button itself still does a live
+    // Xero search before creating anything, so a duplicate can't be created even if
+    // the vendor secretly already has a Xero contact without a mapping row.
+    // DecoNetwork supplier accounts still need creating manually - there's no API
+    // for that on DecoNetwork's side, only Xero exposes one.
+    const newSupplierHtml = (row.has_supplier_mapping === false && row.xero_contact_status !== 'found')
+      ? `<div class="rev-notes-flag">🏢 New supplier — no nominal mapping or confirmed Xero contact yet.
+           <button type="button" class="rev-btn" data-action="create-xero-supplier" style="margin-top:8px;width:100%">🏢 Create Account in Xero</button>
+           <div style="margin-top:6px;font-size:11px;color:#94a3b8">Doesn't touch DecoNetwork - that still needs adding manually there. Safe to click even if this vendor might already exist in Xero; it checks first rather than creating a duplicate.</div>
+         </div>`
+      : (row.xero_contact_status === 'found'
+          ? `<div class="rev-notes-flag" style="background:rgba(34,197,94,0.08);border-left-color:#22c55e;color:#bbf7d0">✅ Xero supplier contact confirmed for this vendor.</div>`
+          : '');
+
     return `
       <div class="rev-case" id="rev-${row.id}">
         <div class="rev-case-head">
@@ -488,6 +550,7 @@
           ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${row.pdf_url}" style="margin-bottom:14px;width:100%">\ud83d\udcc4 View Original Invoice</button>` : ''}
           ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
+          ${newSupplierHtml}
 
           <div class="rev-compare">
             <div class="rev-compare-card">
