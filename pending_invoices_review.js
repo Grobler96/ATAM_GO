@@ -41,6 +41,18 @@
   }
 
   async function loadPending() {
+    // Re-rendering rebuilds every card from scratch, closed by default - without
+    // this, approving/rejecting/etc. collapses whatever card was open (plus any
+    // others), the page shrinks, and the browser clamps scroll position to fit the
+    // new shorter page, dumping the person near the bottom. Remembering what was
+    // open and where they were scrolled, then restoring both after render, fixes
+    // that jump.
+    const openIds = Array.from(document.querySelectorAll('.rev-case.open'))
+      .map(el => el.id)
+      .filter(Boolean);
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+
     const sb = await getSb();
     const { data, error } = await sb
       .from('pending_invoices')
@@ -59,6 +71,14 @@
     await loadApproved();
     await loadRejected();
     await loadInReview();
+
+    if (openIds.length) {
+      openIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('open');
+      });
+    }
+    requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
   }
 
   async function loadInReview() {
@@ -472,6 +492,13 @@
           <li>If the variance is genuine, just approve as-is. The <b>Total to post</b> field below already reflects what was actually invoiced.</li>
           <li>If something looks wrong, correct the fields below before approving, or reject and follow up with the supplier.</li>
         </ol>${retryMatchButton}</div>`;
+    } else if (row.match_status === 'duplicate_suspected') {
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">Possible duplicate invoice</div><p>${row.extraction_notes || ('PO ' + row.matched_po_number + ' appears to already be fully allocated across other invoices in the system - this one would push it over the PO\\'s value, which usually means a genuine duplicate rather than a legitimate back order.')}</p></div>
+        <div class="rev-fix"><div class="rev-fix-label">How to check this</div><ol>
+          <li>Look up the other invoice(s) already matched to PO ${row.matched_po_number} - check <span class="rev-where">Approved Invoices</span> and the rest of this list for the same PO number.</li>
+          <li>If this really is the same invoice sent twice (same amount, same or very similar invoice date), <b>reject this one</b> rather than approving it.</li>
+          <li>If it's genuinely a separate delivery/back-order that happens to push the PO over its original value (e.g. a price increase, an extra item), you can still approve it - just double-check the numbers first, since this warning exists specifically to make you look before approving.</li>
+        </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'no_po_match') {
       whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>No PO number was found on this invoice, or it didn't match anything in DecoNetwork. This could mean the PO hasn't synced yet, was raised under a different number, or genuinely doesn't exist.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this, in order</div><ol>
@@ -675,6 +702,12 @@
   }
 
   async function approveRow(id) {
+    const row = allRows.find(r => r.id === id);
+    if (row && row.match_status === 'duplicate_suspected') {
+      const ok = confirm('This invoice is flagged as a possible duplicate - the matched PO already appears fully allocated to other invoices.\n\nAre you sure this is a genuine separate invoice and not a duplicate? Click OK only if you have checked.');
+      if (!ok) return;
+    }
+
     const sb = await getSb();
     const { data: { session } } = await sb.auth.getSession();
     const reviewedBy = session?.user?.email || 'unknown';
