@@ -493,7 +493,7 @@
           <li>If something looks wrong, correct the fields below before approving, or reject and follow up with the supplier.</li>
         </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'duplicate_suspected') {
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">Possible duplicate invoice</div><p>${row.extraction_notes || ('PO ' + row.matched_po_number + ' appears to already be fully allocated across other invoices in the system - this one would push it over the PO\\'s value, which usually means a genuine duplicate rather than a legitimate back order.')}</p></div>
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">Possible duplicate invoice</div><p>${row.extraction_notes || ('PO ' + row.matched_po_number + ' appears to already be fully allocated across other invoices in the system - this one would push it over the PO\'s value, which usually means a genuine duplicate rather than a legitimate back order.')}</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to check this</div><ol>
           <li>Look up the other invoice(s) already matched to PO ${row.matched_po_number} - check <span class="rev-where">Approved Invoices</span> and the rest of this list for the same PO number.</li>
           <li>If this really is the same invoice sent twice (same amount, same or very similar invoice date), <b>reject this one</b> rather than approving it.</li>
