@@ -88,7 +88,16 @@
       const cfg = window.ATAM_GO_CONFIG || {};
       if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return;
 
-      const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+      // Reuse the shared client set up by app.js instead of creating a new
+      // one on every refresh — this function runs on a 60s setInterval, and
+      // calling supabase.createClient() fresh each tick was spinning up a
+      // brand new GoTrueClient instance every minute, forever, for as long
+      // as the dashboard stayed open (confirmed in console: instance count
+      // climbing 4→5→6→7→8... one per minute). Supabase explicitly warns
+      // that multiple auth clients sharing the same storage key can produce
+      // undefined behaviour. Falls back to creating one only if genuinely
+      // absent, matching the pattern already used in revenue.js and others.
+      const sb = window._atamSb || supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
       // ALL unshipped orders due by next14d (no lower bound — this is what
       // catches genuinely old backlog like an order due 2 months ago that
