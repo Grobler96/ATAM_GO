@@ -152,6 +152,15 @@
     document.getElementById('revCleanCount').textContent = cleanMatches;
     document.getElementById('revLowConfCount').textContent = lowConf;
     document.getElementById('revTotalValue').textContent = fmtMoney(totalValue);
+
+    // Bounced-back count: invoices that were previously approved, sent to Xero, and
+    // got kicked back by the poster (review_notes starts with "AUTO-POST"). Separate
+    // from the other counts because these need different attention - the PO match
+    // itself may be fine, it's the Xero-posting step that failed and needs resolving,
+    // often via the contact picker rather than editing the invoice fields.
+    const bouncedCount = allRows.filter(r => (r.review_notes || '').startsWith('AUTO-POST')).length;
+    const bouncedEl = document.getElementById('revBouncedCount');
+    if (bouncedEl) bouncedEl.textContent = bouncedCount;
   }
 
   function renderList() {
@@ -179,7 +188,106 @@
       if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
       if (createSupplierBtn) createSupplierBtn.addEventListener('click', (e) => { e.stopPropagation(); createXeroSupplier(row.id, createSupplierBtn); });
       if (viewPdfBtn) viewPdfBtn.addEventListener('click', (e) => { e.stopPropagation(); viewInvoicePdf(viewPdfBtn.dataset.path, viewPdfBtn); });
+
+      // Xero contact picker buttons - only present when this invoice bounced back
+      // from the poster with genuine ambiguity (multiple valid-looking contacts,
+      // often a supplier with separate (B)/(CC)/(DD) contacts per payment method).
+      el.querySelectorAll('[data-action="pick-contact"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const rememberEl = document.getElementById('remember-' + row.id);
+          const saveDefault = rememberEl ? rememberEl.checked : true;
+          pickVendorContact(row.id, btn.dataset.contactId, btn.dataset.contactName, saveDefault, btn);
+        });
+      });
+
+      initPoTagbox(row);
     });
+  }
+
+  // ---- Multi-PO tag input ----
+  // Lets a single invoice reference more than one PO number (e.g. a supplier's
+  // monthly "calloff" invoice that consolidates many small individual orders,
+  // each against its own PO, into one bill). Kept as a small vanilla tag input
+  // rather than pulling in a UI library, since it's just: type a PO number,
+  // press Enter or comma, it becomes a removable chip. The canonical state per
+  // row lives in poNumbersState; the visible chips are just a rendering of it.
+  const poNumbersState = {};
+
+  function parsePoList(raw) {
+    return (raw || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  function initPoTagbox(row) {
+    const box = document.getElementById('potagbox-' + row.id);
+    if (!box) return;
+    const initial = row.matched_po_number || row.extracted_po_number || '';
+    poNumbersState[row.id] = parsePoList(initial);
+    renderPoTagbox(row.id);
+  }
+
+  function renderPoTagbox(id) {
+    const box = document.getElementById('potagbox-' + id);
+    if (!box) return;
+    const list = poNumbersState[id] || [];
+    box.innerHTML = list.map((po, i) => `
+      <span class="rev-po-tag">${po.replace(/</g, '&lt;')}<button type="button" data-remove-idx="${i}">&times;</button></span>
+    `).join('') + `<input type="text" class="rev-po-taginput" id="poinput-${id}" placeholder="${list.length ? '' : 'e.g. 876218'}">`;
+
+    box.querySelectorAll('[data-remove-idx]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.removeIdx);
+        poNumbersState[id].splice(idx, 1);
+        renderPoTagbox(id);
+      });
+    });
+
+    const input = document.getElementById('poinput-' + id);
+    if (input) {
+      input.addEventListener('click', (e) => e.stopPropagation());
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ',') {
+          e.preventDefault();
+          const val = input.value.trim().replace(/,$/, '');
+          if (val && !poNumbersState[id].includes(val)) {
+            poNumbersState[id].push(val);
+            renderPoTagbox(id);
+            const newInput = document.getElementById('poinput-' + id);
+            if (newInput) newInput.focus();
+          } else {
+            input.value = '';
+          }
+        } else if (e.key === 'Backspace' && !input.value && poNumbersState[id].length) {
+          poNumbersState[id].pop();
+          renderPoTagbox(id);
+          const newInput = document.getElementById('poinput-' + id);
+          if (newInput) newInput.focus();
+        }
+      });
+      // Catch a PO number left typed in the box but not yet committed with
+      // Enter/comma when the person moves on to another field.
+      input.addEventListener('blur', () => {
+        const val = input.value.trim();
+        if (val && !poNumbersState[id].includes(val)) {
+          poNumbersState[id].push(val);
+          renderPoTagbox(id);
+        }
+      });
+    }
+  }
+
+  function getPoNumbersValue(id) {
+    // Pick up anything still sitting uncommitted in the input box too, so
+    // clicking Approve/Retry Match immediately after typing (without hitting
+    // Enter first) doesn't silently drop it.
+    const input = document.getElementById('poinput-' + id);
+    const pending = input && input.value.trim() ? [input.value.trim()] : [];
+    const list = (poNumbersState[id] || []).concat(pending);
+    return list.join(', ');
   }
 
   function renderApprovedList() {
@@ -383,6 +491,42 @@
     }
   }
 
+  // Resolves an ambiguous Xero-contact match: sets this invoice's manual override,
+  // re-approves it (so tonight's poster picks it straight up), and - when the
+  // "remember" checkbox is ticked - saves this as the standing default for every
+  // future invoice from this vendor via vendor_xero_contact_override. This is the
+  // "will the system recognise which one to match to?" piece Steph asked for.
+  async function pickVendorContact(id, contactId, contactName, saveDefault, buttonEl) {
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Saving…';
+    }
+
+    const sb = await getSb();
+    const { data: { session } } = await sb.auth.getSession();
+    const resolvedBy = session?.user?.email || 'unknown';
+
+    const { error } = await sb.rpc('resolve_vendor_xero_contact', {
+      p_id: id,
+      p_contact_id: contactId,
+      p_contact_name: contactName,
+      p_save_as_default: saveDefault,
+      p_resolved_by: resolvedBy
+    });
+
+    if (error) {
+      console.error('[Review] resolve vendor contact error', error);
+      alert('Could not save this match. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = 'Use "' + contactName + '"';
+      }
+      return;
+    }
+
+    await loadPending();
+  }
+
   function renderRejectedList() {
     const container = document.getElementById('rejectedList');
     if (!container) return;
@@ -459,6 +603,37 @@
       ? `<button type="button" class="rev-btn" data-action="retry-match" style="margin-top:10px;width:100%">↻ Retry Match Against Current POs</button>`
       : '';
 
+    // Bounced back from Xero: this invoice was previously approved and sent to the
+    // poster, which kicked it back to awaiting_review with an explanation in
+    // review_notes. This is a DIFFERENT failure point to the PO-matching stuff below -
+    // the PO match can be perfectly clean and this can still bounce, because it's
+    // Xero's own contact list (or the invoice total) that the poster couldn't resolve.
+    // Shown first, above the PO-matching explanation, since it's usually the more
+    // urgent/recent thing to act on.
+    const bouncedBack = (row.review_notes || '').startsWith('AUTO-POST');
+    let bounceHtml = '';
+    if (bouncedBack) {
+      const hasCandidates = Array.isArray(row.xero_contact_candidates) && row.xero_contact_candidates.length > 0;
+      const pickerHtml = hasCandidates ? `
+        <div class="rev-fix" style="border-color:rgba(167,139,250,0.35);background:rgba(167,139,250,0.06)">
+          <div class="rev-fix-label" style="color:#a78bfa">Pick the correct Xero contact</div>
+          <p style="font-size:12px;color:#94a3b8;margin:0 0 10px">Often means this supplier has separate Xero contacts per payment method (e.g. BACS vs Direct Debit vs Card) - pick whichever one this invoice should actually be paid through.</p>
+          ${row.xero_contact_candidates.map(c => `
+            <button type="button" class="rev-btn primary" data-action="pick-contact" data-contact-id="${c.contact_id}" data-contact-name="${(c.name || '').replace(/"/g, '&quot;')}" style="width:100%;margin-bottom:6px;text-align:left">Use "${c.name}"</button>
+          `).join('')}
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8;margin-top:6px">
+            <input type="checkbox" id="remember-${row.id}" checked style="width:auto">
+            Remember this choice for all future ${row.extracted_vendor || 'this vendor'} invoices
+          </label>
+        </div>` : '';
+      bounceHtml = `
+        <div class="rev-why" style="border-left-color:#a78bfa;background:rgba(167,139,250,0.08)">
+          <div class="rev-why-label" style="color:#a78bfa">🔁 Bounced back from Xero</div>
+          <p>${row.review_notes}</p>
+        </div>
+        ${pickerHtml}`;
+    }
+
     let whyHtml = '';
     if (row.match_status === 'clean_match') {
       const deliveryNote = Number(row.identified_delivery_charge) > 0
@@ -493,7 +668,7 @@
           <li>If something looks wrong, correct the fields below before approving, or reject and follow up with the supplier.</li>
         </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'duplicate_suspected') {
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">Possible duplicate invoice</div><p>${row.extraction_notes || ('PO ' + row.matched_po_number + ' appears to already be fully allocated across other invoices in the system - this one would push it over the PO\ value, which usually means a genuine duplicate rather than a legitimate back order.')}</p></div>
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">Possible duplicate invoice</div><p>${row.extraction_notes || ('PO ' + row.matched_po_number + ' appears to already be fully allocated across other invoices in the system - this one would push it over the PO\'s value, which usually means a genuine duplicate rather than a legitimate back order.')}</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to check this</div><ol>
           <li>Look up the other invoice(s) already matched to PO ${row.matched_po_number} - check <span class="rev-where">Approved Invoices</span> and the rest of this list for the same PO number.</li>
           <li>If this really is the same invoice sent twice (same amount, same or very similar invoice date), <b>reject this one</b> rather than approving it.</li>
@@ -542,6 +717,17 @@
     const poTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(poTotal)}</b></div>`;
     const invTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(invTotal)}</b></div>`;
 
+    // When an invoice is matched against several POs at once (e.g. a supplier's
+    // monthly calloff invoice), show each one's own contribution rather than just
+    // the combined total - otherwise there's no way to see which POs actually
+    // made up the figure above.
+    const poBreakdownHtml = (Array.isArray(row.matched_pos_breakdown) && row.matched_pos_breakdown.length > 1)
+      ? `<div class="rev-po-breakdown">
+          <div class="rev-ct-label" style="margin-bottom:6px">${row.matched_pos_breakdown.length} POs making up this total</div>
+          ${row.matched_pos_breakdown.map(p => `<div class="rev-po-breakdown-row"><span>PO ${p.po_number}</span><span>${fmtMoney((Number(p.sub_total)||0) + (Number(p.tax)||0))}</span></div>`).join('')}
+        </div>`
+      : '';
+
     // New-supplier flag: no supplier_nominal_mapping row exists for this vendor at
     // all. This is a free (no extra Xero API call) proxy computed once at intake -
     // see Parse Extraction + Match Against POs. The button itself still does a live
@@ -561,10 +747,10 @@
     return `
       <div class="rev-case" id="rev-${row.id}">
         <div class="rev-case-head">
-          <div class="rev-stamp ${meta.cls}">${meta.stamp}</div>
+          <div class="rev-stamp ${bouncedBack ? 'nomatch' : meta.cls}" ${bouncedBack ? 'style="border-color:#a78bfa;color:#a78bfa;background:rgba(167,139,250,0.1)"' : ''}>${bouncedBack ? '🔁' : meta.stamp}</div>
           <div class="rev-case-main">
             <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Received ${fmtDate(row.received_at)}</div>
-            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'} · ${meta.label}</div>
+            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'} · ${bouncedBack ? 'Bounced back from Xero' : meta.label}</div>
             <div class="rev-case-sub">${row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet'} ${confBadge}</div>
           </div>
           <div class="rev-case-meta">
@@ -575,6 +761,7 @@
 
         <div class="rev-case-detail">
           ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${row.pdf_url}" style="margin-bottom:14px;width:100%">\ud83d\udcc4 View Original Invoice</button>` : ''}
+          ${bounceHtml}
           ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
           ${newSupplierHtml}
@@ -587,6 +774,7 @@
               <div class="rev-ct-row"><span>Tax</span><b>${fmtMoney(row.matched_po_tax)}</b></div>
               ${deliveryChargeRow}
               ${poTotalRow}
+              ${poBreakdownHtml}
             </div>
             <div class="rev-compare-arrow">→</div>
             <div class="rev-compare-card ${row.match_status !== 'clean_match' ? 'mismatch' : ''}">
@@ -608,8 +796,9 @@
               <input type="text" id="vendor-${row.id}" value="${(row.extracted_vendor || '').replace(/"/g,'&quot;')}">
             </div>
             <div class="rev-field">
-              <label>PO Reference</label>
-              <input type="text" id="poref-${row.id}" value="${(row.matched_po_number || row.extracted_po_number || '').replace(/"/g,'&quot;')}">
+              <label>PO Reference <span style="font-weight:400;text-transform:none;color:#64748b">(add more than one if this invoice covers several POs)</span></label>
+              <div class="rev-po-tagbox" id="potagbox-${row.id}" data-id="${row.id}"></div>
+              <div class="rev-po-hint">Type a PO number and press Enter or comma to add it</div>
             </div>
           </div>
           <div class="rev-field-row">
@@ -664,7 +853,7 @@
 
   async function retryMatch(id, buttonEl) {
     const vendor = document.getElementById('vendor-' + id).value;
-    const poRef = document.getElementById('poref-' + id).value;
+    const poRef = getPoNumbersValue(id);
     const row = allRows.find(r => r.id === id);
     if (!row) return;
 
@@ -713,7 +902,7 @@
     const reviewedBy = session?.user?.email || 'unknown';
 
     const vendor = document.getElementById('vendor-' + id).value;
-    const poRef = document.getElementById('poref-' + id).value;
+    const poRef = getPoNumbersValue(id);
     const total = parseFloat(document.getElementById('total-' + id).value) || 0;
     const nominal = document.getElementById('nominal-' + id).value;
     const notes = document.getElementById('notes-' + id).value;
