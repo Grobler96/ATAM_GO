@@ -888,6 +888,39 @@
         }
         #review .rev-field textarea, #approvedinvoices .rev-field textarea, #rejectedinvoices .rev-field textarea { resize:vertical; min-height:50px; }
 
+        #review .rev-po-tagbox, #approvedinvoices .rev-po-tagbox, #rejectedinvoices .rev-po-tagbox {
+          display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+          width:100%; padding:6px 8px; border:1px solid rgba(255,255,255,0.12); border-radius:6px;
+          background:#0d1a2e; min-height:38px;
+        }
+        #review .rev-po-tagbox:focus-within, #approvedinvoices .rev-po-tagbox:focus-within, #rejectedinvoices .rev-po-tagbox:focus-within {
+          border-color:#38bdf8;
+        }
+        #review .rev-po-tag, #approvedinvoices .rev-po-tag, #rejectedinvoices .rev-po-tag {
+          display:inline-flex; align-items:center; gap:5px;
+          background:rgba(56,189,248,0.15); color:#7dd3fc;
+          border:1px solid rgba(56,189,248,0.3); border-radius:14px;
+          padding:3px 6px 3px 10px; font-size:12px; white-space:nowrap;
+        }
+        #review .rev-po-tag button, #approvedinvoices .rev-po-tag button, #rejectedinvoices .rev-po-tag button {
+          background:none; border:none; color:#7dd3fc; cursor:pointer; font-size:14px;
+          line-height:1; padding:0 2px; opacity:0.8;
+        }
+        #review .rev-po-tag button:hover, #approvedinvoices .rev-po-tag button:hover, #rejectedinvoices .rev-po-tag button:hover { opacity:1; color:#f87171; }
+        #review .rev-po-taginput, #approvedinvoices .rev-po-taginput, #rejectedinvoices .rev-po-taginput {
+          flex:1; min-width:110px; border:none; background:transparent; color:#e2e8f0;
+          font-size:12.5px; padding:4px 2px; outline:none;
+        }
+        #review .rev-po-hint, #approvedinvoices .rev-po-hint, #rejectedinvoices .rev-po-hint {
+          font-size:10.5px; color:#64748b; margin-top:4px;
+        }
+        #review .rev-po-breakdown, #approvedinvoices .rev-po-breakdown, #rejectedinvoices .rev-po-breakdown {
+          margin-top:10px; padding-top:10px; border-top:1px dashed rgba(255,255,255,0.1);
+        }
+        #review .rev-po-breakdown-row, #approvedinvoices .rev-po-breakdown-row, #rejectedinvoices .rev-po-breakdown-row {
+          display:flex; justify-content:space-between; font-size:11px; color:#94a3b8; padding:2px 0;
+        }
+
         #review .rev-actions, #approvedinvoices .rev-actions, #rejectedinvoices .rev-actions { display:flex; gap:8px; margin-top:16px; }
         #review .rev-btn, #approvedinvoices .rev-btn, #rejectedinvoices .rev-btn { flex:1; padding:10px; border-radius:6px; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; border:1px solid rgba(255,255,255,0.12); cursor:pointer; background:transparent; color:#e2e8f0; }
         #review .rev-btn.primary, #approvedinvoices .rev-btn.primary, #rejectedinvoices .rev-btn.primary { background:linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; border:none; }
