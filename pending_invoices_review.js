@@ -181,13 +181,19 @@
       const snoozeBtn = el.querySelector('[data-action="snooze"]');
       const retryBtn = el.querySelector('[data-action="retry-match"]');
       const createSupplierBtn = el.querySelector('[data-action="create-xero-supplier"]');
-      const viewPdfBtn = el.querySelector('[data-action="view-pdf"]');
       if (approveBtn) approveBtn.addEventListener('click', (e) => { e.stopPropagation(); approveRow(row.id); });
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
       if (snoozeBtn) snoozeBtn.addEventListener('click', (e) => { e.stopPropagation(); snoozeRow(row.id, snoozeBtn); });
       if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
       if (createSupplierBtn) createSupplierBtn.addEventListener('click', (e) => { e.stopPropagation(); createXeroSupplier(row.id, createSupplierBtn); });
-      if (viewPdfBtn) viewPdfBtn.addEventListener('click', (e) => { e.stopPropagation(); viewInvoicePdf(viewPdfBtn.dataset.path, viewPdfBtn); });
+
+      // "View PDF" can now appear more than once per card - the invoice's own
+      // original, plus one per sibling document from the same email (see
+      // renderSiblingsHtml below) - so every match needs its own listener,
+      // not just the first one.
+      el.querySelectorAll('[data-action="view-pdf"]').forEach(btn => {
+        btn.addEventListener('click', (e) => { e.stopPropagation(); viewInvoicePdf(btn.dataset.path, btn); });
+      });
 
       // Xero contact picker buttons - only present when this invoice bounced back
       // from the poster with genuine ambiguity (multiple valid-looking contacts,
@@ -587,6 +593,39 @@
     await loadPending();
   }
 
+  // Same-email sibling documents: two (or more) pending_invoices rows that share
+  // a source_email_id, e.g. WCM&A's invoice + its "Monthly Calloff Archive"
+  // backing sheet arriving as two attachments on one email. Rather than teaching
+  // the extraction step to guess which attachment is the "real" invoice and fold
+  // the other one in as mere context - risky if it ever misjudges a genuine bill
+  // as a supporting document - this just surfaces every sibling so whoever's
+  // reviewing can see the full picture and cross-reference manually. Approve/
+  // reject/matching behaviour for every row is completely unchanged; this is a
+  // display-only aid.
+  //
+  // Scope/limitation: this only finds siblings that are ALSO currently sitting in
+  // Awaiting Review (i.e. still inside allRows). If one sibling has already been
+  // approved or rejected before you open the other, it won't show up here.
+  function getSiblingRows(row) {
+    if (!row.source_email_id) return [];
+    return allRows.filter(r => r.id !== row.id && r.source_email_id === row.source_email_id);
+  }
+
+  function renderSiblingsHtml(row) {
+    const siblings = getSiblingRows(row);
+    if (!siblings.length) return '';
+    return `
+      <div class="rev-notes-flag" style="background:rgba(56,189,248,0.08);border-left-color:#38bdf8;color:#bae6fd">
+        📎 ${siblings.length} other document${siblings.length > 1 ? 's' : ''} arrived in this same email — worth a quick look before approving, in case one is a backing sheet or supporting document rather than a separate bill.
+        ${siblings.map(s => `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
+            <span style="font-size:12px;color:#e2e8f0">${(s.extracted_vendor || 'Unknown vendor').replace(/</g, '&lt;')} · Invoice ${(s.extracted_invoice_number || 'unknown').toString().replace(/</g, '&lt;')} · ${fmtMoney(s.extracted_total)}</span>
+            ${s.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${s.pdf_url}" style="white-space:nowrap;flex-shrink:0">View PDF</button>` : ''}
+          </div>
+        `).join('')}
+      </div>`;
+  }
+
   function renderCase(row) {
     const meta = MATCH_META[row.match_status] || MATCH_META.pending;
     const confBadge = row.extraction_confidence === 'low'
@@ -744,6 +783,8 @@
           ? `<div class="rev-notes-flag" style="background:rgba(34,197,94,0.08);border-left-color:#22c55e;color:#bbf7d0">✅ Xero supplier contact confirmed for this vendor.</div>`
           : '');
 
+    const siblingsHtml = renderSiblingsHtml(row);
+
     return `
       <div class="rev-case" id="rev-${row.id}">
         <div class="rev-case-head">
@@ -761,6 +802,7 @@
 
         <div class="rev-case-detail">
           ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${row.pdf_url}" style="margin-bottom:14px;width:100%">\ud83d\udcc4 View Original Invoice</button>` : ''}
+          ${siblingsHtml}
           ${bounceHtml}
           ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
@@ -831,6 +873,7 @@
 
   async function viewInvoicePdf(pdfPath, buttonEl) {
     if (!pdfPath) return;
+    const originalLabel = buttonEl ? buttonEl.textContent : null;
     if (buttonEl) {
       buttonEl.disabled = true;
       buttonEl.textContent = 'Loading…';
@@ -846,7 +889,7 @@
     } finally {
       if (buttonEl) {
         buttonEl.disabled = false;
-        buttonEl.textContent = '\ud83d\udcc4 View Original Invoice';
+        buttonEl.textContent = originalLabel || '\ud83d\udcc4 View Original Invoice';
       }
     }
   }
