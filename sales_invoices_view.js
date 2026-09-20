@@ -13,12 +13,17 @@
 
   // Anything in this set is "needs attention" for the summary card - a real
   // problem worth someone's eyes, as opposed to a normal successful post.
+  // skipped_missing_po added 20 Sept 2026: a PO-required customer's order with
+  // no PO captured is blocked from posting entirely (see WF6's missing-PO
+  // guard), and that's exactly the kind of thing this card exists to surface -
+  // someone needs to add the PO to the order before it can go to Xero.
   const ATTENTION_STATUSES = new Set([
     'skipped_no_contact',
     'skipped_no_nominal_code',
     'skipped_error',
     'duplicate_skipped',
-    'deleted_in_xero'
+    'deleted_in_xero',
+    'skipped_missing_po'
   ]);
 
   const STATUS_META = {
@@ -27,7 +32,8 @@
     skipped_no_nominal_code: { stamp: '!', cls: 'si-amber',   label: 'Skipped - nominal code not set' },
     skipped_error:           { stamp: '!', cls: 'si-vendor',  label: 'Skipped - error' },
     duplicate_skipped:       { stamp: '⚠', cls: 'si-dup',     label: 'Skipped - possible duplicate' },
-    deleted_in_xero:         { stamp: '✕', cls: 'si-vendor',  label: 'Deleted/voided in Xero' }
+    deleted_in_xero:         { stamp: '✕', cls: 'si-vendor',  label: 'Deleted/voided in Xero' },
+    skipped_missing_po:      { stamp: '📋', cls: 'si-amber',  label: 'Skipped - PO number missing' }
   };
 
   let allRows = [];
