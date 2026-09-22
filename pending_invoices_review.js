@@ -511,14 +511,14 @@
   }
 
   // Corrects a misread invoice date directly (e.g. a two-digit year read as the
-  // century, "18/09/26" -> wrongly parsed as 2018 instead of 2026 - exactly the
-  // case that prompted this feature, 22 Sept 2026). Saves immediately via its
-  // own RPC rather than waiting for Approve, since a wrong date is something
-  // worth fixing the moment it's spotted, independent of the rest of the review.
-  // The poster reads extracted_invoice_date/extracted_due_date directly (there's
-  // no separate "final" version of the date), so this correction is exactly what
-  // will be used once approved. Due date is recalculated as 30 days from the
-  // corrected date, same fallback rule the poster itself uses.
+  // century, "18/09/26" -> wrongly parsed as 2018 instead of 2026). Saves
+  // immediately via its own RPC rather than waiting for Approve, since a wrong
+  // date is worth fixing the moment it's spotted, independent of the rest of
+  // the review. The poster reads extracted_invoice_date/extracted_due_date
+  // directly (there's no separate "final" version of the date), so this
+  // correction is exactly what will be used once approved. Due date is
+  // recalculated as 30 days from the corrected date, same fallback rule the
+  // poster itself uses.
   async function correctInvoiceDate(id, buttonEl) {
     const input = document.getElementById('invdate-' + id);
     const newDate = input ? input.value : '';
@@ -652,21 +652,38 @@
     await loadPending();
   }
 
-  // Same-email sibling documents: two (or more) pending_invoices rows that share
-  // a source_email_id, e.g. a supplier's invoice + a backing sheet arriving as
-  // two attachments on one email. Rather than teaching the extraction step to
-  // guess which attachment is the "real" invoice and fold the other one in as
-  // mere context - risky if it ever misjudges a genuine bill as a supporting
-  // document - this just surfaces every sibling so whoever's reviewing can see
-  // the full picture and cross-reference manually. Approve/reject/matching
-  // behaviour for every row is completely unchanged; this is a display-only aid.
+  // Same-email sibling documents: two (or more) pending_invoices rows that came
+  // from the same email, e.g. a supplier's invoice + a backing sheet arriving
+  // as two attachments. source_email_id is NOT identical across attachments of
+  // the same email - it's suffixed with a per-attachment index (e.g.
+  // "gmail-1a0c87c15e11ab9c-0" and "...-1"). This was discovered and fixed
+  // 22 Sept 2026 after Steph reported the WCM&A invoice 163439 / MC0276 archive
+  // pair (which have exactly that "-0"/"-1" pattern) never linking despite
+  // being the intended test case for this feature. baseEmailId() strips that
+  // trailing index so siblings from the same email correctly match on the
+  // shared prefix instead of requiring an exact (and never-matching) equality.
   //
-  // Scope/limitation: this only finds siblings that are ALSO currently sitting in
-  // Awaiting Review (i.e. still inside allRows). If one sibling has already been
-  // approved or rejected before you open the other, it won't show up here.
+  // Rather than teaching the extraction step to guess which attachment is the
+  // "real" invoice and fold the other one in as mere context - risky if it
+  // ever misjudges a genuine bill as a supporting document - this just
+  // surfaces every sibling so whoever's reviewing can see the full picture and
+  // cross-reference manually. Approve/reject/matching behaviour for every row
+  // is completely unchanged; this is a display-only aid.
+  //
+  // Scope/limitation: this only finds siblings that are ALSO currently sitting
+  // in Awaiting Review (i.e. still inside allRows). If one sibling has already
+  // been approved or rejected before you open the other, it won't show up here.
+  function baseEmailId(id) {
+    if (!id) return null;
+    const s = String(id);
+    const m = s.match(/^(.*)-\d+$/);
+    return m ? m[1] : s;
+  }
+
   function getSiblingRows(row) {
-    if (!row.source_email_id) return [];
-    return allRows.filter(r => r.id !== row.id && r.source_email_id === row.source_email_id);
+    const base = baseEmailId(row.source_email_id);
+    if (!base) return [];
+    return allRows.filter(r => r.id !== row.id && baseEmailId(r.source_email_id) === base);
   }
 
   function renderSiblingsHtml(row) {
@@ -704,10 +721,7 @@
     // extracted_invoice_date (see the extraction workflow's date-sanity check,
     // added 20 Sept 2026). Detected by the same warning glyph the extraction step
     // writes, rather than a dedicated column, to avoid a schema change for what's
-    // essentially a display hint. Surfaced prominently with a direct way to fix it
-    // right here, since "the date looks wrong" is exactly what prompted this field
-    // to exist (Prestige Leisure invoice SI2546915, 22 Sept 2026 - a UK short date
-    // misread with the two-digit year taken as the century).
+    // essentially a display hint.
     const hasDateWarning = (row.extraction_notes || '').includes('Extracted invoice date');
     const dateFixHtml = `
       <div class="rev-field-row">
