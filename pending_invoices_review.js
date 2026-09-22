@@ -39,6 +39,14 @@
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
+  // For the editable <input type="date">, which needs YYYY-MM-DD with no time
+  // component - extracted_invoice_date is already stored as a plain date, but
+  // this guards against it ever arriving as a full timestamp string instead.
+  function toDateInputValue(d) {
+    if (!d) return '';
+    const s = String(d);
+    return s.length >= 10 ? s.slice(0, 10) : s;
+  }
 
   async function loadPending() {
     // Re-rendering rebuilds every card from scratch, closed by default - without
@@ -181,13 +189,18 @@
       const snoozeBtn = el.querySelector('[data-action="snooze"]');
       const retryBtn = el.querySelector('[data-action="retry-match"]');
       const createSupplierBtn = el.querySelector('[data-action="create-xero-supplier"]');
+      const correctDateBtn = el.querySelector('[data-action="correct-date"]');
       if (approveBtn) approveBtn.addEventListener('click', (e) => { e.stopPropagation(); approveRow(row.id); });
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
       if (snoozeBtn) snoozeBtn.addEventListener('click', (e) => { e.stopPropagation(); snoozeRow(row.id, snoozeBtn); });
       if (retryBtn) retryBtn.addEventListener('click', (e) => { e.stopPropagation(); retryMatch(row.id, retryBtn); });
       if (createSupplierBtn) createSupplierBtn.addEventListener('click', (e) => { e.stopPropagation(); createXeroSupplier(row.id, createSupplierBtn); });
+      if (correctDateBtn) correctDateBtn.addEventListener('click', (e) => { e.stopPropagation(); correctInvoiceDate(row.id, correctDateBtn); });
 
-      // "View PDF" can now appear more than once per card - the invoice's own
+      const dateInput = document.getElementById('invdate-' + row.id);
+      if (dateInput) dateInput.addEventListener('click', (e) => e.stopPropagation());
+
+      // "View PDF" can appear more than once per card - the invoice's own
       // original, plus one per sibling document from the same email (see
       // renderSiblingsHtml below) - so every match needs its own listener,
       // not just the first one.
@@ -497,6 +510,52 @@
     }
   }
 
+  // Corrects a misread invoice date directly (e.g. a two-digit year read as the
+  // century, "18/09/26" -> wrongly parsed as 2018 instead of 2026 - exactly the
+  // case that prompted this feature, 22 Sept 2026). Saves immediately via its
+  // own RPC rather than waiting for Approve, since a wrong date is something
+  // worth fixing the moment it's spotted, independent of the rest of the review.
+  // The poster reads extracted_invoice_date/extracted_due_date directly (there's
+  // no separate "final" version of the date), so this correction is exactly what
+  // will be used once approved. Due date is recalculated as 30 days from the
+  // corrected date, same fallback rule the poster itself uses.
+  async function correctInvoiceDate(id, buttonEl) {
+    const input = document.getElementById('invdate-' + id);
+    const newDate = input ? input.value : '';
+
+    if (!newDate) {
+      alert('Pick a date first.');
+      return;
+    }
+
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = 'Saving…';
+    }
+
+    const sb = await getSb();
+    const { data: { session } } = await sb.auth.getSession();
+    const correctedBy = session?.user?.email || 'unknown';
+
+    const { error } = await sb.rpc('correct_pending_invoice_date', {
+      p_id: id,
+      p_invoice_date: newDate,
+      p_corrected_by: correctedBy
+    });
+
+    if (error) {
+      console.error('[Review] correct invoice date error', error);
+      alert('Could not save the corrected date. Check the console.');
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = '📅 Save Date';
+      }
+      return;
+    }
+
+    await loadPending();
+  }
+
   // Resolves an ambiguous Xero-contact match: sets this invoice's manual override,
   // re-approves it (so tonight's poster picks it straight up), and - when the
   // "remember" checkbox is ticked - saves this as the standing default for every
@@ -594,14 +653,13 @@
   }
 
   // Same-email sibling documents: two (or more) pending_invoices rows that share
-  // a source_email_id, e.g. WCM&A's invoice + its "Monthly Calloff Archive"
-  // backing sheet arriving as two attachments on one email. Rather than teaching
-  // the extraction step to guess which attachment is the "real" invoice and fold
-  // the other one in as mere context - risky if it ever misjudges a genuine bill
-  // as a supporting document - this just surfaces every sibling so whoever's
-  // reviewing can see the full picture and cross-reference manually. Approve/
-  // reject/matching behaviour for every row is completely unchanged; this is a
-  // display-only aid.
+  // a source_email_id, e.g. a supplier's invoice + a backing sheet arriving as
+  // two attachments on one email. Rather than teaching the extraction step to
+  // guess which attachment is the "real" invoice and fold the other one in as
+  // mere context - risky if it ever misjudges a genuine bill as a supporting
+  // document - this just surfaces every sibling so whoever's reviewing can see
+  // the full picture and cross-reference manually. Approve/reject/matching
+  // behaviour for every row is completely unchanged; this is a display-only aid.
   //
   // Scope/limitation: this only finds siblings that are ALSO currently sitting in
   // Awaiting Review (i.e. still inside allRows). If one sibling has already been
@@ -641,6 +699,27 @@
     const retryMatchButton = row.match_status !== 'clean_match'
       ? `<button type="button" class="rev-btn" data-action="retry-match" style="margin-top:10px;width:100%">↻ Retry Match Against Current POs</button>`
       : '';
+
+    // Date sanity warning: shown whenever extraction_notes flags an implausible
+    // extracted_invoice_date (see the extraction workflow's date-sanity check,
+    // added 20 Sept 2026). Detected by the same warning glyph the extraction step
+    // writes, rather than a dedicated column, to avoid a schema change for what's
+    // essentially a display hint. Surfaced prominently with a direct way to fix it
+    // right here, since "the date looks wrong" is exactly what prompted this field
+    // to exist (Prestige Leisure invoice SI2546915, 22 Sept 2026 - a UK short date
+    // misread with the two-digit year taken as the century).
+    const hasDateWarning = (row.extraction_notes || '').includes('Extracted invoice date');
+    const dateFixHtml = `
+      <div class="rev-field-row">
+        <div class="rev-field">
+          <label>Invoice Date${hasDateWarning ? ' <span style="font-weight:400;text-transform:none;color:#fbbf24">⚠ looks wrong, check the PDF</span>' : ''}</label>
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <input type="date" id="invdate-${row.id}" value="${toDateInputValue(row.extracted_invoice_date)}" style="flex:1">
+            <button type="button" class="rev-btn" data-action="correct-date" style="white-space:nowrap">📅 Save Date</button>
+          </div>
+          <div class="rev-po-hint">Saves immediately - doesn't wait for Approve. Due date is recalculated as 30 days from whatever you save here.</div>
+        </div>
+      </div>`;
 
     // Bounced back from Xero: this invoice was previously approved and sent to the
     // poster, which kicked it back to awaiting_review with an explanation in
@@ -831,6 +910,8 @@
           ${lineItemsHtml ? `<div class="rev-line-items"><div class="rev-li-label">Line items</div>${lineItemsHtml}</div>` : ''}
 
           <div class="rev-edit-label">Edit before posting. Nothing reaches Xero until you approve</div>
+
+          ${dateFixHtml}
 
           <div class="rev-field-row">
             <div class="rev-field">
