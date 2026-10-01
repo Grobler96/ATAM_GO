@@ -130,6 +130,8 @@
   }
   function num(n) { const x = Number(n); return isFinite(x) ? x : 0; }
   function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+  // Xero rounds each invoice line to 2dp, so totals here are the sum of rounded lines (not a rounded sum).
+  function lineAmt(q, p) { return round2(num(q) * num(p)); }
   function rowNet(row) {
     const v = (row.final_subtotal != null) ? row.final_subtotal : row.subtotal;
     return num(v);
@@ -378,13 +380,13 @@
   function lineRowHtml(l, editable) {
     const q = num(l.qty), p = num(l.unit_price);
     if (!editable) {
-      return `<div class="si-line si-line-ro"><span class="si-l-descro">${esc(l.description)}</span><span>${q}</span><span>${fmtMoney(p)}</span><span class="si-l-total">${fmtMoney(q * p)}</span></div>`;
+      return `<div class="si-line si-line-ro"><span class="si-l-descro">${esc(l.description)}</span><span>${q}</span><span>${fmtMoney(p)}</span><span class="si-l-total">${fmtMoney(lineAmt(q, p))}</span></div>`;
     }
     return `<div class="si-line" data-kind="${esc(l.kind || 'product')}">
       <input class="si-l-desc" type="text" value="${esc(l.description)}" aria-label="Description">
       <input class="si-l-qty" type="number" step="any" min="0" value="${q}" aria-label="Quantity">
-      <input class="si-l-price" type="number" step="0.01" value="${p}" aria-label="Unit price">
-      <span class="si-l-total">${fmtMoney(q * p)}</span>
+      <input class="si-l-price" type="number" step="any" value="${p}" aria-label="Unit price">
+      <span class="si-l-total">${fmtMoney(lineAmt(q, p))}</span>
       <button type="button" class="si-l-del" data-action="remove-line" title="Remove this line" aria-label="Remove this line">✕</button>
     </div>`;
   }
@@ -424,7 +426,7 @@
     const ref = row.final_reference != null ? row.final_reference : (row.reference || '');
     const invDate = row.final_invoice_date || '';
     const dueDate = row.final_due_date || '';
-    const net = lines.reduce((s, l) => s + num(l.qty) * num(l.unit_price), 0);
+    const net = lines.reduce((s, l) => s + lineAmt(l.qty, l.unit_price), 0);
 
     const optionSet = [];
     const seen = {};
@@ -529,7 +531,7 @@
       dueDate: val('due-date') || null,
       notes: val('notes').trim(),
       lines: lines,
-      net: lines.reduce((s, l) => s + l.qty * l.unit_price, 0)
+      net: lines.reduce((s, l) => s + lineAmt(l.qty, l.unit_price), 0)
     };
   }
 
@@ -538,8 +540,8 @@
     card.querySelectorAll('.si-lines .si-line[data-kind]').forEach(el => {
       const q = parseFloat(el.querySelector('.si-l-qty').value) || 0;
       const p = parseFloat(el.querySelector('.si-l-price').value) || 0;
-      net += q * p;
-      el.querySelector('.si-l-total').textContent = fmtMoney(q * p);
+      net += lineAmt(q, p);
+      el.querySelector('.si-l-total').textContent = fmtMoney(lineAmt(q, p));
     });
     const t = card.querySelector('[data-role="totals"]');
     if (t) t.innerHTML = totalsHtml(round2(net));
