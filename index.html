@@ -1087,9 +1087,9 @@
         #salesinvoices .si-hint { font-size:11.5px; color:#64748b; margin-top:6px; }
 
         #salesinvoices .si-lines { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:8px 10px; margin:4px 0 10px; overflow-x:auto; }
-        #salesinvoices .si-line { display:grid; grid-template-columns:minmax(200px,1fr) 70px 90px 90px 30px; gap:8px; align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04); min-width:520px; }
+        #salesinvoices .si-line { display:grid; grid-template-columns:minmax(200px,1fr) 70px 90px 160px 90px 30px; gap:8px; align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04); min-width:700px; }
         #salesinvoices .si-line:last-child { border-bottom:none; }
-        #salesinvoices .si-line-ro { grid-template-columns:minmax(200px,1fr) 70px 90px 90px; font-size:12.5px; color:#cbd5e1; padding:6px 0; }
+        #salesinvoices .si-line-ro { grid-template-columns:minmax(200px,1fr) 70px 90px 100px 90px; min-width:600px; font-size:12.5px; color:#cbd5e1; padding:6px 0; }
         #salesinvoices .si-line-ro span:nth-child(n+2) { text-align:right; font-variant-numeric:tabular-nums; }
         #salesinvoices .si-lines-head { font-size:11px; color:#64748b; font-weight:600; border-bottom:1px solid rgba(255,255,255,0.1); }
         #salesinvoices .si-lines-head span:nth-child(n+2) { text-align:right; }
@@ -1097,6 +1097,11 @@
         #salesinvoices .si-line .si-l-total { text-align:right; font-size:12.5px; color:#e2e8f0; font-variant-numeric:tabular-nums; }
         #salesinvoices .si-l-del { width:28px; height:28px; border-radius:6px; border:1px solid transparent; background:transparent; color:#94a3b8; cursor:pointer; }
         #salesinvoices .si-l-del:hover { color:#fca5a5; border-color:rgba(248,113,113,0.4); }
+        /* VAT per line (added 2 Oct 2026) */
+        #salesinvoices select.si-l-vat { padding:6px 4px; font-size:12px; }
+        #salesinvoices .si-lines-head span.si-l-vat-h:nth-child(n+2) { text-align:left; }
+        #salesinvoices .si-vat-all { max-width:260px; margin-bottom:8px; }
+        #salesinvoices .si-vat-all label { margin-bottom:4px; }
         #salesinvoices .si-totals { margin:0 0 14px auto; max-width:320px; font-size:12.5px; }
         #salesinvoices .si-tot-row { display:flex; justify-content:space-between; padding:3px 0; color:#94a3b8; }
         #salesinvoices .si-tot-row b { color:#e2e8f0; font-variant-numeric:tabular-nums; }
@@ -1177,7 +1182,7 @@
   <script src="revenue.js"></script>
   <script src="discrepancies.js"></script>
   <script src="pending_invoices_review.js"></script>
-  <script src="sales_invoices_view.js?v=20261001b"></script>
+  <script src="sales_invoices_view.js?v=20261002a"></script>
   <script src="customer_spend.js?v=20261001"></script>
   <!-- SIGN OUT -->
   <script>
