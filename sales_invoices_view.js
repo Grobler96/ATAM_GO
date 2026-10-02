@@ -9,13 +9,26 @@
 //   - Every change goes through SECURITY DEFINER functions (save/approve/reject/ignore/...);
 //     the table itself is read-only to the browser.
 //   - The old sales_invoice_log is still shown, under the "Log" tab.
+//   - VAT (added 2 Oct 2026): every line carries a tax_type (OUTPUT2 = 20%, TAX005 = 0% outside the UK, ...).
+//     The form shows it per line, KEEPS it when saving/approving (earlier versions dropped it, which would have
+//     posted a non-UK invoice at 20%), and the totals follow it.
 
 (function () {
   'use strict';
 
   const WEBHOOK_BASE = 'https://atamcpi.app.n8n.cloud/webhook/';
   const ATAM_GO_TOKEN = '42f5d7bb154d98a8cfc5d8b7e2d83693a088e0f78b2357bf352c518ce25f07cc';
-  const VAT_RATE = 0.2; // every line is posted as 20% VAT (OUTPUT2)
+  // Xero tax types a line can carry (the database accepts exactly these). A line with no tax_type is posted as OUTPUT2.
+  const DEFAULT_TAX = 'OUTPUT2';
+  const TAX_TYPES = {
+    OUTPUT2:         { label: '20% VAT',                 short: '20%',          rate: 0.2, total: 'VAT (20%, calculated by Xero)' },
+    TAX005:          { label: '0% - outside UK (TAX005)', short: '0% non-UK',    rate: 0,   total: 'VAT (0%, outside UK, none charged)' },
+    ZERORATEDOUTPUT: { label: 'Zero rated',              short: 'Zero rated',   rate: 0,   total: 'VAT (zero rated)' },
+    EXEMPTOUTPUT:    { label: 'Exempt',                  short: 'Exempt',       rate: 0,   total: 'VAT (exempt)' },
+    NONE:            { label: 'No VAT',                  short: 'No VAT',       rate: 0,   total: 'VAT (none)' }
+  };
+  const COUNTRY_NAMES = { GB: 'United Kingdom', 'GB-NIR': 'Northern Ireland', IE: 'Republic of Ireland', FR: 'France', DE: 'Germany',
+    NL: 'Netherlands', BE: 'Belgium', ES: 'Spain', IT: 'Italy', SE: 'Sweden', US: 'United States' };
 
   const TABS = [
     { key: 'review',   label: 'Needs review',       statuses: ['awaiting_review'] },
@@ -80,6 +93,14 @@
       title: 'No billable lines',
       why: () => 'The order has nothing to invoice.',
       fix: ['Choose Ignore, or add the lines below.']
+    },
+    vat_check: {
+      chip: 'Check VAT', cls: 'si-chip-amber',
+      title: 'VAT needs checking',
+      why: () => 'The delivery country and the VAT DecoNetwork charged do not agree (for example a UK or Northern Ireland delivery where no VAT was charged).',
+      fix: ['Check the delivery country shown above, and whether DecoNetwork charged VAT on the order.',
+            'Set the VAT on each line below: 20% for UK sales, 0% outside UK (TAX005) for sales outside the UK. Use \"VAT on all lines\" to change them together.',
+            'If you are unsure, choose Hold and ask the accountant.']
     }
   };
 
@@ -132,6 +153,39 @@
   function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
   // Xero rounds each invoice line to 2dp, so totals here are the sum of rounded lines (not a rounded sum).
   function lineAmt(q, p) { return round2(num(q) * num(p)); }
+  function taxOf(l) { return (l && l.tax_type) ? String(l.tax_type) : DEFAULT_TAX; }
+  function taxMeta(code) { return TAX_TYPES[code] || { label: code, short: code, rate: 0, total: 'VAT (' + code + ')' }; }
+  // Net, VAT and the tax types in use. Xero works out VAT per line and rounds each line, so we do the same.
+  // Lines that carry no money (the delivery-address line) are ignored when deciding whether VAT is mixed.
+  function summarise(lines) {
+    let net = 0, vat = 0;
+    const money = {}, all = {};
+    (lines || []).forEach(l => {
+      const amt = lineAmt(l.qty, l.unit_price);
+      const t = taxOf(l);
+      net += amt;
+      vat += round2(amt * taxMeta(t).rate);
+      all[t] = true;
+      if (amt !== 0) money[t] = true;
+    });
+    const types = Object.keys(Object.keys(money).length ? money : all);
+    return { net: round2(net), vat: round2(vat), types: types };
+  }
+  function shipCountryCode(row) {
+    const m = String(row.shipping_address || '').match(/,\s*([A-Z]{2}(?:-[A-Z0-9]{2,3})?)\s*$/);
+    return m ? m[1] : '';
+  }
+  function shipCountryFact(row) {
+    const c = shipCountryCode(row);
+    if (!c) return '';
+    return `<div><span>Delivery country</span><b>${esc(COUNTRY_NAMES[c] ? COUNTRY_NAMES[c] + ' (' + c + ')' : c)}</b></div>`;
+  }
+  function taxSelectHtml(selected, cls) {
+    let opts = Object.keys(TAX_TYPES).map(k =>
+      `<option value="${k}"${k === selected ? ' selected' : ''}>${esc(TAX_TYPES[k].label)}</option>`).join('');
+    if (!TAX_TYPES[selected]) opts += `<option value="${esc(selected)}" selected>${esc(selected)}</option>`;
+    return `<select class="${cls}" aria-label="VAT">${opts}</select>`;
+  }
   function rowNet(row) {
     const v = (row.final_subtotal != null) ? row.final_subtotal : row.subtotal;
     return num(v);
@@ -370,6 +424,7 @@
       <div><span>Customer PO</span><b>${esc(row.customer_po_number || '—')}</b></div>
       <div><span>Store</span><b>${esc(row.store_name || '—')}</b></div>
       <div><span>Delivery</span><b>${esc(row.shipping_method || '—')}</b></div>
+      ${shipCountryFact(row)}
     </div>`;
 
     html += editable ? renderEditForm(row) : renderReadOnly(row);
@@ -379,29 +434,31 @@
 
   function lineRowHtml(l, editable) {
     const q = num(l.qty), p = num(l.unit_price);
+    const tax = taxOf(l);
     if (!editable) {
-      return `<div class="si-line si-line-ro"><span class="si-l-descro">${esc(l.description)}</span><span>${q}</span><span>${fmtMoney(p)}</span><span class="si-l-total">${fmtMoney(lineAmt(q, p))}</span></div>`;
+      return `<div class="si-line si-line-ro"><span class="si-l-descro">${esc(l.description)}</span><span>${q}</span><span>${fmtMoney(p)}</span><span class="si-l-vatro">${esc(taxMeta(tax).short)}</span><span class="si-l-total">${fmtMoney(lineAmt(q, p))}</span></div>`;
     }
     return `<div class="si-line" data-kind="${esc(l.kind || 'product')}">
       <input class="si-l-desc" type="text" value="${esc(l.description)}" aria-label="Description">
       <input class="si-l-qty" type="number" step="any" min="0" value="${q}" aria-label="Quantity">
       <input class="si-l-price" type="number" step="any" value="${p}" aria-label="Unit price">
+      ${taxSelectHtml(tax, 'si-l-vat')}
       <span class="si-l-total">${fmtMoney(lineAmt(q, p))}</span>
       <button type="button" class="si-l-del" data-action="remove-line" title="Remove this line" aria-label="Remove this line">✕</button>
     </div>`;
   }
 
-  function totalsHtml(net) {
-    const vat = round2(net * VAT_RATE);
-    return `<div class="si-tot-row"><span>Net</span><b data-role="net">${fmtMoney(net)}</b></div>
-      <div class="si-tot-row"><span>VAT (20%, calculated by Xero)</span><b data-role="vat">${fmtMoney(vat)}</b></div>
-      <div class="si-tot-row si-tot-grand"><span>Total</span><b data-role="gross">${fmtMoney(net + vat)}</b></div>`;
+  function totalsHtml(sum) {
+    const label = sum.types.length > 1 ? 'VAT (mixed rates, calculated by Xero)' : taxMeta(sum.types[0] || DEFAULT_TAX).total;
+    return `<div class="si-tot-row"><span>Net</span><b data-role="net">${fmtMoney(sum.net)}</b></div>
+      <div class="si-tot-row"><span data-role="vat-label">${esc(label)}</span><b data-role="vat">${fmtMoney(sum.vat)}</b></div>
+      <div class="si-tot-row si-tot-grand"><span>Total</span><b data-role="gross">${fmtMoney(round2(sum.net + sum.vat))}</b></div>`;
   }
 
   function renderReadOnly(row) {
     const lines = rowLines(row);
     const contact = contactOf(row);
-    const net = rowNet(row);
+    const sum = summarise(lines);
     const date = row.final_invoice_date || null;
     return `
       <div class="si-ro-grid">
@@ -411,10 +468,10 @@
         <div><span>Xero invoice</span><b>${row.xero_invoice_id ? `<a class="si-link" target="_blank" rel="noopener" href="https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${esc(row.xero_invoice_id)}">Open in Xero</a>` : 'Not posted yet'}</b></div>
       </div>
       <div class="si-lines">
-        <div class="si-lines-head si-line si-line-ro"><span>Description</span><span>Qty</span><span>Price</span><span>Total</span></div>
+        <div class="si-lines-head si-line si-line-ro"><span>Description</span><span>Qty</span><span>Price</span><span>VAT</span><span>Total</span></div>
         ${lines.map(l => lineRowHtml(l, false)).join('')}
       </div>
-      <div class="si-totals">${totalsHtml(net)}</div>
+      <div class="si-totals">${totalsHtml(sum)}</div>
       ${row.review_notes && row.status !== 'rejected' && row.status !== 'ignored' ? `<div class="si-notes si-notes-muted">📝 ${esc(row.review_notes)}</div>` : ''}`;
   }
 
@@ -426,7 +483,7 @@
     const ref = row.final_reference != null ? row.final_reference : (row.reference || '');
     const invDate = row.final_invoice_date || '';
     const dueDate = row.final_due_date || '';
-    const net = lines.reduce((s, l) => s + lineAmt(l.qty, l.unit_price), 0);
+    const sum = summarise(lines);
 
     const optionSet = [];
     const seen = {};
@@ -470,12 +527,16 @@
         <div class="si-field"></div>
       </div>
 
+      <div class="si-field si-vat-all">
+        <label>VAT on all lines</label>
+        <select data-role="vat-all"><option value="">Change every line to…</option>${Object.keys(TAX_TYPES).map(k => `<option value="${k}">${esc(TAX_TYPES[k].label)}</option>`).join('')}</select>
+      </div>
       <div class="si-lines" data-role="lines">
-        <div class="si-lines-head si-line"><span>Description</span><span>Qty</span><span>Price</span><span>Total</span><span></span></div>
+        <div class="si-lines-head si-line"><span>Description</span><span>Qty</span><span>Price</span><span class="si-l-vat-h">VAT</span><span>Total</span><span></span></div>
         ${lines.map(l => lineRowHtml(l, true)).join('')}
       </div>
       <button type="button" class="si-btn si-btn-add" data-action="add-line">+ Add a line</button>
-      <div class="si-totals" data-role="totals">${totalsHtml(net)}</div>
+      <div class="si-totals" data-role="totals">${totalsHtml(sum)}</div>
 
       <div class="si-field">
         <label>Notes</label>
@@ -519,7 +580,8 @@
       if (!description) bad = bad || 'Every line needs a description. Fill it in or remove the line.';
       else if (!isFinite(qty) || qty <= 0) bad = bad || `"${description.slice(0, 40)}" needs a quantity above zero.`;
       else if (!isFinite(price)) bad = bad || `"${description.slice(0, 40)}" needs a price.`;
-      lines.push({ description: description, qty: qty, unit_price: price, kind: el.getAttribute('data-kind') || 'product' });
+      const taxEl = el.querySelector('.si-l-vat');
+      lines.push({ description: description, qty: qty, unit_price: price, kind: el.getAttribute('data-kind') || 'product', tax_type: taxEl ? taxEl.value : DEFAULT_TAX });
     });
     if (!bad && !lines.length) bad = 'The invoice needs at least one line.';
     return {
@@ -531,20 +593,35 @@
       dueDate: val('due-date') || null,
       notes: val('notes').trim(),
       lines: lines,
-      net: lines.reduce((s, l) => s + lineAmt(l.qty, l.unit_price), 0)
+      net: lines.reduce((s, l) => s + lineAmt(l.qty, l.unit_price), 0),
+      mixedVat: summarise(lines).types.length > 1
     };
   }
 
   function recalcCard(card) {
-    let net = 0;
+    const lines = [];
     card.querySelectorAll('.si-lines .si-line[data-kind]').forEach(el => {
       const q = parseFloat(el.querySelector('.si-l-qty').value) || 0;
       const p = parseFloat(el.querySelector('.si-l-price').value) || 0;
-      net += lineAmt(q, p);
+      const v = el.querySelector('.si-l-vat');
+      lines.push({ qty: q, unit_price: p, tax_type: v ? v.value : DEFAULT_TAX });
       el.querySelector('.si-l-total').textContent = fmtMoney(lineAmt(q, p));
     });
     const t = card.querySelector('[data-role="totals"]');
-    if (t) t.innerHTML = totalsHtml(round2(net));
+    if (t) t.innerHTML = totalsHtml(summarise(lines));
+  }
+
+  // The VAT most lines on this invoice use, so a newly added line starts with the same setting.
+  function dominantTax(card) {
+    const counts = {};
+    card.querySelectorAll('.si-lines .si-line[data-kind]').forEach(el => {
+      const s = el.querySelector('.si-l-vat');
+      if (!s || (parseFloat(el.querySelector('.si-l-price').value) || 0) === 0) return;
+      counts[s.value] = (counts[s.value] || 0) + 1;
+    });
+    let best = DEFAULT_TAX, n = 0;
+    Object.keys(counts).forEach(k => { if (counts[k] > n) { best = k; n = counts[k]; } });
+    return best;
   }
 
   function setContact(card, id, name) {
@@ -611,6 +688,7 @@
     if (row.po_required && (!f.reference || f.reference === row.order_id) &&
         !confirm('This customer needs a PO number as the reference, and none is set. Approve without one?')) return;
     if (f.lines.some(l => l.unit_price < 0) && !confirm('A line has a negative price, which creates a credit. Approve anyway?')) return;
+    if (f.mixedVat && !confirm('The lines on this invoice have different VAT settings. Approve anyway?')) return;
     await rpc('approve_sales_invoice', editArgs(card, f, id));
     toast('Approved. It goes to Xero as a draft at 5pm, or press "Post approved now".');
     openIds.delete(id);
@@ -625,7 +703,7 @@
     switch (action) {
       case 'add-line': {
         const wrap = card.querySelector('[data-role="lines"]');
-        wrap.insertAdjacentHTML('beforeend', lineRowHtml({ description: '', qty: 1, unit_price: 0, kind: 'extra' }, true));
+        wrap.insertAdjacentHTML('beforeend', lineRowHtml({ description: '', qty: 1, unit_price: 0, kind: 'extra', tax_type: dominantTax(card) }, true));
         const last = wrap.lastElementChild; if (last) last.querySelector('.si-l-desc').focus();
         recalcCard(card);
         return;
@@ -770,6 +848,14 @@
       if (e.target.matches('.si-l-qty, .si-l-price')) recalcCard(e.target.closest('.si-case'));
     });
     container.addEventListener('change', e => {
+      if (e.target.matches('.si-l-vat')) { recalcCard(e.target.closest('.si-case')); return; }
+      if (e.target.matches('[data-role="vat-all"]')) {
+        const card = e.target.closest('.si-case');
+        const v = e.target.value;
+        if (card && v) { card.querySelectorAll('.si-l-vat').forEach(sel => { sel.value = v; }); recalcCard(card); }
+        e.target.value = '';
+        return;
+      }
       if (e.target.matches('[data-role="contact-select"]')) {
         const opt = e.target.options[e.target.selectedIndex];
         setContact(e.target.closest('.si-case'), e.target.value, opt ? (opt.getAttribute('data-name') || opt.textContent) : '');
