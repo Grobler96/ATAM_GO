@@ -32,6 +32,15 @@
     return window._atamSb;
   }
 
+  // Notes are free text typed by people - always escape before putting them in the page.
+  function escHtml(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  // A note a person wrote and wants kept. The poster's own bounce text ("AUTO-POST ...") is not a person's note.
+  function keptNote(row) {
+    const n = (row && row.review_notes) ? String(row.review_notes) : '';
+    return (n.trim() && !n.startsWith('AUTO-POST')) ? n : '';
+  }
   function fmtMoney(n) {
     return '£' + Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -397,7 +406,7 @@
           </div>
         </div>
         <div style="padding:0 20px 16px">
-          ${row.snooze_note ? `<div class="rev-notes-flag">📝 ${row.snooze_note}</div>` : '<div class="rev-notes-flag" style="opacity:.6">No note left</div>'}
+          ${row.snooze_note ? `<div class="rev-notes-flag">📝 ${escHtml(row.snooze_note).replace(/\n/g, '<br>')}</div>` : '<div class="rev-notes-flag" style="opacity:.6">No note left</div>'}
           <button type="button" class="rev-btn primary" data-action="resume-review" data-id="${row.id}" style="width:100%">↩ Resume Review</button>
         </div>
       </div>
@@ -885,7 +894,7 @@
           <div class="rev-case-main">
             <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Received ${fmtDate(row.received_at)}</div>
             <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'} · ${bouncedBack ? 'Bounced back from Xero' : meta.label}</div>
-            <div class="rev-case-sub">${row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet'} ${confBadge}</div>
+            <div class="rev-case-sub">${row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet'} ${confBadge}${keptNote(row) ? ' <span class="rev-badge-mini" title="' + escHtml(keptNote(row)) + '">📝 note</span>' : ''}</div>
           </div>
           <div class="rev-case-meta">
             <span class="rev-amt">${fmtMoney(row.extracted_total)}</span>
@@ -899,6 +908,7 @@
           ${bounceHtml}
           ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
+          ${keptNote(row) ? `<div class="rev-notes-flag" style="background:rgba(56,189,248,0.08);border-left-color:#38bdf8;color:#bae6fd"><b>Your note on this invoice:</b> ${escHtml(keptNote(row)).replace(/\n/g, '<br>')}</div>` : ''}
           ${newSupplierHtml}
 
           <div class="rev-compare">
@@ -952,8 +962,8 @@
           </div>
 
           <div class="rev-field">
-            <label>Review notes</label>
-            <textarea id="notes-${row.id}" placeholder="Optional note before approving or rejecting..."></textarea>
+            <label>Review notes <span style="font-weight:400;opacity:.65">(kept with the invoice, including after Move to In Review and Resume)</span></label>
+            <textarea id="notes-${row.id}" placeholder="Optional note before approving or rejecting...">${escHtml(keptNote(row))}</textarea>
           </div>
 
           <div class="rev-actions">
@@ -1052,7 +1062,7 @@
       p_final_nominal_code: nominal,
       p_final_total: total,
       p_final_po_reference: poRef,
-      p_review_notes: notes || null
+      p_review_notes: notes
     });
     if (error) { console.error(error); alert('Could not approve. Check the console.'); return; }
     await loadPending();
@@ -1067,7 +1077,7 @@
     const { error } = await sb.rpc('reject_pending_invoice', {
       p_id: id,
       p_reviewed_by: reviewedBy,
-      p_review_notes: notes || null
+      p_review_notes: notes
     });
     if (error) { console.error(error); alert('Could not reject. Check the console.'); return; }
     await loadPending();
