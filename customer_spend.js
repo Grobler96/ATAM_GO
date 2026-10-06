@@ -322,6 +322,14 @@
 .cs-sheet table.cs-t td { padding: 8px; border-bottom: 1px solid ${C.line}; vertical-align: top; }
 .cs-sheet table.cs-t td.r, .cs-sheet table.cs-t th.r { text-align: right; font-variant-numeric: tabular-nums; }
 .cs-sheet .cs-code { color: ${C.muted}; font-size: 11.5px; }
+.cs-sheet .cs-nom-row { cursor: pointer; }
+.cs-sheet .cs-nom-row:hover td { background: rgba(255,255,255,0.03); }
+.cs-sheet .cs-nom-row:focus-visible { outline: 2px solid ${C.orange}; outline-offset: -2px; }
+.cs-sheet .cs-nom-caret { display: inline-block; width: 14px; color: ${C.muted}; }
+.cs-sheet .cs-nom-track { background: rgba(255,255,255,0.06); border-radius: 3px; height: 6px; min-width: 70px; }
+.cs-sheet .cs-nom-bar { height: 6px; border-radius: 3px; background: ${C.orange}; min-width: 2px; }
+.cs-sheet tr.cs-nom-sub td { background: rgba(2,6,23,0.45); padding: 5px 8px 5px 26px; font-size: 12.5px; color: #CBD5E1; }
+.cs-sheet .cs-nom-note { color: ${C.muted}; font-size: 12px; margin-top: 10px; line-height: 1.5; }
 .cs-sheet .cs-children { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
 .cs-sheet .cs-child { text-align: left; font: inherit; color: inherit; cursor: pointer; background: rgba(2,6,23,0.6); border: 1px solid ${C.line}; border-radius: 12px; padding: 12px 14px; }
 .cs-sheet .cs-child:hover, .cs-sheet .cs-child:focus-visible { border-color: rgba(255,122,26,0.55); outline: none; }
@@ -682,6 +690,12 @@
       </div>
 
       <div class="cs-panel">
+        <h3>Where it's booked, by nominal code</h3>
+        <p class="cs-p-sub">Last 12 months by Xero nominal code. Click a code to see what is inside it: the product types (the stock split), with the number of items.</p>
+        <div id="csNominal"><div class="cs-loading" style="padding:10px 0">Loading…</div></div>
+      </div>
+
+      <div class="cs-panel">
         <h3>Top products</h3>
         <p class="cs-p-sub">Ranked by the last 12 months.</p>
         <div style="overflow-x:auto" id="csTop"></div>
@@ -695,6 +709,7 @@
     drawMix(mix.by_type || []);
     drawHeat(mix.seasonality || []);
     drawTop(mix.top_products || []);
+    loadNominal(node);
 
     const lapsed = mix.lapsed_products || [];
     if (lapsed.length) {
@@ -835,6 +850,63 @@
         <td class="r">${num(p.qty_l12m).toLocaleString('en-GB')}</td><td class="r">${money(p.l12m)}</td>
         <td class="r">${num(p.months_bought_l12m)} of 12</td><td class="r">${p.last_bought ? new Date(p.last_bought).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : ''}</td></tr>`).join('')}
     </tbody></table>`;
+  }
+
+  // ───────────────────────── nominal code split ─────────────────────────
+  // Value and product-type (stock) split inside each Xero nominal code, for the open customer.
+  // Loaded after the drill-down paints, so a problem here can never stop the rest of the page.
+  async function loadNominal(node) {
+    const el = document.getElementById('csNominal');
+    if (!el) return;
+    try {
+      const data = await rpc('get_customer_nominal_split', { p_level: node.level, p_key: node.key });
+      if (state.drillStack[state.drillStack.length - 1] !== node || !document.getElementById('csNominal')) return;
+      drawNominal(el, data || {});
+    } catch (err) {
+      console.error('[customer_spend] nominal split', err);
+      if (document.getElementById('csNominal')) el.innerHTML = '<div class="cs-empty">The nominal code split could not be loaded just now.</div>';
+    }
+  }
+
+  function drawNominal(el, data) {
+    const codes = Array.isArray(data.codes) ? data.codes : [];
+    const live = codes.filter(c => num(c.l12m) !== 0);
+    const quiet = codes.filter(c => num(c.l12m) === 0);
+    if (!live.length) {
+      el.innerHTML = '<div class="cs-empty">No spend in the last 12 months to split.</div>' + (quiet.length ? nominalQuiet(quiet) : '');
+      return;
+    }
+    const label = c => c.code === 'none' ? 'No nominal code in Xero' : esc(c.code) + (c.name ? ' <span class="cs-code">' + esc(c.name) + '</span>' : '');
+    const total = sum(live.map(c => c.l12m));
+    const body = live.map((c, i) => {
+      const share = total ? num(c.l12m) / total * 100 : 0;
+      const types = (c.by_type || []).filter(t => num(t.l12m) !== 0);
+      const sub = types.map(t => {
+        const tShare = num(c.l12m) ? num(t.l12m) / num(c.l12m) * 100 : 0;
+        return '<tr class="cs-nom-sub" data-parent="' + i + '" hidden><td>' + esc(t.product_type) + '</td><td class="r">' + money(t.l12m) + '</td><td class="r">' + tShare.toFixed(0) + '% of code</td><td></td><td></td><td class="r">' + num(t.qty_l12m).toLocaleString('en-GB') + '</td></tr>';
+      }).join('');
+      return '<tr class="cs-nom-row" data-i="' + i + '" tabindex="0" role="button" aria-expanded="false"><td><span class="cs-nom-caret">▸</span>' + label(c) + '</td>' +
+        '<td class="r">' + money(c.l12m) + '</td><td class="r">' + share.toFixed(0) + '%</td>' +
+        '<td style="width:22%"><div class="cs-nom-track"><div class="cs-nom-bar" style="width:' + clamp(share, 0, 100).toFixed(1) + '%"></div></div></td>' +
+        '<td class="r">' + deltaHtml(c.l12m, c.l12m_prev) + '</td><td class="r">' + num(c.qty_l12m).toLocaleString('en-GB') + '</td></tr>' + sub;
+    }).join('');
+    el.innerHTML = '<div style="overflow-x:auto"><table class="cs-t"><thead><tr><th>Nominal code</th><th class="r">Spend (12 mo)</th><th class="r">Share</th><th></th><th class="r">vs previous 12 mo</th><th class="r">Items (12 mo)</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+      '<div class="cs-nom-note">Total ' + money(total) + ', the same figure as the rest of this page. Items are units invoiced; a bespoke job counts as one item.</div>' + nominalQuiet(quiet);
+    const toggle = row => {
+      const open = row.getAttribute('aria-expanded') !== 'true';
+      row.setAttribute('aria-expanded', open ? 'true' : 'false');
+      row.querySelector('.cs-nom-caret').textContent = open ? '▾' : '▸';
+      el.querySelectorAll('tr.cs-nom-sub[data-parent="' + row.dataset.i + '"]').forEach(r => { r.hidden = !open; });
+    };
+    el.querySelectorAll('tr.cs-nom-row').forEach(row => {
+      row.addEventListener('click', () => toggle(row));
+      row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(row); } });
+    });
+  }
+
+  function nominalQuiet(quiet) {
+    if (!quiet.length) return '';
+    return '<div class="cs-nom-note">No spend in the last 12 months on: ' + quiet.map(c => (c.code === 'none' ? 'no code' : esc(c.code)) + ' (' + money(c.all_time) + ' all time)').join(', ') + '.</div>';
   }
 
   // ───────────────────────── 3D spend landscape ─────────────────────────
