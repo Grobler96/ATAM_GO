@@ -478,7 +478,7 @@
     const ytd = sum(rows.map(r => r.ytd)), ytdly = sum(rows.map(r => r.ytd_ly));
     const active = rows.filter(r => num(r.l12m) > 0).length;
     document.getElementById('csTotals').innerHTML = `
-      <div class="cs-total"><div class="cs-num">${money(ytd, true)}</div><div class="cs-k">Year to date ${deltaHtml(ytd, ytdly, 'vs last year')}</div></div>
+      <div class="cs-total"><div class="cs-num">${money(ytd, true)}</div><div class="cs-k">Financial year to date (from 1 Nov) ${deltaHtml(ytd, ytdly, 'vs last year')}</div></div>
       <div class="cs-total"><div class="cs-num">${money(l12, true)}</div><div class="cs-k">Last 12 months ${deltaHtml(l12, l12p)}</div></div>
       <div class="cs-total"><div class="cs-num">${active}</div><div class="cs-k">Customers buying this year</div></div>`;
   }
@@ -659,8 +659,8 @@
       <div class="cs-kpis">
         ${kpi('This week', s.wtd, s.wtd_ly, 'same week last year')}
         ${kpi('This month', s.mtd, s.mtd_ly, 'last year')}
-        ${kpi('This quarter', s.qtd, s.qtd_ly, 'last year')}
-        ${kpi('Year to date', s.ytd, s.ytd_ly, 'last year')}
+        ${kpi('This financial quarter', s.qtd, s.qtd_ly, 'last year')}
+        ${kpi('Financial year to date', s.ytd, s.ytd_ly, 'last year')}
         <div class="cs-kpi"><div class="cs-k">Typical invoice</div><div class="cs-num">${money(s.avg_invoice_l12m)}</div>
           <div class="cs-ly">${num(s.invoices_l12m)} invoices in 12 months, last ${daysAgo(s.days_since_last_invoice)}</div></div>
       </div>
@@ -876,7 +876,7 @@
       el.innerHTML = '<div class="cs-empty">No spend in the last 12 months to split.</div>' + (quiet.length ? nominalQuiet(quiet) : '');
       return;
     }
-    const label = c => c.code === 'none' ? 'No nominal code in Xero' : esc(c.code) + (c.name ? ' <span class="cs-code">' + esc(c.name) + '</span>' : '');
+    const label = c => c.code === 'none' ? 'No nominal code in Xero' : (c.name ? esc(c.name) + ' <span class="cs-code">' + esc(c.code) + '</span>' : esc(c.code));
     const total = sum(live.map(c => c.l12m));
     const body = live.map((c, i) => {
       const share = total ? num(c.l12m) / total * 100 : 0;
@@ -890,7 +890,7 @@
         '<td style="width:22%"><div class="cs-nom-track"><div class="cs-nom-bar" style="width:' + clamp(share, 0, 100).toFixed(1) + '%"></div></div></td>' +
         '<td class="r">' + deltaHtml(c.l12m, c.l12m_prev) + '</td><td class="r">' + num(c.qty_l12m).toLocaleString('en-GB') + '</td></tr>' + sub;
     }).join('');
-    el.innerHTML = '<div style="overflow-x:auto"><table class="cs-t"><thead><tr><th>Nominal code</th><th class="r">Spend (12 mo)</th><th class="r">Share</th><th></th><th class="r">vs previous 12 mo</th><th class="r">Items (12 mo)</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+    el.innerHTML = '<div style="overflow-x:auto"><table class="cs-t"><thead><tr><th>Nominal</th><th class="r">Spend (12 mo)</th><th class="r">Share</th><th></th><th class="r">vs previous 12 mo</th><th class="r">Items (12 mo)</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
       '<div class="cs-nom-note">Total ' + money(total) + ', the same figure as the rest of this page. Items are units invoiced; a bespoke job counts as one item.</div>' + nominalQuiet(quiet);
     const toggle = row => {
       const open = row.getAttribute('aria-expanded') !== 'true';
@@ -906,7 +906,7 @@
 
   function nominalQuiet(quiet) {
     if (!quiet.length) return '';
-    return '<div class="cs-nom-note">No spend in the last 12 months on: ' + quiet.map(c => (c.code === 'none' ? 'no code' : esc(c.code)) + ' (' + money(c.all_time) + ' all time)').join(', ') + '.</div>';
+    return '<div class="cs-nom-note">No spend in the last 12 months on: ' + quiet.map(c => (c.code === 'none' ? 'no code' : (c.name ? esc(c.name) : esc(c.code))) + ' (' + money(c.all_time) + ' all time)').join(', ') + '.</div>';
   }
 
   // ───────────────────────── 3D spend landscape ─────────────────────────
