@@ -23,3 +23,4 @@ Interactive Supabase-powered production dashboard for ATAM Workwear.
 ## Workflow triggers
 
 Add n8n production webhook URLs in `config.js` under `WEBHOOKS`.
+Last deployment triggered: 12 October 2026
