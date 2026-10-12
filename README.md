@@ -23,9 +23,9 @@ Interactive Supabase-powered production dashboard for ATAM Workwear.
 ## Quotes tab
 
 `quotes.js` powers the Quotes tab (pipeline board, salesperson performance, converted/lost lists, chase log).
-It reads the `quotes_pipeline` view and writes chases through `log_quote_chase()`. A trigger on `wip_orders`
-records when each DecoNetwork quote (order_status = 1) is first seen, converted or cancelled; the SQL is in
-`sql/quote_tracking.sql`.
+Data comes straight from DecoNetwork: the n8n workflow `WF7_Quotes_Sync` (hourly, plus a manual 150-day backfill)
+copies quotes (order type 2) and approved quotes (order type 3) into `public.quotes`. The tab reads the `quotes_board`
+view and writes phone/visit chases through `log_quote_chase()`. SQL is in `sql/quote_tracking.sql`.
 
 ## Workflow triggers
 
