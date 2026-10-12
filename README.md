@@ -20,6 +20,13 @@ Interactive Supabase-powered production dashboard for ATAM Workwear.
 - late_or_at_risk_orders
 - recent_decoration_activity
 
+## Quotes tab
+
+`quotes.js` powers the Quotes tab (pipeline board, salesperson performance, converted/lost lists, chase log).
+It reads the `quotes_pipeline` view and writes chases through `log_quote_chase()`. A trigger on `wip_orders`
+records when each DecoNetwork quote (order_status = 1) is first seen, converted or cancelled; the SQL is in
+`sql/quote_tracking.sql`.
+
 ## Workflow triggers
 
 Add n8n production webhook URLs in `config.js` under `WEBHOOKS`.

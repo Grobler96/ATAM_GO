@@ -1,0 +1,759 @@
+// quotes.js — "Quotes" tab: sales pipeline + salesperson performance.
+//
+// Where the data comes from:
+//   - A DecoNetwork quote is an order with order_status = 1. The hourly WF5 sync puts it in wip_orders.
+//   - A database trigger on wip_orders records when each quote was first seen and when it left
+//     status 1 (converted = any status except Cancelled, cancelled = status 4). See sql/quote_tracking.sql.
+//   - This page reads the quotes_pipeline view (authenticated read only). The one write is
+//     log_quote_chase(), which records a chase-up against a quote.
+//
+// Stages (all measured from the last time anyone touched the quote = raised date or latest chase):
+//   Hot / fresh   quiet < 3 days      Needs chasing   3-13 days      Going cold   14-29 days
+//   Lost          quiet 30+ days, or cancelled in DecoNetwork        Converted    left status 1 (not cancelled)
+
+(function () {
+  'use strict';
+
+  const PAGE_ID = 'quotes';
+  const FRESH_DAYS = 3;     // quiet for fewer than this = hot
+  const COLD_DAYS = 14;     // quiet this long = going cold
+  const LOST_DAYS = 30;     // quiet this long = lost
+  const DAY = 86400000;
+  const REFRESH_MS = 5 * 60 * 1000;
+
+  const STATUS = {
+    1: 'Quote', 2: 'Production Complete', 3: 'Shipped', 4: 'Cancelled', 5: 'On Hold',
+    6: 'Awaiting Stock', 7: 'Awaiting Artwork', 8: 'In Production', 9: 'Awaiting Payment'
+  };
+
+  const STAGES = {
+    fresh: { label: 'Hot', icon: '🔥', color: '#f97316', blurb: 'touched in the last 3 days' },
+    chase: { label: 'Needs chasing', icon: '⏰', color: '#f59e0b', blurb: '3 to 13 days quiet' },
+    cold:  { label: 'Going cold', icon: '🧊', color: '#38bdf8', blurb: '14 to 29 days quiet' },
+    won:   { label: 'Converted', icon: '✅', color: '#22c55e', blurb: 'became an order' },
+    lost:  { label: 'Lost', icon: '✖', color: '#94a3b8', blurb: 'cancelled or 30 days quiet' }
+  };
+
+  const PERIODS = [
+    { key: '7', label: '7 days', days: 7 },
+    { key: '30', label: '30 days', days: 30 },
+    { key: '90', label: '90 days', days: 90 },
+    { key: 'all', label: 'Since tracking began', days: null }
+  ];
+
+  const TABS = [
+    { key: 'pipeline', label: 'Pipeline' },
+    { key: 'team', label: 'Sales team' },
+    { key: 'won', label: 'Converted' },
+    { key: 'lost', label: 'Lost' },
+    { key: 'all', label: 'All quotes' }
+  ];
+
+  const state = {
+    rows: [], loaded: false, loading: false, error: null,
+    tab: 'pipeline', period: 'all', rep: '', q: '',
+    sort: { key: 'idle', dir: -1 },
+    chart: null, timer: null, openId: null
+  };
+
+  // ───────────────────────── helpers ─────────────────────────
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+  const gbp = (v, dec) => '£' + num(v).toLocaleString('en-GB', { minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 });
+  const fmtDate = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const fmtDateTime = d => d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+  const days = (a, b) => Math.floor((b - a) / DAY);
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  const quiet = d => d <= 0 ? 'today' : d === 1 ? '1 day' : d + ' days';
+  const repName = r => r || 'Unassigned';
+  const initials = n => (n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  function hue(name) { let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+  const avatar = n => `<span class="qt-av" style="background:hsl(${hue(n)} 55% 38%)" title="${esc(repName(n))}">${esc(initials(n))}</span>`;
+
+  function client() {
+    if (window._atamSb) return window._atamSb;
+    const cfg = window.ATAM_GO_CONFIG || {};
+    window._atamSb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    return window._atamSb;
+  }
+
+  // ───────────────────────── data ─────────────────────────
+  async function fetchAll() {
+    const PAGE = 1000;
+    let all = [], from = 0;
+    for (;;) {
+      const res = await client().from('quotes_pipeline').select('*').order('order_id', { ascending: false }).range(from, from + PAGE - 1);
+      if (res.error) throw res.error;
+      all = all.concat(res.data || []);
+      if (!res.data || res.data.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }
+
+  function enrich(r, now) {
+    const base = new Date(r.raised_at || r.first_seen_at);
+    const lastChase = r.last_chase_at ? new Date(r.last_chase_at) : null;
+    const lastTouch = lastChase && lastChase > base ? lastChase : base;
+    const idle = Math.max(0, days(lastTouch, now));
+    const status = Number(r.order_status) || 1;
+    const convertedAt = r.converted_at ? new Date(r.converted_at) : null;
+    const cancelledAt = r.cancelled_at ? new Date(r.cancelled_at) : null;
+    let stage, closedAt = null, lostReason = null;
+    if (convertedAt) { stage = 'won'; closedAt = convertedAt; }
+    else if (cancelledAt || status === 4) { stage = 'lost'; closedAt = cancelledAt; lostReason = 'Cancelled'; }
+    else if (status !== 1) { stage = 'won'; }
+    else if (idle >= LOST_DAYS) { stage = 'lost'; closedAt = new Date(lastTouch.getTime() + LOST_DAYS * DAY); lostReason = 'No contact for ' + LOST_DAYS + ' days'; }
+    else if (idle >= COLD_DAYS) stage = 'cold';
+    else if (idle >= FRESH_DAYS) stage = 'chase';
+    else stage = 'fresh';
+    return {
+      id: String(r.order_id), customer: r.customer_name || 'Unknown customer', rep: r.assigned_to || '',
+      value: num(r.quote_value), currentValue: num(r.current_value), qty: r.garment_qty, processes: r.processes || [],
+      shipping: r.shipping_method, store: r.store_name, dueDate: r.date_due ? new Date(r.date_due) : null,
+      base, trueDate: !!r.raised_at, lastTouch, idle, status, stage, closedAt, lostReason,
+      convertedAt, cancelledAt, convertedStatus: r.converted_status,
+      chases: num(r.chase_count), lastChaseAt: lastChase, lastChaseBy: r.last_chase_by, lastChaseNote: r.last_chase_note,
+      daysToClose: convertedAt ? Math.max(0, (convertedAt - base) / DAY) : null,
+      backfilled: !!r.backfilled && !r.raised_at,
+      search: [r.customer_name, r.order_id, r.assigned_to].join(' ').toLowerCase()
+    };
+  }
+
+  async function load(silent) {
+    if (state.loading) return;
+    state.loading = true;
+    if (!silent) { state.error = null; renderBody(); }
+    try {
+      const now = new Date();
+      state.rows = (await fetchAll()).map(r => enrich(r, now));
+      state.loaded = true; state.error = null;
+    } catch (e) {
+      console.error('quotes load failed', e);
+      if (!state.loaded) state.error = (e && e.message) || 'Could not load quotes';
+    } finally {
+      state.loading = false;
+    }
+    renderAll();
+  }
+
+  // ───────────────────────── filtering & stats ─────────────────────────
+  const periodDays = () => (PERIODS.find(p => p.key === state.period) || {}).days;
+  function inPeriod(d) {
+    if (!d) return false;
+    const n = periodDays();
+    return n == null || d >= new Date(Date.now() - n * DAY);
+  }
+  function visible() {
+    return state.rows.filter(r => (!state.rep || (r.rep || '__none') === state.rep) && (!state.q || r.search.includes(state.q)));
+  }
+
+  function statsFor(rows) {
+    const open = rows.filter(r => ['fresh', 'chase', 'cold'].includes(r.stage));
+    const won = rows.filter(r => r.stage === 'won' && (r.convertedAt ? inPeriod(r.convertedAt) : periodDays() == null));
+    const lost = rows.filter(r => r.stage === 'lost' && inPeriod(r.closedAt || r.lastTouch));
+    const raised = rows.filter(r => inPeriod(r.base));
+    const closed = won.length + lost.length;
+    const wonDays = won.filter(r => r.daysToClose != null);
+    return {
+      open, won, lost, raised, closed,
+      openValue: open.reduce((s, r) => s + r.value, 0),
+      wonValue: won.reduce((s, r) => s + r.value, 0),
+      lostValue: lost.reduce((s, r) => s + r.value, 0),
+      raisedValue: raised.reduce((s, r) => s + r.value, 0),
+      rate: closed ? won.length / closed : null,
+      valueRate: (won.reduce((s, r) => s + r.value, 0) + lost.reduce((s, r) => s + r.value, 0)) ?
+        won.reduce((s, r) => s + r.value, 0) / (won.reduce((s, r) => s + r.value, 0) + lost.reduce((s, r) => s + r.value, 0)) : null,
+      avgDays: wonDays.length ? wonDays.reduce((s, r) => s + r.daysToClose, 0) / wonDays.length : null,
+      chase: rows.filter(r => r.stage === 'chase'),
+      cold: rows.filter(r => r.stage === 'cold'),
+      lastRaised: rows.length ? rows.reduce((m, r) => r.base > m ? r.base : m, rows[0].base) : null
+    };
+  }
+
+  // ───────────────────────── render ─────────────────────────
+  function renderAll() { renderKpis(); renderControls(); renderBody(); updateNavBadge(); if (state.openId) refreshDrawerHead(); }
+
+  function updateNavBadge() {
+    const btn = document.querySelector('.nav-link[data-page="' + PAGE_ID + '"]');
+    if (!btn) return;
+    const n = state.rows.filter(r => r.stage === 'chase' || r.stage === 'cold').length;
+    let b = btn.querySelector('.qt-nav-badge');
+    if (!n) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('span'); b.className = 'qt-nav-badge'; btn.appendChild(b); }
+    b.textContent = n;
+    b.title = n + ' quotes need chasing';
+  }
+
+  function renderKpis() {
+    const el = $('qtKpis'); if (!el) return;
+    const s = statsFor(visible());
+    const per = (PERIODS.find(p => p.key === state.period) || {}).label.toLowerCase();
+    const rate = s.rate == null ? '—' : Math.round(s.rate * 100) + '%';
+    el.innerHTML = `
+      <div class="qt-kpi"><div class="qt-kpi-n">${s.open.length}</div><div class="qt-kpi-l">Open quotes</div><div class="qt-kpi-s">${gbp(s.openValue)} on the table</div></div>
+      <div class="qt-kpi qt-kpi-attn"><div class="qt-kpi-n">${s.chase.length + s.cold.length}</div><div class="qt-kpi-l">Need chasing</div><div class="qt-kpi-s">${gbp(s.chase.concat(s.cold).reduce((t, r) => t + r.value, 0))} at risk</div></div>
+      <div class="qt-kpi"><div class="qt-kpi-n">${s.raised.length}</div><div class="qt-kpi-l">Quotes raised</div><div class="qt-kpi-s">${gbp(s.raisedValue)} · ${esc(per)}</div></div>
+      <div class="qt-kpi qt-kpi-good"><div class="qt-kpi-n">${s.won.length}</div><div class="qt-kpi-l">Converted</div><div class="qt-kpi-s">${gbp(s.wonValue)} · ${esc(per)}</div></div>
+      <div class="qt-kpi"><div class="qt-kpi-n">${rate}</div><div class="qt-kpi-l">Conversion rate</div><div class="qt-kpi-s">${s.closed ? `${s.won.length} won of ${s.closed} decided` : 'nothing decided yet'}</div></div>
+      <div class="qt-kpi"><div class="qt-kpi-n">${s.avgDays == null ? '—' : s.avgDays < 1 ? '<1d' : Math.round(s.avgDays) + 'd'}</div><div class="qt-kpi-l">Avg days to convert</div><div class="qt-kpi-s">raised → order</div></div>`;
+    const note = $('qtNote');
+    if (note) {
+      const bf = state.rows.some(r => r.backfilled);
+      note.hidden = !bf;
+      note.innerHTML = bf ? '<b>Heads up:</b> quote tracking started on 12 Oct 2026. Quotes that already existed that day show the day we first saw them as their raised date, so their age, and any conversion times, are understated until the real DecoNetwork creation date is synced. Everything raised from now on is exact.' : '';
+    }
+  }
+
+  function renderControls() {
+    const reps = Array.from(new Set(state.rows.map(r => r.rep || '__none'))).sort((a, b) => repName(a === '__none' ? '' : a).localeCompare(repName(b === '__none' ? '' : b)));
+    const sel = $('qtRep');
+    if (sel) {
+      const cur = state.rep;
+      sel.innerHTML = '<option value="">Everyone</option>' + reps.map(r => `<option value="${esc(r)}"${r === cur ? ' selected' : ''}>${esc(r === '__none' ? 'Unassigned' : r)}</option>`).join('');
+    }
+    const per = $('qtPeriod');
+    if (per) per.innerHTML = PERIODS.map(p => `<button type="button" data-period="${p.key}" class="${p.key === state.period ? 'on' : ''}">${esc(p.label)}</button>`).join('');
+    const tabs = $('qtTabs');
+    if (tabs) {
+      const rows = visible();
+      const count = k => k === 'pipeline' ? rows.filter(r => ['fresh', 'chase', 'cold'].includes(r.stage)).length
+        : k === 'won' ? rows.filter(r => r.stage === 'won').length
+        : k === 'lost' ? rows.filter(r => r.stage === 'lost').length
+        : k === 'all' ? rows.length : null;
+      tabs.innerHTML = TABS.map(t => `<button type="button" role="tab" data-tab="${t.key}" class="qt-tab${t.key === state.tab ? ' active' : ''}">${esc(t.label)}${count(t.key) != null ? `<span class="qt-tab-n">${count(t.key)}</span>` : ''}</button>`).join('');
+    }
+  }
+
+  function renderBody() {
+    const el = $('qtBody'); if (!el) return;
+    if (state.error) { el.innerHTML = `<div class="qt-empty">Couldn't load quotes: ${esc(state.error)}<br><button type="button" class="qt-btn" data-act="reload">Try again</button></div>`; return; }
+    if (!state.loaded) { el.innerHTML = '<div class="qt-empty">Loading quotes…</div>'; return; }
+    destroyChart();
+    if (state.tab === 'pipeline') el.innerHTML = boardHtml();
+    else if (state.tab === 'team') { el.innerHTML = teamHtml(); drawChart(); }
+    else el.innerHTML = tableHtml(state.tab);
+  }
+
+  // ----- pipeline board -----
+  function cardHtml(r) {
+    const open = ['fresh', 'chase', 'cold'].includes(r.stage);
+    const st = STAGES[r.stage];
+    const pct = Math.min(100, Math.round(r.idle / LOST_DAYS * 100));
+    let foot;
+    if (open) foot = `<div class="qt-bar" title="${r.idle} of ${LOST_DAYS} days before this is treated as lost"><i style="width:${pct}%;background:${st.color}"></i></div>
+      <div class="qt-card-foot"><span>Quiet ${esc(quiet(r.idle))}</span><span>${r.chases ? plural(r.chases, 'chase') : 'not chased'}</span></div>`;
+    else if (r.stage === 'won') foot = `<div class="qt-card-foot"><span>${r.convertedAt ? 'Converted ' + esc(fmtDate(r.convertedAt)) : 'Converted'}</span><span>${r.daysToClose != null ? (r.daysToClose < 1 ? 'same day' : Math.round(r.daysToClose) + 'd to close') : ''}</span></div>`;
+    else foot = `<div class="qt-card-foot"><span>${esc(r.lostReason || 'Lost')}</span><span>${esc(fmtDate(r.closedAt))}</span></div>`;
+    return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color}">
+      <div class="qt-card-top"><span class="qt-card-cust">${esc(r.customer)}</span><span class="qt-card-val">${gbp(r.value)}</span></div>
+      <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span></div>
+      ${foot}</article>`;
+  }
+
+  function boardHtml() {
+    const rows = visible();
+    const recent = r => !r.closedAt || r.closedAt >= new Date(Date.now() - 30 * DAY);
+    const cols = ['fresh', 'chase', 'cold', 'won', 'lost'].map(k => {
+      let items = rows.filter(r => r.stage === k);
+      if (k === 'won' || k === 'lost') items = items.filter(recent);
+      items.sort(k === 'fresh' ? (a, b) => a.idle - b.idle || b.value - a.value
+        : (k === 'won' || k === 'lost') ? (a, b) => (b.closedAt || 0) - (a.closedAt || 0)
+        : (a, b) => b.idle - a.idle || b.value - a.value);
+      return { k, items, total: items.reduce((s, r) => s + r.value, 0) };
+    });
+    return `<div class="qt-board">${cols.map(c => {
+      const st = STAGES[c.k];
+      return `<section class="qt-col" style="--c:${st.color}">
+        <header class="qt-col-h"><div><span class="qt-col-t">${st.icon} ${esc(st.label)}</span><span class="qt-col-n">${c.items.length}</span></div>
+          <div class="qt-col-s">${gbp(c.total)} · ${esc(c.k === 'won' || c.k === 'lost' ? 'last 30 days' : st.blurb)}</div></header>
+        <div class="qt-col-b">${c.items.length ? c.items.map(cardHtml).join('') : '<div class="qt-col-empty">Nothing here</div>'}</div>
+      </section>`;
+    }).join('')}</div>`;
+  }
+
+  // ----- tables -----
+  const COLS = {
+    customer: { label: 'Customer', get: r => r.customer.toLowerCase(), html: r => `<b>${esc(r.customer)}</b>` },
+    id: { label: 'Order', get: r => Number(r.id) || 0, html: r => '#' + esc(r.id) },
+    rep: { label: 'Salesperson', get: r => repName(r.rep).toLowerCase(), html: r => `<span class="qt-rep">${avatar(r.rep)}${esc(repName(r.rep))}</span>` },
+    value: { label: 'Quoted', get: r => r.value, html: r => gbp(r.value, true), right: true },
+    raised: { label: 'Raised', get: r => r.base.getTime(), html: r => esc(fmtDate(r.base)) + (r.trueDate ? '' : ' <span class="qt-dim" title="Date we first saw this quote">*</span>') },
+    converted: { label: 'Converted', get: r => (r.convertedAt || 0), html: r => esc(fmtDateTime(r.convertedAt)) },
+    lostOn: { label: 'Lost on', get: r => (r.closedAt || 0), html: r => esc(fmtDate(r.closedAt)) },
+    reason: { label: 'Reason', get: r => r.lostReason || '', html: r => esc(r.lostReason || '—') },
+    dtc: { label: 'Days to close', get: r => r.daysToClose == null ? -1 : r.daysToClose, html: r => r.daysToClose == null ? '—' : r.daysToClose < 1 ? 'Same day' : Math.round(r.daysToClose) + 'd', right: true },
+    now: { label: 'Order now', get: r => r.status, html: r => esc(STATUS[r.status] || 'Status ' + r.status) },
+    stage: { label: 'Stage', get: r => Object.keys(STAGES).indexOf(r.stage), html: r => `<span class="qt-chip" style="--c:${STAGES[r.stage].color}">${STAGES[r.stage].icon} ${esc(STAGES[r.stage].label)}</span>` },
+    idle: { label: 'Quiet for', get: r => ['won', 'lost'].includes(r.stage) ? -1 : r.idle, html: r => ['won', 'lost'].includes(r.stage) ? '—' : esc(quiet(r.idle)), right: true },
+    chases: { label: 'Chases', get: r => r.chases, html: r => String(r.chases), right: true }
+  };
+  const TABLE_COLS = {
+    won: ['customer', 'id', 'rep', 'value', 'raised', 'converted', 'dtc', 'now'],
+    lost: ['customer', 'id', 'rep', 'value', 'raised', 'lostOn', 'reason', 'chases'],
+    all: ['customer', 'id', 'rep', 'value', 'stage', 'raised', 'idle', 'chases']
+  };
+
+  function tableHtml(tab) {
+    let rows = visible();
+    if (tab === 'won') rows = rows.filter(r => r.stage === 'won');
+    else if (tab === 'lost') rows = rows.filter(r => r.stage === 'lost');
+    if (tab === 'won' || tab === 'lost') rows = rows.filter(r => r.closedAt ? inPeriod(r.closedAt) : periodDays() == null);
+    const defKey = tab === 'won' ? 'converted' : tab === 'lost' ? 'lostOn' : 'idle';
+    const key = state.sort.tab === tab ? state.sort.key : defKey;
+    const dir = state.sort.tab === tab ? state.sort.dir : -1;
+    const col = COLS[key] || COLS[defKey];
+    rows = rows.slice().sort((a, b) => { const x = col.get(a), y = col.get(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+    const cols = TABLE_COLS[tab];
+    if (!rows.length) return `<div class="qt-empty">${tab === 'won' ? 'No quotes have converted in this period yet.' : tab === 'lost' ? 'No lost quotes in this period.' : 'No quotes match.'}</div>`;
+    const total = rows.reduce((s, r) => s + r.value, 0);
+    return `<div class="qt-tablewrap"><table class="qt-table"><thead><tr>${cols.map(c => `<th data-sort="${c}" class="${COLS[c].right ? 'r' : ''}${c === key ? ' sorted' : ''}">${esc(COLS[c].label)}${c === key ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r => `<tr data-id="${esc(r.id)}" tabindex="0">${cols.map(c => `<td class="${COLS[c].right ? 'r' : ''}">${COLS[c].html(r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <div class="qt-tfoot">${plural(rows.length, 'quote')} · ${gbp(total)} quoted</div>`;
+  }
+
+  // ----- sales team -----
+  function teamStats() {
+    const q = state.q;
+    const groups = new Map();
+    state.rows.filter(r => !q || r.search.includes(q)).forEach(r => {
+      const k = r.rep || '__none';
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
+    });
+    return Array.from(groups, ([k, rows]) => ({ key: k, name: k === '__none' ? '' : k, rows, s: statsFor(rows) }))
+      .sort((a, b) => b.s.raisedValue - a.s.raisedValue || b.rows.length - a.rows.length);
+  }
+
+  function ringHtml(rate) {
+    const pct = rate == null ? 0 : Math.round(rate * 100);
+    return `<div class="qt-ring" style="--p:${pct}"><div><b>${rate == null ? '—' : pct + '%'}</b><span>win rate</span></div></div>`;
+  }
+
+  function teamHtml() {
+    const team = teamStats();
+    if (!team.length) return '<div class="qt-empty">No quotes yet.</div>';
+    const per = (PERIODS.find(p => p.key === state.period) || {}).label.toLowerCase();
+    return `<div class="qt-chartbox"><div class="qt-chart-h"><h3>Weekly activity</h3><span class="qt-dim">quotes raised vs converted, last 12 weeks</span></div>
+        <div class="qt-chart"><canvas id="qtChart" role="img" aria-label="Quotes raised and converted per week"></canvas></div></div>
+      <div class="qt-team-h"><h3>Salespeople</h3><span class="qt-dim">figures for ${esc(per)} · click a card to filter the pipeline to that person</span></div>
+      <div class="qt-team">${team.map(t => {
+        const s = t.s;
+        const since = s.lastRaised ? days(s.lastRaised, new Date()) : null;
+        const quietFlag = since != null && since >= 7;
+        const chases = t.rows.reduce((n, r) => n + r.chases, 0);
+        return `<article class="qt-rep-card${state.rep === t.key ? ' sel' : ''}" data-rep="${esc(t.key)}" tabindex="0">
+          <header><div class="qt-rep-id">${avatar(t.name)}<div><div class="qt-rep-name">${esc(repName(t.name))}</div>
+            <div class="qt-rep-sub${quietFlag ? ' warn' : ''}">${since == null ? 'No quotes' : 'Last quote ' + (since <= 0 ? 'today' : since === 1 ? 'yesterday' : since + ' days ago')}${quietFlag ? ' ⚠' : ''}</div></div></div>
+            ${ringHtml(s.rate)}</header>
+          <div class="qt-rep-grid">
+            <div><b>${s.raised.length}</b><span>quotes raised</span></div>
+            <div><b>${gbp(s.raisedValue)}</b><span>value quoted</span></div>
+            <div><b>${s.won.length}</b><span>converted</span></div>
+            <div><b>${gbp(s.wonValue)}</b><span>won value</span></div>
+            <div><b>${s.open.length}</b><span>open now</span></div>
+            <div class="${s.chase.length + s.cold.length ? 'warn' : ''}"><b>${s.chase.length + s.cold.length}</b><span>need chasing</span></div>
+            <div><b>${s.lost.length}</b><span>lost</span></div>
+            <div><b>${s.avgDays == null ? '—' : s.avgDays < 1 ? '<1d' : Math.round(s.avgDays) + 'd'}</b><span>avg to convert</span></div>
+          </div>
+          <footer><span>${s.valueRate == null ? 'No decided quotes yet' : 'By value: ' + Math.round(s.valueRate * 100) + '% won'}</span><span>${plural(chases, 'chase')} logged</span></footer>
+        </article>`;
+      }).join('')}</div>`;
+  }
+
+  function destroyChart() { if (state.chart) { state.chart.destroy(); state.chart = null; } }
+  function drawChart() {
+    const cv = $('qtChart');
+    if (!cv || typeof Chart === 'undefined') return;
+    const rows = state.rows.filter(r => !state.q || r.search.includes(state.q));
+    const mon = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.getTime(); };
+    const thisWeek = mon(new Date());
+    const weeks = Array.from({ length: 12 }, (_, i) => thisWeek - (11 - i) * 7 * DAY);
+    const raised = weeks.map(() => 0), conv = weeks.map(() => 0);
+    rows.forEach(r => {
+      const i = weeks.indexOf(mon(r.base)); if (i >= 0) raised[i]++;
+      if (r.convertedAt) { const j = weeks.indexOf(mon(r.convertedAt)); if (j >= 0) conv[j]++; }
+    });
+    state.chart = new Chart(cv, {
+      type: 'bar',
+      data: {
+        labels: weeks.map(w => new Date(w).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })),
+        datasets: [
+          { label: 'Raised', data: raised, backgroundColor: 'rgba(56,189,248,.75)', borderRadius: 4 },
+          { label: 'Converted', data: conv, backgroundColor: 'rgba(34,197,94,.85)', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#cbd5e1', boxWidth: 10 } } },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: '#94a3b8', precision: 0 }, grid: { color: 'rgba(255,255,255,.06)' } }
+        }
+      }
+    });
+  }
+
+  // ───────────────────────── detail drawer ─────────────────────────
+  function openDrawer(id) {
+    const r = state.rows.find(x => x.id === id);
+    if (!r) return;
+    state.openId = id;
+    const d = $('qtDrawer');
+    d.classList.add('open');
+    document.body.classList.add('qt-lock');
+    $('qtSheet').innerHTML = drawerHtml(r, null);
+    $('qtSheet').focus();
+    loadTimeline(id);
+  }
+  function closeDrawer() {
+    state.openId = null;
+    const d = $('qtDrawer'); if (d) d.classList.remove('open');
+    document.body.classList.remove('qt-lock');
+  }
+  function refreshDrawerHead() {
+    const r = state.rows.find(x => x.id === state.openId);
+    if (!r) return;
+    const tl = $('qtTimeline') ? $('qtTimeline').innerHTML : null;
+    const form = { m: ($('qtMethod') || {}).value, n: ($('qtChaseNote') || {}).value };
+    $('qtSheet').innerHTML = drawerHtml(r, tl);
+    if ($('qtMethod') && form.m) $('qtMethod').value = form.m;
+    if ($('qtChaseNote') && form.n) $('qtChaseNote').value = form.n;
+  }
+
+  function drawerHtml(r, timelineHtml) {
+    const st = STAGES[r.stage];
+    const open = ['fresh', 'chase', 'cold'].includes(r.stage);
+    const fact = (k, v) => `<div><span>${esc(k)}</span><b>${v}</b></div>`;
+    return `<div class="qt-d-top" style="--c:${st.color}">
+        <div><div class="qt-d-eyebrow">Quote #${esc(r.id)}</div><h3>${esc(r.customer)}</h3>
+          <span class="qt-chip" style="--c:${st.color}">${st.icon} ${esc(st.label)}</span>${r.lostReason ? ` <span class="qt-dim">${esc(r.lostReason)}</span>` : ''}</div>
+        <button type="button" class="qt-x" data-act="close" aria-label="Close">×</button></div>
+      <div class="qt-d-val">${gbp(r.value, true)}<span>quoted${r.currentValue && Math.abs(r.currentValue - r.value) > 0.005 ? ' · now ' + gbp(r.currentValue, true) : ''}</span></div>
+      <div class="qt-facts">
+        ${fact('Salesperson', `<span class="qt-rep">${avatar(r.rep)}${esc(repName(r.rep))}</span>`)}
+        ${fact('Raised', esc(fmtDateTime(r.base)) + (r.trueDate ? '' : ' <span class="qt-dim" title="Date we first saw this quote">(first seen)</span>'))}
+        ${fact('Order status now', esc(STATUS[r.status] || 'Status ' + r.status))}
+        ${open ? fact('Quiet for', esc(quiet(r.idle))) : ''}
+        ${r.convertedAt ? fact('Converted', esc(fmtDateTime(r.convertedAt))) : ''}
+        ${r.daysToClose != null ? fact('Days to convert', r.daysToClose < 1 ? 'Same day' : Math.round(r.daysToClose)) : ''}
+        ${r.cancelledAt ? fact('Cancelled', esc(fmtDateTime(r.cancelledAt))) : ''}
+        ${fact('Garments', r.qty != null ? esc(r.qty) : '—')}
+        ${fact('Decoration', r.processes.length ? esc(r.processes.join(', ')) : '—')}
+        ${fact('Shipping', esc(r.shipping || '—'))}
+        ${fact('Due', esc(fmtDate(r.dueDate)))}
+        ${fact('Store', esc(r.store || '—'))}
+        ${fact('Chases', String(r.chases))}
+      </div>
+      ${open ? `<form class="qt-chase" id="qtChaseForm" data-id="${esc(r.id)}">
+        <h4>Log a chase</h4>
+        <div class="qt-chase-row">
+          <select id="qtMethod" aria-label="How did you chase?"><option value="call">Phone call</option><option value="email">Email</option><option value="visit">Visit</option><option value="other">Other</option></select>
+          <input id="qtChaseNote" type="text" maxlength="300" placeholder="What did they say? (optional)" aria-label="Chase note">
+          <button type="submit" class="qt-btn qt-primary" id="qtChaseBtn">Log chase</button>
+        </div>
+        <p class="qt-dim">Logging a chase resets the quiet clock, so the quote drops back into Hot.</p></form>` : ''}
+      <h4 class="qt-d-h">Timeline</h4>
+      <ol class="qt-timeline" id="qtTimeline">${timelineHtml != null ? timelineHtml : '<li class="qt-dim">Loading…</li>'}</ol>`;
+  }
+
+  async function loadTimeline(id) {
+    let html;
+    try {
+      const [ev, ch] = await Promise.all([
+        client().from('quote_events').select('*').eq('order_id', id).order('created_at', { ascending: true }),
+        client().from('quote_chases').select('*').eq('order_id', id).order('created_at', { ascending: true })
+      ]);
+      if (ev.error) throw ev.error;
+      if (ch.error) throw ch.error;
+      const items = [];
+      (ev.data || []).forEach(e => {
+        const when = new Date(e.created_at);
+        if (e.event === 'quote_seen') items.push({ when, icon: '📝', text: e.from_status ? 'Back to quote status' : 'Quote first seen in DecoNetwork', cls: '' });
+        else if (e.event === 'converted') items.push({ when, icon: '✅', text: 'Converted to an order — ' + (STATUS[e.to_status] || 'status ' + e.to_status), cls: 'good' });
+        else if (e.event === 'cancelled') items.push({ when, icon: '✖', text: 'Cancelled in DecoNetwork', cls: 'bad' });
+      });
+      (ch.data || []).forEach(c => items.push({
+        when: new Date(c.created_at), icon: c.method === 'email' ? '✉️' : c.method === 'visit' ? '🚗' : c.method === 'call' ? '📞' : '💬',
+        text: 'Chased' + (c.method ? ' by ' + c.method : '') + (c.chased_by ? ' · ' + c.chased_by : '') + (c.note ? ' — “' + c.note + '”' : ''), cls: ''
+      }));
+      items.sort((a, b) => b.when - a.when);
+      html = items.length ? items.map(i => `<li class="${i.cls}"><span class="qt-tl-i">${i.icon}</span><div><div>${esc(i.text)}</div><div class="qt-dim">${esc(fmtDateTime(i.when))}</div></div></li>`).join('')
+        : '<li class="qt-dim">No history yet.</li>';
+    } catch (e) {
+      console.error('timeline failed', e);
+      html = '<li class="qt-dim">Couldn\'t load the timeline.</li>';
+    }
+    if (state.openId === id && $('qtTimeline')) $('qtTimeline').innerHTML = html;
+  }
+
+  async function submitChase(form) {
+    const id = form.getAttribute('data-id');
+    const btn = $('qtChaseBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const { error } = await client().rpc('log_quote_chase', { p_order_id: id, p_method: $('qtMethod').value, p_note: $('qtChaseNote').value });
+      if (error) throw error;
+      toast('Chase logged');
+      await load(true);
+      if (state.openId === id) { const r = state.rows.find(x => x.id === id); if (r) { $('qtSheet').innerHTML = drawerHtml(r, null); loadTimeline(id); } }
+    } catch (e) {
+      console.error('chase failed', e);
+      toast('Couldn\'t log the chase: ' + ((e && e.message) || 'unknown error'), true);
+      btn.disabled = false; btn.textContent = 'Log chase';
+    }
+  }
+
+  let toastTimer = null;
+  function toast(msg, bad) {
+    const t = $('qtToast'); if (!t) return;
+    t.textContent = msg; t.className = 'qt-toast show' + (bad ? ' bad' : '');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'qt-toast'; }, 3500);
+  }
+
+  // ───────────────────────── page shell ─────────────────────────
+  function injectStyles() {
+    if ($('qtStyles')) return;
+    const s = document.createElement('style');
+    s.id = 'qtStyles';
+    s.textContent = `
+#quotes .qt-head h2 { margin:0 0 6px; font-size:28px; }
+#quotes .qt-head p { margin:0; color:#94a3b8; font-size:14px; max-width:760px; line-height:1.5; }
+#quotes .qt-kpis { display:grid; grid-template-columns:repeat(6,1fr); margin:22px 0 14px; border:1px solid rgba(255,255,255,.1); border-radius:14px; background:rgba(15,23,42,.82); overflow:hidden; }
+#quotes .qt-kpi { padding:16px 18px; border-right:1px solid rgba(255,255,255,.08); min-width:0; }
+#quotes .qt-kpi:last-child { border-right:none; }
+#quotes .qt-kpi-n { font-size:28px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; }
+#quotes .qt-kpi-attn .qt-kpi-n { color:#fbbf24; }
+#quotes .qt-kpi-good .qt-kpi-n { color:#4ade80; }
+#quotes .qt-kpi-l { font-size:12.5px; color:#cbd5e1; margin-top:8px; }
+#quotes .qt-kpi-s { font-size:11px; color:#64748b; margin-top:2px; }
+#quotes .qt-note { margin:0 0 14px; padding:10px 14px; border-radius:10px; border:1px solid rgba(56,189,248,.3); background:rgba(56,189,248,.07); color:#bae6fd; font-size:12.5px; line-height:1.5; }
+#quotes .qt-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
+#quotes .qt-tabs { display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:260px; }
+#quotes .qt-tab { padding:8px 14px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:transparent; color:#94a3b8; font-size:12.5px; font-weight:600; cursor:pointer; }
+#quotes .qt-tab:hover { color:#e2e8f0; border-color:rgba(255,255,255,.25); }
+#quotes .qt-tab.active { background:rgba(56,189,248,.14); border-color:rgba(56,189,248,.5); color:#e0f2fe; }
+#quotes .qt-tab-n { display:inline-block; min-width:18px; margin-left:6px; padding:1px 6px; border-radius:9px; background:rgba(255,255,255,.08); font-size:11px; text-align:center; font-variant-numeric:tabular-nums; }
+#quotes .qt-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+#quotes .qt-seg { display:inline-flex; border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; }
+#quotes .qt-seg button { padding:7px 12px; background:transparent; border:none; border-right:1px solid rgba(255,255,255,.1); color:#94a3b8; font-size:12px; font-weight:600; cursor:pointer; }
+#quotes .qt-seg button:last-child { border-right:none; }
+#quotes .qt-seg button.on { background:rgba(56,189,248,.16); color:#e0f2fe; }
+#quotes select, #quotes input[type=search] { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(15,23,42,.9); color:#e2e8f0; font-size:12.5px; }
+#quotes input[type=search] { min-width:200px; }
+#quotes .qt-btn { padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; border:1px solid rgba(255,255,255,.14); background:transparent; color:#e2e8f0; cursor:pointer; white-space:nowrap; }
+#quotes .qt-btn:hover { background:rgba(255,255,255,.06); }
+#quotes .qt-btn:disabled { opacity:.5; cursor:default; }
+#quotes .qt-primary, .qt-drawer .qt-primary { background:linear-gradient(135deg,#38bdf8,#6366f1); border:none; color:#fff; }
+#quotes .qt-primary:hover, .qt-drawer .qt-primary:hover { background:linear-gradient(135deg,#38bdf8,#6366f1); opacity:.9; }
+#quotes :focus-visible, .qt-drawer :focus-visible { outline:2px solid #38bdf8; outline-offset:2px; }
+#quotes .qt-empty { padding:50px 20px; text-align:center; color:#94a3b8; border:1px dashed rgba(255,255,255,.14); border-radius:14px; line-height:2; }
+#quotes .qt-dim { color:#64748b; font-size:12px; }
+#quotes .qt-board { width:0; min-width:100%; display:grid; grid-template-columns:repeat(5,minmax(205px,1fr)); gap:12px; overflow-x:auto; padding-bottom:10px; align-items:start; }
+#quotes .qt-col { background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); border-top:3px solid var(--c); border-radius:14px; min-width:205px; }
+#quotes .qt-col-h { padding:12px 14px 10px; border-bottom:1px solid rgba(255,255,255,.06); position:sticky; top:0; }
+#quotes .qt-col-t { font-weight:700; font-size:13.5px; }
+#quotes .qt-col-n { margin-left:8px; padding:1px 8px; border-radius:9px; background:rgba(255,255,255,.08); font-size:11px; font-variant-numeric:tabular-nums; }
+#quotes .qt-col-s { font-size:11px; color:#64748b; margin-top:4px; }
+#quotes .qt-col-b { padding:10px; display:flex; flex-direction:column; gap:8px; max-height:68vh; overflow-y:auto; }
+#quotes .qt-col-empty { padding:24px 0; text-align:center; color:#475569; font-size:12px; }
+#quotes .qt-card { padding:11px 12px; border-radius:11px; background:rgba(30,41,59,.7); border:1px solid rgba(255,255,255,.07); border-left:3px solid var(--c); cursor:pointer; transition:transform .15s, border-color .15s, background .15s; }
+#quotes .qt-card:hover { transform:translateY(-2px); background:rgba(51,65,85,.7); border-color:rgba(255,255,255,.18); border-left-color:var(--c); }
+#quotes .qt-card-top { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+#quotes .qt-card-cust { font-weight:600; font-size:13px; line-height:1.3; overflow-wrap:anywhere; }
+#quotes .qt-card-val { font-weight:700; font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+#quotes .qt-card-mid { display:flex; align-items:center; gap:7px; margin:8px 0; font-size:11.5px; color:#94a3b8; }
+#quotes .qt-card-rep { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#quotes .qt-card-id { color:#64748b; font-variant-numeric:tabular-nums; }
+#quotes .qt-bar { height:4px; border-radius:2px; background:rgba(255,255,255,.08); overflow:hidden; }
+#quotes .qt-bar i { display:block; height:100%; border-radius:2px; }
+#quotes .qt-card-foot { display:flex; justify-content:space-between; gap:8px; margin-top:7px; font-size:11px; color:#94a3b8; }
+.qt-av { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; font-size:10px; font-weight:700; color:#fff; flex:none; }
+#quotes .qt-rep { display:inline-flex; align-items:center; gap:8px; }
+.qt-chip { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11.5px; font-weight:600; color:var(--c); background:color-mix(in srgb, var(--c) 14%, transparent); border:1px solid color-mix(in srgb, var(--c) 40%, transparent); }
+#quotes .qt-tablewrap { width:0; min-width:100%; overflow-x:auto; border:1px solid rgba(255,255,255,.1); border-radius:14px; background:rgba(15,23,42,.6); }
+#quotes .qt-table { width:100%; border-collapse:collapse; font-size:13px; }
+#quotes .qt-table th { text-align:left; padding:11px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; border-bottom:1px solid rgba(255,255,255,.1); cursor:pointer; white-space:nowrap; user-select:none; }
+#quotes .qt-table th.sorted { color:#e0f2fe; }
+#quotes .qt-table td { padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.05); white-space:nowrap; }
+#quotes .qt-table .r { text-align:right; font-variant-numeric:tabular-nums; }
+#quotes .qt-table tbody tr { cursor:pointer; }
+#quotes .qt-table tbody tr:hover { background:rgba(56,189,248,.07); }
+#quotes .qt-tfoot { margin-top:10px; font-size:12px; color:#94a3b8; text-align:right; }
+#quotes .qt-chartbox { border:1px solid rgba(255,255,255,.1); border-radius:14px; background:rgba(15,23,42,.6); padding:16px 18px; margin-bottom:22px; }
+#quotes .qt-chart-h, #quotes .qt-team-h { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; margin-bottom:10px; }
+#quotes .qt-chart-h h3, #quotes .qt-team-h h3 { margin:0; font-size:15px; }
+#quotes .qt-chart { position:relative; height:220px; }
+#quotes .qt-team { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:14px; }
+#quotes .qt-rep-card { padding:16px; border-radius:16px; background:rgba(15,23,42,.82); border:1px solid rgba(255,255,255,.1); cursor:pointer; transition:border-color .15s, transform .15s; }
+#quotes .qt-rep-card:hover { border-color:rgba(56,189,248,.5); transform:translateY(-2px); }
+#quotes .qt-rep-card.sel { border-color:#38bdf8; box-shadow:0 0 0 1px #38bdf8 inset; }
+#quotes .qt-rep-card header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+#quotes .qt-rep-id { display:flex; align-items:center; gap:10px; min-width:0; }
+#quotes .qt-rep-id .qt-av { width:38px; height:38px; font-size:14px; }
+#quotes .qt-rep-name { font-weight:700; font-size:15px; }
+#quotes .qt-rep-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+#quotes .qt-rep-sub.warn, #quotes .qt-rep-grid .warn b { color:#fbbf24; }
+#quotes .qt-ring { --p:0; width:68px; height:68px; border-radius:50%; flex:none; display:grid; place-items:center; background:conic-gradient(#22c55e calc(var(--p) * 1%), rgba(255,255,255,.09) 0); }
+#quotes .qt-ring > div { width:54px; height:54px; border-radius:50%; background:#0f172a; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.1; }
+#quotes .qt-ring b { font-size:15px; }
+#quotes .qt-ring span { font-size:8px; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; }
+#quotes .qt-rep-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px 8px; }
+#quotes .qt-rep-grid b { display:block; font-size:15px; font-variant-numeric:tabular-nums; }
+#quotes .qt-rep-grid span { font-size:10.5px; color:#64748b; }
+#quotes .qt-rep-card footer { display:flex; justify-content:space-between; gap:8px; margin-top:14px; padding-top:11px; border-top:1px solid rgba(255,255,255,.07); font-size:11.5px; color:#94a3b8; }
+#quotes .qt-toast, .qt-toast { position:fixed; left:50%; bottom:26px; transform:translate(-50%,20px); opacity:0; pointer-events:none; padding:11px 18px; border-radius:10px; background:#0f172a; border:1px solid rgba(34,197,94,.5); color:#dcfce7; font-size:13px; z-index:2000; transition:all .2s; }
+.qt-toast.show { opacity:1; transform:translate(-50%,0); }
+.qt-toast.bad { border-color:rgba(248,113,113,.6); color:#fecaca; }
+.qt-nav-badge { margin-left:8px; padding:1px 8px; border-radius:9px; background:#fbbf24; color:#1e293b; font-size:11px; font-weight:700; }
+body.qt-lock { overflow:hidden; }
+.qt-drawer { position:fixed; inset:0; z-index:1500; visibility:hidden; }
+.qt-drawer.open { visibility:visible; }
+.qt-drawer .qt-backdrop { position:absolute; inset:0; background:rgba(2,6,23,.65); backdrop-filter:blur(3px); opacity:0; transition:opacity .2s; }
+.qt-drawer.open .qt-backdrop { opacity:1; }
+.qt-drawer .qt-sheet { position:absolute; top:0; right:0; bottom:0; width:min(480px,100%); background:#0b1220; border-left:1px solid rgba(255,255,255,.12); padding:22px; overflow-y:auto; transform:translateX(100%); transition:transform .25s ease; outline:none; color:#f8fafc; }
+.qt-drawer.open .qt-sheet { transform:none; }
+.qt-drawer .qt-d-top { display:flex; justify-content:space-between; gap:12px; border-top:3px solid var(--c); padding-top:14px; margin:-22px -22px 0; padding:18px 22px 0; }
+.qt-drawer .qt-d-eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; }
+.qt-drawer h3 { margin:4px 0 10px; font-size:21px; line-height:1.25; overflow-wrap:anywhere; }
+.qt-drawer .qt-x { width:34px; height:34px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:transparent; color:#e2e8f0; font-size:20px; cursor:pointer; flex:none; }
+.qt-drawer .qt-d-val { margin:16px 0 18px; font-size:32px; font-weight:700; font-variant-numeric:tabular-nums; }
+.qt-drawer .qt-d-val span { margin-left:10px; font-size:12px; color:#94a3b8; font-weight:400; }
+.qt-drawer .qt-facts { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.07); border-radius:12px; overflow:hidden; }
+.qt-drawer .qt-facts > div { background:#0f172a; padding:11px 13px; min-width:0; }
+.qt-drawer .qt-facts > div > span { display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:3px; }
+.qt-drawer .qt-facts b { font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+.qt-drawer .qt-rep { display:inline-flex; align-items:center; gap:8px; }
+.qt-drawer .qt-chase { margin-top:20px; padding:14px; border-radius:12px; background:rgba(56,189,248,.07); border:1px solid rgba(56,189,248,.25); }
+.qt-drawer .qt-chase h4, .qt-drawer .qt-d-h { margin:0 0 10px; font-size:13px; }
+.qt-drawer .qt-d-h { margin:22px 0 10px; }
+.qt-drawer .qt-chase-row { display:flex; gap:8px; flex-wrap:wrap; }
+.qt-drawer .qt-chase select, .qt-drawer .qt-chase input { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:#0f172a; color:#e2e8f0; font-size:13px; }
+.qt-drawer .qt-chase input { flex:1; min-width:140px; }
+.qt-drawer .qt-btn { padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; color:#e2e8f0; border:1px solid rgba(255,255,255,.14); background:transparent; }
+.qt-drawer .qt-btn:disabled { opacity:.5; }
+.qt-drawer .qt-dim { color:#64748b; font-size:12px; }
+.qt-drawer .qt-chase p { margin:10px 0 0; }
+.qt-drawer .qt-timeline { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
+.qt-drawer .qt-timeline li { display:flex; gap:11px; font-size:13px; line-height:1.4; }
+.qt-drawer .qt-timeline li.good { color:#86efac; } .qt-drawer .qt-timeline li.bad { color:#fca5a5; }
+.qt-drawer .qt-tl-i { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.07); display:grid; place-items:center; font-size:12px; flex:none; }
+@media (max-width: 1100px) { #quotes .qt-kpis { grid-template-columns:repeat(3,1fr); } #quotes .qt-kpi:nth-child(3n) { border-right:none; } #quotes .qt-kpi:nth-child(-n+3) { border-bottom:1px solid rgba(255,255,255,.08); } }
+@media (max-width: 640px) { #quotes .qt-kpis { grid-template-columns:repeat(2,1fr); } #quotes .qt-kpi:nth-child(3n) { border-right:1px solid rgba(255,255,255,.08); } #quotes .qt-kpi:nth-child(2n) { border-right:none; } #quotes .qt-kpi { border-bottom:1px solid rgba(255,255,255,.08); }
+  #quotes .qt-board { grid-template-columns:repeat(5,82vw); scroll-snap-type:x mandatory; } #quotes .qt-col { scroll-snap-align:start; }
+  #quotes input[type=search] { min-width:0; flex:1; } .qt-drawer .qt-facts { grid-template-columns:1fr; } }
+@media (prefers-reduced-motion: reduce) { #quotes .qt-card, #quotes .qt-rep-card, .qt-drawer .qt-sheet, .qt-drawer .qt-backdrop { transition:none; } }
+`;
+    document.head.appendChild(s);
+  }
+
+  function installPage() {
+    if ($(PAGE_ID)) return true;
+    const anchorBtn = document.querySelector('.nav-link[data-page="salesinvoices"]') || document.querySelector('.nav-link[data-page]');
+    const anchorPage = $('salesinvoices') || document.querySelector('.dashboard-page');
+    if (!anchorBtn || !anchorPage) return false;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'nav-link';
+    btn.dataset.page = PAGE_ID;
+    btn.innerHTML = '<span>🎯 Quotes</span>';
+    anchorBtn.insertAdjacentElement('afterend', btn);
+
+    const sec = document.createElement('section');
+    sec.id = PAGE_ID;
+    sec.className = 'dashboard-page';
+    sec.innerHTML = `
+      <div class="qt-head">
+        <p class="eyebrow">Sales</p>
+        <h2>Quotes</h2>
+        <p>Every DecoNetwork quote, from the moment it is raised to the moment it becomes an order. Anything quiet for 3 days needs chasing, and a quote untouched for 30 days is treated as lost. Logging a chase resets the clock.</p>
+      </div>
+      <div class="qt-kpis" id="qtKpis"></div>
+      <div class="qt-note" id="qtNote" hidden></div>
+      <div class="qt-toolbar"><div class="qt-tabs" id="qtTabs" role="tablist"></div></div>
+      <div class="qt-tools">
+        <div class="qt-seg" id="qtPeriod" role="group" aria-label="Period"></div>
+        <select id="qtRep" aria-label="Salesperson"><option value="">Everyone</option></select>
+        <input type="search" id="qtSearch" placeholder="Search customer, order or salesperson" aria-label="Search quotes">
+        <button type="button" class="qt-btn" data-act="reload">Refresh</button>
+      </div>
+      <div id="qtBody"><div class="qt-empty">Loading quotes…</div></div>
+      <div class="qt-toast" id="qtToast" role="status"></div>`;
+    anchorPage.parentElement.appendChild(sec);
+
+    const drawer = document.createElement('div');
+    drawer.className = 'qt-drawer';
+    drawer.id = 'qtDrawer';
+    drawer.setAttribute('role', 'dialog');
+    drawer.setAttribute('aria-modal', 'true');
+    drawer.setAttribute('aria-label', 'Quote details');
+    drawer.innerHTML = '<div class="qt-backdrop" data-act="close"></div><div class="qt-sheet" id="qtSheet" tabindex="-1"></div>';
+    document.body.appendChild(drawer);
+
+    // app.js binds its nav buttons once at startup, so it does not know about this page.
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.dashboard-page').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      sec.classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (!state.loaded) load(); else load(true);
+      clearInterval(state.timer);
+      state.timer = setInterval(() => { if (sec.classList.contains('active') && !document.hidden) load(true); }, REFRESH_MS);
+    });
+    document.addEventListener('click', e => {
+      const other = e.target.closest('.nav-link');
+      if (other && other !== btn) { btn.classList.remove('active'); sec.classList.remove('active'); closeDrawer(); clearInterval(state.timer); }
+    }, true);
+
+    // page events
+    sec.addEventListener('click', e => {
+      const act = e.target.closest('[data-act]');
+      if (act && act.dataset.act === 'reload') { load(); return; }
+      const tab = e.target.closest('[data-tab]');
+      if (tab) { state.tab = tab.dataset.tab; renderControls(); renderBody(); return; }
+      const per = e.target.closest('[data-period]');
+      if (per) { state.period = per.dataset.period; renderAll(); return; }
+      const th = e.target.closest('th[data-sort]');
+      if (th) {
+        const k = th.dataset.sort;
+        state.sort = { tab: state.tab, key: k, dir: state.sort.tab === state.tab && state.sort.key === k ? -state.sort.dir : (k === 'customer' || k === 'rep' ? 1 : -1) };
+        renderBody(); return;
+      }
+      const repCard = e.target.closest('[data-rep]');
+      if (repCard) { const k = repCard.dataset.rep; state.rep = state.rep === k ? '' : k; if (state.rep) state.tab = 'pipeline'; renderAll(); return; }
+      const item = e.target.closest('[data-id]');
+      if (item) openDrawer(item.dataset.id);
+    });
+    sec.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const item = e.target.closest('.qt-card[data-id], tr[data-id]');
+      if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
+      const repCard = e.target.closest('.qt-rep-card');
+      if (repCard) { e.preventDefault(); repCard.click(); }
+    });
+    $('qtRep').addEventListener('change', e => { state.rep = e.target.value; renderAll(); });
+    $('qtSearch').addEventListener('input', e => { state.q = e.target.value.trim().toLowerCase(); renderKpis(); renderControls(); renderBody(); });
+
+    drawer.addEventListener('click', e => {
+      if (e.target.closest('[data-act="close"]')) closeDrawer();
+    });
+    drawer.addEventListener('submit', e => {
+      if (e.target.id === 'qtChaseForm') { e.preventDefault(); submitChase(e.target); }
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.openId) closeDrawer(); });
+
+    renderControls();
+    return true;
+  }
+
+  function boot() {
+    injectStyles();
+    if (!installPage()) setTimeout(boot, 300);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+  window.QuotesPage = { reload: () => load(), state };
+})();
