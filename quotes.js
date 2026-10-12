@@ -53,8 +53,20 @@
     rows: [], loaded: false, loading: false, error: null,
     tab: 'pipeline', period: 'all', rep: '', q: '',
     sort: { key: 'idle', dir: -1 },
-    chart: null, timer: null, openId: null
+    chart: null, timer: null, openId: null, animate: true, updatedAt: null
   };
+
+  // remember the last tab / period / salesperson on this device
+  const PREF_KEY = 'atamgo_quotes_prefs';
+  try {
+    const p = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+    if (TABS.some(t => t.key === p.tab)) state.tab = p.tab;
+    if (PERIODS.some(x => x.key === p.period)) state.period = p.period;
+    if (typeof p.rep === 'string') state.rep = p.rep;
+  } catch (e) { /* storage unavailable: defaults are fine */ }
+  function savePrefs() {
+    try { localStorage.setItem(PREF_KEY, JSON.stringify({ tab: state.tab, period: state.period, rep: state.rep })); } catch (e) { /* ignore */ }
+  }
 
   // ───────────────────────── helpers ─────────────────────────
   const $ = id => document.getElementById(id);
@@ -128,7 +140,8 @@
     try {
       const now = new Date();
       state.rows = (await fetchAll()).map(r => enrich(r, now));
-      state.loaded = true; state.error = null;
+      state.loaded = true; state.error = null; state.updatedAt = new Date();
+      if (state.rep && !state.rows.some(r => (r.rep || '__none') === state.rep)) state.rep = '';
     } catch (e) {
       console.error('quotes load failed', e);
       if (!state.loaded) state.error = (e && e.message) || 'Could not load quotes';
@@ -173,7 +186,13 @@
   }
 
   // ───────────────────────── render ─────────────────────────
-  function renderAll() { renderKpis(); renderControls(); renderBody(); updateNavBadge(); if (state.openId) refreshDrawerHead(); }
+  function renderAll() {
+    renderKpis(); renderControls(); renderBody(); updateNavBadge();
+    const u = $('qtUpdated');
+    if (u && state.updatedAt) u.textContent = 'Updated ' + state.updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    state.animate = false;
+    if (state.openId) refreshDrawerHead();
+  }
 
   function updateNavBadge() {
     const btn = document.querySelector('.nav-link[data-page="' + PAGE_ID + '"]');
@@ -186,18 +205,55 @@
     b.title = n + ' quotes need chasing';
   }
 
+  // week buckets built with setDate so they stay aligned across clock changes
+  const weekStart = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.getTime(); };
+  function weekly(rows, n) {
+    const cur = new Date(weekStart(new Date()));
+    const weeks = Array.from({ length: n }, (_, i) => { const d = new Date(cur); d.setDate(d.getDate() - 7 * (n - 1 - i)); return d.getTime(); });
+    const raised = weeks.map(() => 0), conv = weeks.map(() => 0);
+    rows.forEach(r => {
+      let i = weeks.indexOf(weekStart(r.base)); if (i >= 0) raised[i]++;
+      if (r.convertedAt) { i = weeks.indexOf(weekStart(r.convertedAt)); if (i >= 0) conv[i]++; }
+    });
+    return { weeks, raised, conv };
+  }
+
+  function spark(vals, color, w, h) {
+    w = w || 90; h = h || 26;
+    const max = Math.max(1, ...vals), step = vals.length > 1 ? w / (vals.length - 1) : w;
+    const pts = vals.map((v, i) => [i * step, h - 2 - (v / max) * (h - 6)]);
+    const line = pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    return `<svg class="qt-spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><path d="${line} L${w} ${h} L0 ${h} Z" fill="${color}" opacity=".16"/><path d="${line}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  }
+
+  function countUp(el) {
+    if (!state.animate || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    el.querySelectorAll('[data-to]').forEach(n => {
+      const to = Number(n.dataset.to); if (!to) return;
+      const t0 = performance.now();
+      (function f(t) { const p = Math.min(1, (t - t0) / 700); n.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(f); })(t0);
+    });
+  }
+
   function renderKpis() {
     const el = $('qtKpis'); if (!el) return;
-    const s = statsFor(visible());
+    const rows = visible();
+    const s = statsFor(rows);
+    const w = weekly(rows, 8);
     const per = (PERIODS.find(p => p.key === state.period) || {}).label.toLowerCase();
-    const rate = s.rate == null ? '—' : Math.round(s.rate * 100) + '%';
-    el.innerHTML = `
-      <div class="qt-kpi"><div class="qt-kpi-n">${s.open.length}</div><div class="qt-kpi-l">Open quotes</div><div class="qt-kpi-s">${gbp(s.openValue)} on the table</div></div>
-      <div class="qt-kpi qt-kpi-attn"><div class="qt-kpi-n">${s.chase.length + s.cold.length}</div><div class="qt-kpi-l">Need chasing</div><div class="qt-kpi-s">${gbp(s.chase.concat(s.cold).reduce((t, r) => t + r.value, 0))} at risk</div></div>
-      <div class="qt-kpi"><div class="qt-kpi-n">${s.raised.length}</div><div class="qt-kpi-l">Quotes raised</div><div class="qt-kpi-s">${gbp(s.raisedValue)} · ${esc(per)}</div></div>
-      <div class="qt-kpi qt-kpi-good"><div class="qt-kpi-n">${s.won.length}</div><div class="qt-kpi-l">Converted</div><div class="qt-kpi-s">${gbp(s.wonValue)} · ${esc(per)}</div></div>
-      <div class="qt-kpi"><div class="qt-kpi-n">${rate}</div><div class="qt-kpi-l">Conversion rate</div><div class="qt-kpi-s">${s.closed ? `${s.won.length} won of ${s.closed} decided` : 'nothing decided yet'}</div></div>
-      <div class="qt-kpi"><div class="qt-kpi-n">${s.avgDays == null ? '—' : s.avgDays < 1 ? '<1d' : Math.round(s.avgDays) + 'd'}</div><div class="qt-kpi-l">Avg days to convert</div><div class="qt-kpi-s">raised → order</div></div>`;
+    const needs = s.chase.concat(s.cold);
+    const tiles = [
+      { n: s.open.length, label: 'Open quotes', sub: gbp(s.openValue) + ' on the table' },
+      { n: needs.length, label: 'Need chasing', sub: gbp(needs.reduce((t, r) => t + r.value, 0)) + ' at risk', cls: 'qt-kpi-attn' },
+      { n: s.raised.length, label: 'Quotes raised', sub: gbp(s.raisedValue) + ' · ' + per, spark: spark(w.raised, '#38bdf8') },
+      { n: s.won.length, label: 'Converted', sub: gbp(s.wonValue) + ' · ' + per, cls: 'qt-kpi-good', spark: spark(w.conv, '#22c55e') },
+      { txt: s.rate == null ? '—' : Math.round(s.rate * 100) + '%', label: 'Conversion rate', sub: s.closed ? `${s.won.length} won of ${s.closed} decided` : 'nothing decided yet' },
+      { txt: s.avgDays == null ? '—' : s.avgDays < 1 ? '<1d' : Math.round(s.avgDays) + 'd', label: 'Avg days to convert', sub: 'raised → order' }
+    ];
+    el.innerHTML = tiles.map((t, i) => `<div class="qt-kpi ${t.cls || ''}" style="--i:${i}">
+      <div class="qt-kpi-n"${t.n != null ? ` data-to="${t.n}"` : ''}>${t.n != null ? t.n : esc(t.txt)}</div>
+      <div class="qt-kpi-l">${esc(t.label)}</div><div class="qt-kpi-s">${esc(t.sub)}</div>${t.spark || ''}</div>`).join('');
+    countUp(el);
     const note = $('qtNote');
     if (note) {
       const bf = state.rows.some(r => r.backfilled);
@@ -207,6 +263,7 @@
   }
 
   function renderControls() {
+    savePrefs();
     const reps = Array.from(new Set(state.rows.map(r => r.rep || '__none'))).sort((a, b) => repName(a === '__none' ? '' : a).localeCompare(repName(b === '__none' ? '' : b)));
     const sel = $('qtRep');
     if (sel) {
@@ -229,7 +286,10 @@
   function renderBody() {
     const el = $('qtBody'); if (!el) return;
     if (state.error) { el.innerHTML = `<div class="qt-empty">Couldn't load quotes: ${esc(state.error)}<br><button type="button" class="qt-btn" data-act="reload">Try again</button></div>`; return; }
-    if (!state.loaded) { el.innerHTML = '<div class="qt-empty">Loading quotes…</div>'; return; }
+    if (!state.loaded) {
+      el.innerHTML = '<div class="qt-board" aria-busy="true">' + [0, 1, 2, 3, 4].map(() => '<section class="qt-col"><header class="qt-col-h"><div class="qt-sk" style="width:55%;height:14px"></div></header><div class="qt-col-b">' + [0, 1, 2].map(() => '<div class="qt-sk" style="height:88px"></div>').join('') + '</div></section>').join('') + '</div>';
+      return;
+    }
     destroyChart();
     if (state.tab === 'pipeline') el.innerHTML = boardHtml();
     else if (state.tab === 'team') { el.innerHTML = teamHtml(); drawChart(); }
@@ -237,16 +297,18 @@
   }
 
   // ----- pipeline board -----
-  function cardHtml(r) {
+  function cardHtml(r, i) {
     const open = ['fresh', 'chase', 'cold'].includes(r.stage);
     const st = STAGES[r.stage];
     const pct = Math.min(100, Math.round(r.idle / LOST_DAYS * 100));
+    const needsChase = r.stage === 'chase' || r.stage === 'cold';
     let foot;
     if (open) foot = `<div class="qt-bar" title="${r.idle} of ${LOST_DAYS} days before this is treated as lost"><i style="width:${pct}%;background:${st.color}"></i></div>
-      <div class="qt-card-foot"><span>Quiet ${esc(quiet(r.idle))}</span><span>${r.chases ? plural(r.chases, 'chase') : 'not chased'}</span></div>`;
+      <div class="qt-card-foot"><span>Quiet ${esc(quiet(r.idle))}</span><span>${r.chases ? plural(r.chases, 'chase') : 'not chased'}</span></div>
+      ${needsChase ? `<button type="button" class="qt-quick" data-quick="${esc(r.id)}" title="Log a phone chase now">📞 Mark chased</button>` : ''}`;
     else if (r.stage === 'won') foot = `<div class="qt-card-foot"><span>${r.convertedAt ? 'Converted ' + esc(fmtDate(r.convertedAt)) : 'Converted'}</span><span>${r.daysToClose != null ? (r.daysToClose < 1 ? 'same day' : Math.round(r.daysToClose) + 'd to close') : ''}</span></div>`;
     else foot = `<div class="qt-card-foot"><span>${esc(r.lostReason || 'Lost')}</span><span>${esc(fmtDate(r.closedAt))}</span></div>`;
-    return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color}">
+    return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
       <div class="qt-card-top"><span class="qt-card-cust">${esc(r.customer)}</span><span class="qt-card-val">${gbp(r.value)}</span></div>
       <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span></div>
       ${foot}</article>`;
@@ -263,7 +325,24 @@
         : (a, b) => b.idle - a.idle || b.value - a.value);
       return { k, items, total: items.reduce((s, r) => s + r.value, 0) };
     });
-    return `<div class="qt-board">${cols.map(c => {
+
+    // where the open money is sitting
+    const openCols = cols.slice(0, 3);
+    const openTotal = openCols.reduce((s, c) => s + c.total, 0);
+    const funnel = openTotal > 0 ? `<div class="qt-funnel-box">
+        <div class="qt-funnel" role="img" aria-label="Open quote value by stage">${openCols.filter(c => c.total > 0).map(c => `<div class="qt-fseg" style="flex:${Math.max(c.total, openTotal * 0.05)};--c:${STAGES[c.k].color}" title="${esc(STAGES[c.k].label)}: ${gbp(c.total)}"><span>${gbp(c.total)}</span></div>`).join('')}</div>
+        <div class="qt-flegend">${openCols.map(c => `<span style="--c:${STAGES[c.k].color}"><i></i>${esc(STAGES[c.k].label)} · ${plural(c.items.length, 'quote')}</span>`).join('')}</div></div>` : '';
+
+    // the quotes most worth a phone call today
+    const urgent = rows.filter(r => r.stage === 'chase' || r.stage === 'cold')
+      .sort((a, b) => b.value * (1 + b.idle / 14) - a.value * (1 + a.idle / 14)).slice(0, 4);
+    const first = urgent.length ? `<section class="qt-first"><div class="qt-first-h"><h3>⚡ Chase these first</h3><span class="qt-dim">biggest quotes that have gone quiet</span></div>
+      <div class="qt-first-row">${urgent.map((r, i) => `<article class="qt-first-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${STAGES[r.stage].color};--i:${i}">
+        <div class="qt-first-val">${gbp(r.value)}</div><div class="qt-first-cust">${esc(r.customer)}</div>
+        <div class="qt-first-meta">${avatar(r.rep)}<span>${esc(repName(r.rep))}</span><b>${esc(quiet(r.idle))} quiet</b></div>
+        <button type="button" class="qt-quick" data-quick="${esc(r.id)}">📞 Mark chased</button></article>`).join('')}</div></section>` : '';
+
+    return first + funnel + `<div class="qt-board">${cols.map(c => {
       const st = STAGES[c.k];
       return `<section class="qt-col" style="--c:${st.color}">
         <header class="qt-col-h"><div><span class="qt-col-t">${st.icon} ${esc(st.label)}</span><span class="qt-col-n">${c.items.length}</span></div>
@@ -335,16 +414,21 @@
     const team = teamStats();
     if (!team.length) return '<div class="qt-empty">No quotes yet.</div>';
     const per = (PERIODS.find(p => p.key === state.period) || {}).label.toLowerCase();
+    const ranked = team.filter(t => t.key !== '__none' && t.s.won.length).sort((a, b) => b.s.wonValue - a.s.wonValue).map(t => t.key);
+    const medal = k => { const i = ranked.indexOf(k); return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''; };
     return `<div class="qt-chartbox"><div class="qt-chart-h"><h3>Weekly activity</h3><span class="qt-dim">quotes raised vs converted, last 12 weeks</span></div>
         <div class="qt-chart"><canvas id="qtChart" role="img" aria-label="Quotes raised and converted per week"></canvas></div></div>
       <div class="qt-team-h"><h3>Salespeople</h3><span class="qt-dim">figures for ${esc(per)} · click a card to filter the pipeline to that person</span></div>
-      <div class="qt-team">${team.map(t => {
+      <div class="qt-team">${team.map((t, idx) => {
         const s = t.s;
         const since = s.lastRaised ? days(s.lastRaised, new Date()) : null;
         const quietFlag = since != null && since >= 7;
         const chases = t.rows.reduce((n, r) => n + r.chases, 0);
-        return `<article class="qt-rep-card${state.rep === t.key ? ' sel' : ''}" data-rep="${esc(t.key)}" tabindex="0">
-          <header><div class="qt-rep-id">${avatar(t.name)}<div><div class="qt-rep-name">${esc(repName(t.name))}</div>
+        const wk = weekly(t.rows, 12);
+        const tot = s.won.length + s.open.length + s.lost.length;
+        const m = medal(t.key);
+        return `<article class="qt-rep-card${state.rep === t.key ? ' sel' : ''}" data-rep="${esc(t.key)}" tabindex="0" style="--h:${hue(t.name)};--i:${Math.min(idx, 8)}">
+          <header><div class="qt-rep-id">${avatar(t.name)}<div><div class="qt-rep-name">${esc(repName(t.name))}${m ? ` <span class="qt-medal" title="Rank by converted value">${m}</span>` : ''}</div>
             <div class="qt-rep-sub${quietFlag ? ' warn' : ''}">${since == null ? 'No quotes' : 'Last quote ' + (since <= 0 ? 'today' : since === 1 ? 'yesterday' : since + ' days ago')}${quietFlag ? ' ⚠' : ''}</div></div></div>
             ${ringHtml(s.rate)}</header>
           <div class="qt-rep-grid">
@@ -357,6 +441,9 @@
             <div><b>${s.lost.length}</b><span>lost</span></div>
             <div><b>${s.avgDays == null ? '—' : s.avgDays < 1 ? '<1d' : Math.round(s.avgDays) + 'd'}</b><span>avg to convert</span></div>
           </div>
+          ${tot ? `<div class="qt-split" title="${s.won.length} converted · ${s.open.length} open · ${s.lost.length} lost">
+            ${s.won.length ? `<i style="flex:${s.won.length};background:#22c55e"></i>` : ''}${s.open.length ? `<i style="flex:${s.open.length};background:#38bdf8"></i>` : ''}${s.lost.length ? `<i style="flex:${s.lost.length};background:#64748b"></i>` : ''}</div>` : ''}
+          <div class="qt-spark-row">${spark(wk.raised, 'hsl(' + hue(t.name) + ' 70% 62%)', 150, 30)}<span>quotes raised per week</span></div>
           <footer><span>${s.valueRate == null ? 'No decided quotes yet' : 'By value: ' + Math.round(s.valueRate * 100) + '% won'}</span><span>${plural(chases, 'chase')} logged</span></footer>
         </article>`;
       }).join('')}</div>`;
@@ -366,22 +453,14 @@
   function drawChart() {
     const cv = $('qtChart');
     if (!cv || typeof Chart === 'undefined') return;
-    const rows = state.rows.filter(r => !state.q || r.search.includes(state.q));
-    const mon = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.getTime(); };
-    const thisWeek = mon(new Date());
-    const weeks = Array.from({ length: 12 }, (_, i) => thisWeek - (11 - i) * 7 * DAY);
-    const raised = weeks.map(() => 0), conv = weeks.map(() => 0);
-    rows.forEach(r => {
-      const i = weeks.indexOf(mon(r.base)); if (i >= 0) raised[i]++;
-      if (r.convertedAt) { const j = weeks.indexOf(mon(r.convertedAt)); if (j >= 0) conv[j]++; }
-    });
+    const w = weekly(state.rows.filter(r => !state.q || r.search.includes(state.q)), 12);
     state.chart = new Chart(cv, {
       type: 'bar',
       data: {
-        labels: weeks.map(w => new Date(w).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })),
+        labels: w.weeks.map(x => new Date(x).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })),
         datasets: [
-          { label: 'Raised', data: raised, backgroundColor: 'rgba(56,189,248,.75)', borderRadius: 4 },
-          { label: 'Converted', data: conv, backgroundColor: 'rgba(34,197,94,.85)', borderRadius: 4 }
+          { label: 'Raised', data: w.raised, backgroundColor: 'rgba(56,189,248,.75)', borderRadius: 4 },
+          { label: 'Converted', data: w.conv, backgroundColor: 'rgba(34,197,94,.85)', borderRadius: 4 }
         ]
       },
       options: {
@@ -393,6 +472,40 @@
         }
       }
     });
+  }
+
+  // ───────────────────────── actions: quick chase + export ─────────────────────────
+  async function quickChase(id, btn) {
+    const old = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const { error } = await client().rpc('log_quote_chase', { p_order_id: id, p_method: 'call', p_note: '' });
+      if (error) throw error;
+      toast('Chase logged. Back to Hot.');
+      await load(true);
+    } catch (e) {
+      console.error('quick chase failed', e);
+      toast('Couldn\'t log the chase: ' + ((e && e.message) || 'unknown error'), true);
+      btn.disabled = false; btn.textContent = old;
+    }
+  }
+
+  function exportCsv() {
+    const rows = visible();
+    const cell = v => { let t = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
+    const iso = d => d ? d.toISOString().slice(0, 10) : '';
+    const head = ['Order', 'Customer', 'Salesperson', 'Stage', 'Quoted value (GBP)', 'Raised', 'Converted / closed', 'Quiet days', 'Chases', 'Order status now'];
+    const lines = [head.map(cell).join(',')].concat(rows.map(r => [
+      r.id, r.customer, repName(r.rep), STAGES[r.stage].label, r.value.toFixed(2), iso(r.base), iso(r.convertedAt || r.closedAt),
+      ['won', 'lost'].includes(r.stage) ? '' : r.idle, r.chases, STATUS[r.status] || r.status
+    ].map(cell).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'quotes-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast('Exported ' + plural(rows.length, 'quote'));
   }
 
   // ───────────────────────── detail drawer ─────────────────────────
@@ -639,6 +752,46 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-timeline li { display:flex; gap:11px; font-size:13px; line-height:1.4; }
 .qt-drawer .qt-timeline li.good { color:#86efac; } .qt-drawer .qt-timeline li.bad { color:#fca5a5; }
 .qt-drawer .qt-tl-i { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.07); display:grid; place-items:center; font-size:12px; flex:none; }
+#quotes .qt-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding:22px 24px; border-radius:18px; border:1px solid rgba(255,255,255,.08); background:radial-gradient(120% 140% at 0% 0%, rgba(56,189,248,.16), transparent 55%), radial-gradient(90% 120% at 100% 0%, rgba(99,102,241,.14), transparent 60%), rgba(15,23,42,.55); }
+#quotes .qt-updated { font-size:11.5px; color:#64748b; white-space:nowrap; padding-top:6px; }
+#quotes .qt-kpi { position:relative; animation:qtUp .5s both; animation-delay:calc(var(--i,0) * 60ms); }
+#quotes .qt-kpi .qt-spark { position:absolute; right:14px; top:16px; }
+#quotes .qt-kpi::after { content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:linear-gradient(#38bdf8,transparent); opacity:.0; transition:opacity .2s; }
+#quotes .qt-kpi:hover::after { opacity:.9; }
+@keyframes qtUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+#quotes .qt-card, #quotes .qt-first-card, #quotes .qt-rep-card { animation:qtUp .4s both; animation-delay:calc(var(--i,0) * 40ms); }
+#quotes .qt-card:hover { box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
+#quotes .qt-col-h { background:linear-gradient(180deg, color-mix(in srgb, var(--c) 10%, transparent), transparent); border-radius:12px 12px 0 0; }
+#quotes .qt-quick { margin-top:9px; width:100%; padding:6px 10px; border-radius:8px; border:1px solid color-mix(in srgb, var(--c, #38bdf8) 55%, transparent); background:color-mix(in srgb, var(--c, #38bdf8) 12%, transparent); color:#f1f5f9; font-size:11.5px; font-weight:600; cursor:pointer; }
+#quotes .qt-quick:hover { background:color-mix(in srgb, var(--c, #38bdf8) 26%, transparent); }
+#quotes .qt-quick:disabled { opacity:.6; cursor:default; }
+#quotes .qt-first { margin-bottom:18px; padding:16px 18px; border-radius:16px; border:1px solid rgba(245,158,11,.28); background:linear-gradient(135deg, rgba(245,158,11,.1), rgba(15,23,42,.6) 55%); }
+#quotes .qt-first-h { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; margin-bottom:12px; }
+#quotes .qt-first-h h3 { margin:0; font-size:15px; }
+#quotes .qt-first-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+#quotes .qt-first-card { padding:13px 14px; border-radius:12px; background:rgba(2,6,23,.55); border:1px solid rgba(255,255,255,.08); border-left:3px solid var(--c); cursor:pointer; transition:transform .15s, border-color .15s; }
+#quotes .qt-first-card:hover { transform:translateY(-2px); border-color:rgba(255,255,255,.25); border-left-color:var(--c); }
+#quotes .qt-first-val { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+#quotes .qt-first-cust { font-size:13px; font-weight:600; margin:2px 0 8px; overflow-wrap:anywhere; }
+#quotes .qt-first-meta { display:flex; align-items:center; gap:7px; font-size:11.5px; color:#94a3b8; }
+#quotes .qt-first-meta > span:not(.qt-av) { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#quotes .qt-first-meta b { color:var(--c); font-weight:600; white-space:nowrap; }
+#quotes .qt-funnel-box { margin-bottom:18px; }
+#quotes .qt-funnel { display:flex; gap:4px; height:34px; }
+#quotes .qt-fseg { display:flex; align-items:center; padding:0 12px; min-width:0; border-radius:8px; background:linear-gradient(90deg, color-mix(in srgb, var(--c) 70%, #020617), color-mix(in srgb, var(--c) 45%, #020617)); font-size:12px; font-weight:700; overflow:hidden; white-space:nowrap; animation:qtGrow .7s both; transform-origin:left; }
+@keyframes qtGrow { from { transform:scaleX(0); opacity:0; } to { transform:none; opacity:1; } }
+#quotes .qt-flegend { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; font-size:11.5px; color:#94a3b8; }
+#quotes .qt-flegend i { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:6px; background:var(--c); }
+#quotes .qt-sk { border-radius:10px; background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.1), rgba(255,255,255,.04)); background-size:200% 100%; animation:qtShim 1.3s infinite linear; }
+@keyframes qtShim { from { background-position:200% 0; } to { background-position:-200% 0; } }
+#quotes .qt-rep-card { border-top:3px solid hsl(var(--h,200) 65% 55%); background:linear-gradient(180deg, hsl(var(--h,200) 60% 50% / .07), rgba(15,23,42,.85) 40%); }
+#quotes .qt-medal { font-size:15px; }
+#quotes .qt-split { display:flex; gap:2px; height:6px; border-radius:3px; overflow:hidden; margin-top:14px; }
+#quotes .qt-split i { display:block; }
+#quotes .qt-spark-row { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:11px; color:#64748b; }
+#quotes .qt-spark-row .qt-spark { flex:none; }
+@media (max-width: 640px) { #quotes .qt-head { padding:16px; flex-direction:column; } #quotes .qt-kpi .qt-spark { display:none; } }
+@media (prefers-reduced-motion: reduce) { #quotes *, #quotes *::before, #quotes *::after { animation:none !important; } }
 @media (max-width: 1100px) { #quotes .qt-kpis { grid-template-columns:repeat(3,1fr); } #quotes .qt-kpi:nth-child(3n) { border-right:none; } #quotes .qt-kpi:nth-child(-n+3) { border-bottom:1px solid rgba(255,255,255,.08); } }
 @media (max-width: 640px) { #quotes .qt-kpis { grid-template-columns:repeat(2,1fr); } #quotes .qt-kpi:nth-child(3n) { border-right:1px solid rgba(255,255,255,.08); } #quotes .qt-kpi:nth-child(2n) { border-right:none; } #quotes .qt-kpi { border-bottom:1px solid rgba(255,255,255,.08); }
   #quotes .qt-board { grid-template-columns:repeat(5,82vw); scroll-snap-type:x mandatory; } #quotes .qt-col { scroll-snap-align:start; }
@@ -666,9 +819,12 @@ body.qt-lock { overflow:hidden; }
     sec.className = 'dashboard-page';
     sec.innerHTML = `
       <div class="qt-head">
-        <p class="eyebrow">Sales</p>
-        <h2>Quotes</h2>
-        <p>Every DecoNetwork quote, from the moment it is raised to the moment it becomes an order. Anything quiet for 3 days needs chasing, and a quote untouched for 30 days is treated as lost. Logging a chase resets the clock.</p>
+        <div>
+          <p class="eyebrow">Sales</p>
+          <h2>Quotes</h2>
+          <p>Every DecoNetwork quote, from the moment it is raised to the moment it becomes an order. Anything quiet for 3 days needs chasing, and a quote untouched for 30 days is treated as lost. Logging a chase resets the clock.</p>
+        </div>
+        <div class="qt-updated" id="qtUpdated" aria-live="polite"></div>
       </div>
       <div class="qt-kpis" id="qtKpis"></div>
       <div class="qt-note" id="qtNote" hidden></div>
@@ -678,6 +834,7 @@ body.qt-lock { overflow:hidden; }
         <select id="qtRep" aria-label="Salesperson"><option value="">Everyone</option></select>
         <input type="search" id="qtSearch" placeholder="Search customer, order or salesperson" aria-label="Search quotes">
         <button type="button" class="qt-btn" data-act="reload">Refresh</button>
+        <button type="button" class="qt-btn" data-act="export">⬇ Export CSV</button>
       </div>
       <div id="qtBody"><div class="qt-empty">Loading quotes…</div></div>
       <div class="qt-toast" id="qtToast" role="status"></div>`;
@@ -699,6 +856,7 @@ body.qt-lock { overflow:hidden; }
       btn.classList.add('active');
       sec.classList.add('active');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      state.animate = true;
       if (!state.loaded) load(); else load(true);
       clearInterval(state.timer);
       state.timer = setInterval(() => { if (sec.classList.contains('active') && !document.hidden) load(true); }, REFRESH_MS);
@@ -710,8 +868,11 @@ body.qt-lock { overflow:hidden; }
 
     // page events
     sec.addEventListener('click', e => {
+      const quick = e.target.closest('[data-quick]');
+      if (quick) { e.stopPropagation(); quickChase(quick.dataset.quick, quick); return; }
       const act = e.target.closest('[data-act]');
       if (act && act.dataset.act === 'reload') { load(); return; }
+      if (act && act.dataset.act === 'export') { exportCsv(); return; }
       const tab = e.target.closest('[data-tab]');
       if (tab) { state.tab = tab.dataset.tab; renderControls(); renderBody(); return; }
       const per = e.target.closest('[data-period]');
@@ -729,7 +890,8 @@ body.qt-lock { overflow:hidden; }
     });
     sec.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      const item = e.target.closest('.qt-card[data-id], tr[data-id]');
+      if (e.target.closest('[data-quick]')) return;
+      const item = e.target.closest('.qt-card[data-id], .qt-first-card[data-id], tr[data-id]');
       if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
       const repCard = e.target.closest('.qt-rep-card');
       if (repCard) { e.preventDefault(); repCard.click(); }
