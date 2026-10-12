@@ -230,6 +230,27 @@
       });
 
       initPoTagbox(row);
+
+      // Net / VAT recalculation, and due date following the invoice date.
+      const netEl = document.getElementById('net-' + row.id);
+      const vatEl = document.getElementById('vat-' + row.id);
+      const totEl = document.getElementById('total-' + row.id);
+      const invEl = document.getElementById('invdate-' + row.id);
+      const dueEl = document.getElementById('duedate-' + row.id);
+      const recalc = () => {
+        if (netEl.value === '') { totEl.readOnly = false; return; }
+        totEl.readOnly = true;
+        const t = (parseFloat(netEl.value) || 0) + (parseFloat(vatEl.value) || 0);
+        totEl.value = (Math.round(t * 100) / 100).toFixed(2);
+      };
+      if (netEl && vatEl && totEl) { netEl.addEventListener('input', recalc); vatEl.addEventListener('input', recalc); }
+      let dueTouched = false;
+      if (dueEl) dueEl.addEventListener('input', () => { dueTouched = true; });
+      if (invEl && dueEl) invEl.addEventListener('change', () => {
+        if (dueTouched || !invEl.value) return;
+        const d = new Date(invEl.value + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 30);
+        dueEl.value = d.toISOString().slice(0, 10);
+      });
     });
   }
 
@@ -887,6 +908,39 @@
 
     const siblingsHtml = renderSiblingsHtml(row);
 
+    // ---- Edit area, laid out like the Sales Invoices tab (12 Oct 2026) ----
+    const supplierName = row.final_vendor || row.extracted_vendor || '';
+    const supplierConfirmed = row.xero_contact_status === 'found';
+    const supplierLine = supplierConfirmed
+      ? `<div class="rev-x-current">✅ ${escHtml(supplierName)} <span class="rev-x-hint-inline">confirmed in Xero</span></div>`
+      : `<div class="rev-x-current rev-x-warn">⚠ ${escHtml(supplierName || 'No supplier')} <span class="rev-x-hint-inline">${row.has_supplier_mapping === false ? 'new supplier, not in Xero yet' : 'not confirmed in Xero yet, checked again when this is posted'}</span></div>`;
+
+    // Reference-only view of what the extraction read off the invoice.
+    let extractedLinesHtml = '';
+    try {
+      const items = JSON.parse(row.extracted_line_items || '[]');
+      if (items.length) {
+        extractedLinesHtml = `
+          <div class="rev-x-sublabel">Lines read from the invoice <span class="rev-x-hint-inline">reference only, the bill goes to Xero as one line using the amounts below</span></div>
+          <div class="rev-x-lines">
+            <div class="rev-x-line rev-x-ro rev-x-head"><span>Description</span><span>Qty</span><span>Price</span><span>Total</span></div>
+            ${items.map(li => `<div class="rev-x-line rev-x-ro"><span>${escHtml(li.description || '')}</span><span>${escHtml(li.quantity ?? '')}</span><span>${li.unit_price != null ? fmtMoney(li.unit_price) : ''}</span><span>${li.line_total != null ? fmtMoney(li.line_total) : ''}</span></div>`).join('')}
+          </div>`;
+      }
+    } catch (e) { /* ignore malformed line items */ }
+
+    const hasNetVatExtracted = row.extracted_goods != null && Number(row.extracted_goods) > 0 && row.extracted_vat != null;
+    const netVal = hasNetVatExtracted ? Number(row.extracted_goods) : '';
+    const vatVal = hasNetVatExtracted ? Number(row.extracted_vat) : '';
+    const totalVal = Number(row.extracted_total) || (hasNetVatExtracted ? Number(row.extracted_goods) + Number(row.extracted_vat) : 0);
+    const invDateVal = toDateInputValue(row.extracted_invoice_date);
+    let dueDateVal = toDateInputValue(row.extracted_due_date);
+    if (!dueDateVal && invDateVal) {
+      const dd = new Date(invDateVal + 'T00:00:00Z'); dd.setUTCDate(dd.getUTCDate() + 30);
+      dueDateVal = dd.toISOString().slice(0, 10);
+    }
+    const descText = 'Invoice ' + (row.extracted_invoice_number || '') + ' - PO ' + (row.matched_po_number || '');
+
     return `
       <div class="rev-case" id="rev-${row.id}">
         <div class="rev-case-head">
@@ -903,13 +957,12 @@
         </div>
 
         <div class="rev-case-detail">
-          ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${row.pdf_url}" style="margin-bottom:14px;width:100%">\ud83d\udcc4 View Original Invoice</button>` : ''}
+          ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${row.pdf_url}" style="margin-bottom:14px;width:100%">📄 View Original Invoice</button>` : ''}
           ${siblingsHtml}
           ${bounceHtml}
           ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
           ${keptNote(row) ? `<div class="rev-notes-flag" style="background:rgba(56,189,248,0.08);border-left-color:#38bdf8;color:#bae6fd"><b>Your note on this invoice:</b> ${escHtml(keptNote(row)).replace(/\n/g, '<br>')}</div>` : ''}
-          ${newSupplierHtml}
 
           <div class="rev-compare">
             <div class="rev-compare-card">
@@ -931,38 +984,58 @@
             </div>
           </div>
 
-          ${lineItemsHtml ? `<div class="rev-line-items"><div class="rev-li-label">Line items</div>${lineItemsHtml}</div>` : ''}
+          <div class="rev-x-edit">Edit before approving. Nothing reaches Xero until this is approved.</div>
 
-          <div class="rev-edit-label">Edit before posting. Nothing reaches Xero until you approve</div>
+          <div class="rev-x-field">
+            <label>Xero supplier</label>
+            ${supplierLine}
+            <input type="text" id="vendor-${row.id}" value="${escHtml(supplierName)}" placeholder="Supplier name as it is in Xero">
+            <details class="rev-x-create">
+              <summary>Not in Xero? Create the account</summary>
+              <button type="button" class="rev-btn" data-action="create-xero-supplier" style="margin-top:8px;width:100%">🏢 Create Account in Xero</button>
+              <div class="rev-x-hint">Checks Xero first so it never creates a duplicate. Doesn't touch DecoNetwork, that still needs adding by hand there.</div>
+            </details>
+          </div>
 
-          ${dateFixHtml}
-
-          <div class="rev-field-row">
-            <div class="rev-field">
-              <label>Vendor</label>
-              <input type="text" id="vendor-${row.id}" value="${(row.extracted_vendor || '').replace(/"/g,'&quot;')}">
+          <div class="rev-x-row">
+            <div class="rev-x-field">
+              <label>Invoice date${hasDateWarning ? ' <span class="rev-x-req">⚠ looks wrong, check the PDF</span>' : ''}</label>
+              <input type="date" id="invdate-${row.id}" value="${invDateVal}">
             </div>
-            <div class="rev-field">
-              <label>PO Reference <span style="font-weight:400;text-transform:none;color:#64748b">(add more than one if this invoice covers several POs)</span></label>
+            <div class="rev-x-field">
+              <label>Due date <span class="rev-x-opt">(30 days after the invoice date unless you change it)</span></label>
+              <input type="date" id="duedate-${row.id}" value="${dueDateVal}">
+            </div>
+          </div>
+
+          <div class="rev-x-row">
+            <div class="rev-x-field">
+              <label>PO reference <span class="rev-x-opt">(add more than one if this covers several POs)</span></label>
               <div class="rev-po-tagbox" id="potagbox-${row.id}" data-id="${row.id}"></div>
-              <div class="rev-po-hint">Type a PO number and press Enter or comma to add it</div>
+              <div class="rev-x-hint">Type a PO number and press Enter or comma to add it</div>
             </div>
-          </div>
-          <div class="rev-field-row">
-            <div class="rev-field">
-              <label>Total to post</label>
-              <input type="number" step="0.01" id="total-${row.id}" value="${row.extracted_total || 0}">
-            </div>
-            <div class="rev-field">
+            <div class="rev-x-field">
               <label>Nominal code</label>
-              <select id="nominal-${row.id}">
-                <option value="310">310</option>
-              </select>
+              <select id="nominal-${row.id}"><option value="310">310</option></select>
             </div>
           </div>
 
-          <div class="rev-field">
-            <label>Review notes <span style="font-weight:400;opacity:.65">(kept with the invoice, including after Move to In Review and Resume)</span></label>
+          ${extractedLinesHtml}
+
+          <div class="rev-x-sublabel">Amounts to post to Xero <span class="rev-x-hint-inline">VAT is posted at 20% input VAT (INPUT2)</span></div>
+          <div class="rev-x-lines">
+            <div class="rev-x-line rev-x-amt rev-x-head"><span>Description</span><span>Net</span><span>VAT</span><span>Total</span></div>
+            <div class="rev-x-line rev-x-amt">
+              <span class="rev-x-desc">${escHtml(descText)}</span>
+              <input type="number" step="0.01" min="0" class="rev-x-in" id="net-${row.id}" value="${netVal}" placeholder="net">
+              <input type="number" step="0.01" min="0" class="rev-x-in" id="vat-${row.id}" value="${vatVal}" placeholder="vat">
+              <input type="number" step="0.01" min="0" class="rev-x-in" id="total-${row.id}" value="${totalVal}" ${hasNetVatExtracted ? 'readonly' : ''}>
+            </div>
+          </div>
+          <div class="rev-x-hint" id="amtnote-${row.id}">${hasNetVatExtracted ? 'Total is net plus VAT. Change either and it updates.' : 'No separate net and VAT were read from this invoice, so the total is posted VAT-inclusive and flagged in Xero to check. Fill in net and VAT to post them properly.'}</div>
+
+          <div class="rev-x-field" style="margin-top:14px">
+            <label>Review notes <span class="rev-x-opt">(kept with the invoice, including after Move to In Review and Resume)</span></label>
             <textarea id="notes-${row.id}" placeholder="Optional note before approving or rejecting...">${escHtml(keptNote(row))}</textarea>
           </div>
 
@@ -971,7 +1044,7 @@
             <button type="button" class="rev-btn" data-action="snooze">🔖 Move to In Review</button>
             <button type="button" class="rev-btn primary" data-action="approve">Approve, ready to post</button>
           </div>
-          <div class="rev-post-note">Approving stages this for posting to Xero once that connection is wired up. Nothing is sent automatically yet. Moving to In Review uses whatever's in the Review notes field above as the tag note, and takes it out of this list until you resume it from the In Review section below.</div>
+          <div class="rev-post-note">Approved invoices are posted to Xero as draft bills at 5pm. Moving to In Review uses whatever's in the Review notes field as the tag note, and takes it out of this list until you resume it from the In Review section below.</div>
         </div>
       </div>`;
   }
@@ -1054,15 +1127,27 @@
     const total = parseFloat(document.getElementById('total-' + id).value) || 0;
     const nominal = document.getElementById('nominal-' + id).value;
     const notes = document.getElementById('notes-' + id).value;
+    const netStr = document.getElementById('net-' + id).value;
+    const vatStr = document.getElementById('vat-' + id).value;
+    const net = netStr !== '' ? parseFloat(netStr) : null;
+    const vat = net != null ? (vatStr !== '' ? parseFloat(vatStr) : 0) : null;
+    const invDate = document.getElementById('invdate-' + id).value || null;
+    const dueDate = document.getElementById('duedate-' + id).value || null;
 
-    const { error } = await sb.rpc('approve_pending_invoice', {
+    if (!(total > 0)) { alert('The total to post must be more than zero.'); return; }
+
+    const { error } = await sb.rpc('approve_pending_invoice_v2', {
       p_id: id,
       p_reviewed_by: reviewedBy,
       p_final_vendor: vendor,
       p_final_nominal_code: nominal,
       p_final_total: total,
       p_final_po_reference: poRef,
-      p_review_notes: notes
+      p_review_notes: notes,
+      p_final_goods: net,
+      p_final_vat: vat,
+      p_invoice_date: invDate,
+      p_due_date: dueDate
     });
     if (error) { console.error(error); alert('Could not approve. Check the console.'); return; }
     await loadPending();
