@@ -27,6 +27,13 @@ Data comes straight from DecoNetwork: the n8n workflow `WF7_Quotes_Sync` (every 
 copies quotes (order type 2) and approved quotes (order type 3) into `public.quotes`. The tab reads the `quotes_board`
 view and writes phone/visit chases through `log_quote_chase()`. SQL is in `sql/quote_tracking.sql`.
 
+## Security notes
+
+- The browser talks to n8n webhooks by sending the signed-in user's Supabase login token (`atamgo-auth.js`). Each webhook
+  verifies it with Supabase (`/auth/v1/user`) and answers 401 otherwise. There is no shared secret in this repo.
+- Database permissions: see `sql/security_hardening_2026-10-13.sql`.
+- The old shared `X-Atam-Go-Token` is still visible in git history but no longer works anywhere.
+
 ## Workflow triggers
 
 Add n8n production webhook URLs in `config.js` under `WEBHOOKS`.
