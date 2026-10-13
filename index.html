@@ -42,6 +42,12 @@
     }
     #dan-fab:hover { transform: scale(1.12); box-shadow: 0 8px 32px rgba(56,189,248,0.6), 0 0 0 6px rgba(56,189,248,0.12); }
     #dan-fab.dan-open { transform: scale(0.9) rotate(20deg); background: linear-gradient(135deg, #ef4444, #f97316); }
+    #dan-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #0b1220; box-sizing: border-box; }
+    #dan-badge[hidden] { display: none; }
+    #dan-fab.dan-alert:not(.dan-open) { animation: danPulse 2.4s ease-in-out infinite; }
+    @keyframes danPulse { 0%,100% { box-shadow: 0 4px 24px rgba(56,189,248,0.5); } 50% { box-shadow: 0 4px 28px rgba(239,68,68,0.75), 0 0 0 8px rgba(239,68,68,0.14); } }
+    .dan-tools { margin-top: 8px; font-size: 10.5px; color: #64748b; }
+    @media (prefers-reduced-motion: reduce) { #dan-fab.dan-alert { animation: none; } }
     #dan-panel {
       position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 92vw;
       height: 100vh; border-radius: 0; overflow: hidden; z-index: 9998;
@@ -233,7 +239,7 @@
   </style>
 
   <!-- DAN BOT HTML -->
-  <button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖</button>
+  <button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖<span id="dan-badge" hidden></span></button>
   <div id="dan-panel">
     <div id="dan-header">
       <div class="dan-avatar">🤖</div>
@@ -248,7 +254,7 @@
     <div class="dan-divider"></div>
     <div id="dan-messages"></div>
     <div id="dan-input-row">
-      <input id="dan-input" type="text" placeholder="Ask DAN anything about your production…" onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
+      <input id="dan-input" type="text" placeholder="Ask DAN anything about the business…" onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
       <button id="dan-mic" onclick="danToggleListening()" title="Speak to DAN">🎤</button>
       <button id="dan-send" onclick="danSend()">➤</button>
     </div>
@@ -261,7 +267,9 @@
     const WEBHOOK_URL = 'https://danbotv2.grobleroliver.workers.dev/';
     const SESSION_ID  = 'dan-' + Math.random().toString(36).slice(2, 10);
     let isOpen = false, isBusy = false, hasGreeted = false;
-    const QUICK_PROMPTS = ["Today's production summary","What's ready to ship?","Any late orders?","Top customers this week","Who has the most work today?","Any reorder risks?"];
+    const QUICK_PROMPTS = ["Brief me","What needs my attention?","Who should we call first?","Which quotes need chasing?","Any late orders?","How is revenue this month?"];
+    const danHistory = [];   // last turns, sent with each question so DAN remembers the conversation
+    let danAlerts = null;
 
     let voiceEnabled = (localStorage.getItem('dan-voice-enabled') === 'true');
     let isListening = false;
@@ -319,7 +327,7 @@
       recognition.onend = () => {
         isListening = false;
         document.getElementById('dan-mic')?.classList.remove('listening');
-        document.getElementById('dan-input').placeholder = 'Ask DAN anything about your production…';
+        document.getElementById('dan-input').placeholder = 'Ask DAN anything about the business…';
       };
       recognition.start();
     }
@@ -385,7 +393,7 @@
       const container = document.getElementById('dan-insights');
       if (!container) return;
       container.innerHTML = '';
-      buildInsights().forEach((ins, i) => {
+      (serverInsights() || buildInsights()).forEach((ins, i) => {
         const card = document.createElement('div');
         card.className = `dan-insight-card ${ins.type}`;
         card.style.animationDelay = `${i * 70}ms`;
@@ -395,16 +403,58 @@
       });
     }
 
+    async function danBriefing(force) {
+      const day = new Date().toISOString().slice(0, 10);
+      const key = 'dan-briefing-' + day;
+      let cached = null; try { cached = localStorage.getItem(key); } catch (e) { /* storage blocked */ }
+      if (cached && !force) { danAppendBot(cached, true); return; }
+      danAppendTyping();
+      try {
+        const headers = await window.atamGoWebhookHeaders();
+        const res = await fetch(WEBHOOK_URL + 'briefing', { method: 'POST', headers, body: '{}' });
+        danRemoveTyping();
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const html = atamEsc(cleanDashes(data.reply || '')).replace(/\n/g, '<br>');
+        if (!html) throw new Error('empty briefing');
+        try { localStorage.setItem(key, html); } catch (e) { /* ignore */ }
+        danAppendBot(html, true);
+      } catch (e) {
+        danRemoveTyping();
+        console.error('[DAN BOT] briefing', e);
+        const hour = new Date().getHours();
+        danAppendBot(`${hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'}! I'm <strong>DAN</strong>. I couldn't pull your briefing just now, but ask me anything and I'll look it up.`, true);
+      }
+    }
+
     function showGreetingAndInsights() {
       renderInsights();
-      const hour = new Date().getHours();
-      const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-      const s = window.state || {};
-      const risk = s.data?.risk?.length || 0;
-      const ready = s.data?.ready?.length || 0;
-      let statusLine = risk > 0 ? `⚠️ You have <strong>${risk} order${risk>1?'s':''} needing attention</strong> right now.` : ready > 0 ? `✅ <strong>${ready} order${ready>1?'s are':' is'} ready to ship</strong>, looking good.` : `Everything looks clear. Ask me anything about production.`;
-      danAppendBot(`${greeting}! I'm <strong>DAN</strong>, your ATAM GO production analyst. 👋<br><br>${statusLine}`, true);
+      loadAlerts();
+      danBriefing(false);
     }
+
+    // Alerts come from the worker (no AI, cheap): late orders, replies waiting, quotes going cold, invoices above the Deco total...
+    async function loadAlerts() {
+      try {
+        const headers = await window.atamGoWebhookHeaders();
+        if (!headers.Authorization) return;
+        const res = await fetch(WEBHOOK_URL + 'alerts', { method: 'POST', headers, body: '{}' });
+        if (!res.ok) return;
+        const data = await res.json();
+        danAlerts = Array.isArray(data.alerts) ? data.alerts : null;
+        const urgent = (danAlerts || []).filter(a => a.level === 'urgent').length;
+        const badge = document.getElementById('dan-badge'), fab = document.getElementById('dan-fab');
+        if (badge) { badge.textContent = urgent; badge.hidden = !urgent; }
+        if (fab) fab.classList.toggle('dan-alert', urgent > 0);
+        if (isOpen) renderInsights();
+      } catch (e) { /* alerts are a bonus; stay quiet */ }
+    }
+    function serverInsights() {
+      if (!danAlerts || !danAlerts.length) return null;
+      return danAlerts.slice(0, 6).map(a => ({ type: a.level === 'warn' ? 'warning' : a.level, icon: a.icon, text: `<strong>${atamEsc(a.title)}</strong> ${atamEsc(a.detail || '')}`, hint: 'Tap to ask DAN', prompt: a.ask }));
+    }
+    setTimeout(loadAlerts, 5000);
+    setInterval(() => { if (!document.hidden) loadAlerts(); }, 5 * 60 * 1000);
 
     function danAppendUser(text) { const el = document.createElement('div'); el.className = 'dan-msg user'; el.textContent = text; document.getElementById('dan-messages').appendChild(el); danScroll(); }
 
@@ -454,18 +504,23 @@
       document.getElementById('dan-send').disabled = true;
       danAppendTyping();
       const s = window.state || {};
-      const ov = s.data?.overview?.[0] || {};
-      const ctx = { dateFrom: s.dateFrom || 'unknown', dateTo: s.dateTo || 'unknown', total_decorations: ov.total_decorations || 0, embroidery_total: ov.embroidery_total || 0, print_total: ov.print_total || 0, unique_orders: ov.unique_orders || 0, unique_customers: ov.unique_customers || 0, decoration_lines: ov.decoration_lines || 0, late_orders: (s.data?.risk || []).length, ready_to_ship: (s.data?.ready || []).length, customers_at_risk: (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length, top_customers: (s.data?.customers || []).slice(0, 5).map(c => `${c.customer_name} (${c.total_quantity} units)`).join(', '), risk_orders_detail: (s.data?.risk || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.risk_status})`).join(', '), ready_orders_detail: (s.data?.ready || []).slice(0, 3).map(r => `#${r.order_id}, ${r.customer_name || 'Unknown'} (${r.total_quantity} units)`).join(', ') };
       try {
-        const res = await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, sessionId: SESSION_ID, context: ctx }) });
+        const headers = await window.atamGoWebhookHeaders();
+        const res = await fetch(WEBHOOK_URL, { method: 'POST', headers, body: JSON.stringify({ message: text, history: danHistory.slice(-12), context: { dateFrom: s.dateFrom || null, dateTo: s.dateTo || null } }) });
         danRemoveTyping();
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
+        if (res.status === 401) { danAppendBot('Your sign-in has expired. Please <a href="login.html" style="color:#7dd3fc">sign in again</a>, then ask me once more.', false); return; }
+        let data = {};
+        try { data = await res.json(); } catch (e) { /* handled below */ }
+        if (!res.ok && !data.reply) throw new Error('HTTP ' + res.status);
         const rawReply = data.reply || data.output || data.message || 'Sorry, no response received.';
-        danAppendBot(cleanDashes(rawReply).replace(/\n/g, '<br>'), false);
+        const el = danAppendBot(atamEsc(cleanDashes(rawReply)).replace(/\n/g, '<br>'), false);
+        if (res.ok) { danHistory.push({ role: 'user', content: text }, { role: 'assistant', content: rawReply }); if (danHistory.length > 24) danHistory.splice(0, danHistory.length - 24); }
+        const names = { business_pulse: 'overall numbers', query_table: 'the database', get_customer: 'a customer record', query_stock: 'stock levels', log_winback_contact: 'logged a contact', set_winback_state: 'updated a customer', reassign_order: 'reassigned an order', mark_deconetwork_correction_done: 'ticked off a correction', list_tables: 'the data list' };
+        if (Array.isArray(data.tools) && data.tools.length) { const t = document.createElement('div'); t.className = 'dan-tools'; t.textContent = 'Checked: ' + data.tools.map(n => names[n] || n).join(', '); el.appendChild(t); }
+        loadAlerts();
       } catch (err) {
         danRemoveTyping();
-        danAppendBot('⚠️ Couldn\'t reach DAN right now. Make sure the <strong>DAN BOT workflow is active</strong> in n8n and try again.', false);
+        danAppendBot('⚠️ I couldn\'t reach my brain just now. Try again in a moment. If it keeps happening, tell Oli the DAN worker needs a look.', false);
         console.error('[DAN BOT]', err);
       } finally {
         isBusy = false;
