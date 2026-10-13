@@ -17,7 +17,6 @@
   'use strict';
 
   const WEBHOOK_BASE = 'https://atamcpi.app.n8n.cloud/webhook/';
-  const ATAM_GO_TOKEN = '42f5d7bb154d98a8cfc5d8b7e2d83693a088e0f78b2357bf352c518ce25f07cc';
   // Xero tax types a line can carry (the database accepts exactly these). A line with no tax_type is posted as OUTPUT2.
   const DEFAULT_TAX = 'OUTPUT2';
   const TAX_TYPES = {
@@ -220,7 +219,7 @@
   async function callHook(path, body) {
     const res = await fetch(WEBHOOK_BASE + path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Atam-Go-Token': ATAM_GO_TOKEN },
+      headers: await window.atamGoWebhookHeaders(),
       body: JSON.stringify(body || {})
     });
     const data = await res.json().catch(() => ({}));
