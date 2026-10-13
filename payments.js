@@ -111,8 +111,8 @@
         const cust = nameByOrder[p.order_id] || `Order #${p.order_id}`;
         return `<div class="pc-row">
           <div>
-            <div class="pc-cust">${cust}</div>
-            <div class="pc-meta">#${p.order_id} · ${p.payment_method || 'Unknown method'} · ${when}</div>
+            <div class="pc-cust">${atamEsc(cust)}</div>
+            <div class="pc-meta">#${atamEsc(p.order_id)} · ${atamEsc(p.payment_method || 'Unknown method')} · ${when}</div>
           </div>
           <div class="pc-amt">${GBP(p.paid_amount)}</div>
         </div>`;
@@ -121,7 +121,7 @@
     } catch(err){
       console.error('[payments.js]', err);
       const listEl = document.getElementById('payments-list');
-      if(listEl) listEl.innerHTML = `<div class="pc-empty">Couldn't load payments: ${err.message||err}</div>`;
+      if(listEl) listEl.innerHTML = `<div class="pc-empty">Couldn't load payments: ${atamEsc(err.message||err)}</div>`;
     }
   }
 

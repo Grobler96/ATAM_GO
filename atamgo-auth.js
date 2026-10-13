@@ -26,6 +26,13 @@
     }
   }
 
+  // Shared HTML escaper for tabs that build markup from database text.
+  window.atamEsc = function (v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+
   window.atamGoWebhookHeaders = async function () {
     const headers = { 'Content-Type': 'application/json' };
     const token = await accessToken();

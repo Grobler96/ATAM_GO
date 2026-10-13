@@ -262,7 +262,7 @@ function renderMonthOverview(){
       ? (proj.basis === 'trend' ? `Trend-projected from ${Math.min(months.filter(m=>m<nowM).length,6)}mo history` : 'Based on orders captured so far')
       : '';
     return `<div class="ov-card ${c.cur?'now':''}">
-      <div class="ov-eyebrow">${c.tag}${c.cur?'<em>NOW</em>':(c.projected?'<em>PROJECTED</em>':'')}</div>
+      <div class="ov-eyebrow">${atamEsc(c.tag)}${c.cur?'<em>NOW</em>':(c.projected?'<em>PROJECTED</em>':'')}</div>
       <div class="ov-month">${monthLabel(c.m)}</div>
       <div class="ov-value">${GBP(value)}</div>
       <div class="ov-meta"><span><b>${s.count}</b> orders</span><span><b>${GBP(s.billed)}</b> billed</span></div>
@@ -326,7 +326,7 @@ function renderTeam(m){
           <div class="coin-glow" id="tg-${i}"></div>
         </div>
       </div>
-      <div class="team-name">${w.name}</div>
+      <div class="team-name">${atamEsc(w.name)}</div>
       <div class="team-value">${GBP(w.total)}</div>
       <div class="team-meta">${w.count} orders · ${GBP(w.billed)} billed</div>
     </div>`;
@@ -450,13 +450,13 @@ function renderOrders(m, s){
         const ship = o.date_shipped
           ? '<b>'+new Date(o.date_shipped).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+'</b>'
           : 'Pending dispatch';
-        const procs = (o.processes||[]).map(p=>`<span class="ptag">${String(p).toUpperCase()}</span>`).join('');
+        const procs = (o.processes||[]).map(p=>`<span class="ptag">${atamEsc(String(p).toUpperCase())}</span>`).join('');
         const row = document.createElement('div');
         row.className = 'order-row'; row.tabIndex = 0;
         row.style.animationDelay = delay+'ms'; delay += 40;
         row.innerHTML = `
-          <span class="o-id">#${o.order_id}</span>
-          <span class="o-cust">${o.customer_name||'—'}<small>${o.store_name||''}</small></span>
+          <span class="o-id">#${atamEsc(o.order_id)}</span>
+          <span class="o-cust">${atamEsc(o.customer_name||'—')}<small>${atamEsc(o.store_name||'')}</small></span>
           <span class="o-qty">${o.garment_qty ?? '—'} pcs</span>
           <span class="o-val">${GBP(o.order_value)}</span>
           <span class="o-date">Due ${due}</span>
@@ -464,9 +464,9 @@ function renderOrders(m, s){
           <span class="rev-badge ${cls}">${label}</span>
           <span class="proc-tags">${procs}</span>
           <div class="o-detail">
-            <div><b>Assigned to</b>${o.assigned_to||'Unassigned'}</div>
-            <div><b>Shipping</b>${o.shipping_method||'—'}</div>
-            <div><b>Order status</b>${o.order_status ?? '—'}</div>
+            <div><b>Assigned to</b>${atamEsc(o.assigned_to||'Unassigned')}</div>
+            <div><b>Shipping</b>${atamEsc(o.shipping_method||'—')}</div>
+            <div><b>Order status</b>${atamEsc(o.order_status ?? '—')}</div>
             <div><b>Invoiced</b>${o.date_invoiced ? new Date(o.date_invoiced).toLocaleDateString('en-GB') : 'Not invoiced'}</div>
             <div><b>Production</b>${o.is_production_complete ? 'Complete' : 'In progress'}</div>
             <div><b>Last synced</b>${o.synced_at ? new Date(o.synced_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</div>

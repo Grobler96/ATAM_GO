@@ -29,6 +29,8 @@ view and writes phone/visit chases through `log_quote_chase()`. SQL is in `sql/q
 
 ## Security notes
 
+- Any text that comes from the database (customer, vendor, notes, PO numbers...) must go through the file's escape helper
+  (`esc`, `escHtml`, or the shared `atamEsc` from `atamgo-auth.js`) before it is put into `innerHTML`.
 - The browser talks to n8n webhooks by sending the signed-in user's Supabase login token (`atamgo-auth.js`). Each webhook
   verifies it with Supabase (`/auth/v1/user`) and answers 401 otherwise. There is no shared secret in this repo.
 - Database permissions: see `sql/security_hardening_2026-10-13.sql`.

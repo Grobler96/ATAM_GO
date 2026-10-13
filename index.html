@@ -349,7 +349,7 @@
       const insights = [];
       if (risk.length > 0) {
         const worst = risk[0];
-        insights.push({ type: 'urgent', icon: '🚨', text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` + (worst ? `Order <strong>#${worst.order_id}</strong> for <strong>${worst.customer_name || 'Unknown'}</strong> needs attention now.` : ''), hint: 'Tap to ask DAN what to do', prompt: `What should I do about the ${risk.length} late or at-risk orders?` });
+        insights.push({ type: 'urgent', icon: '🚨', text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` + (worst ? `Order <strong>#${atamEsc(worst.order_id)}</strong> for <strong>${atamEsc(worst.customer_name || 'Unknown')}</strong> needs attention now.` : ''), hint: 'Tap to ask DAN what to do', prompt: `What should I do about the ${risk.length} late or at-risk orders?` });
       }
       if (ready.length > 0) {
         const totalQty = ready.reduce((sum, r) => sum + Number(r.total_quantity || 0), 0);
@@ -366,7 +366,7 @@
       if (atRisk.length > 0) {
         const top = atRisk[0];
         const val = atRisk.reduce((s, c) => s + Number(c.last_order_value || 0), 0);
-        insights.push({ type: 'warning', icon: '💰', text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong>, <strong>£${fmtNum(val)}</strong> potential value at risk.` + (top ? ` ${top.name || top.company || 'A customer'} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''), hint: 'Tap to see who needs a call', prompt: `Which customers are most overdue for reorder and what's the value at risk?` });
+        insights.push({ type: 'warning', icon: '💰', text: `<strong>${atRisk.length} customer${atRisk.length > 1 ? 's' : ''} overdue for reorder</strong>, <strong>£${fmtNum(val)}</strong> potential value at risk.` + (top ? ` ${atamEsc(top.name || top.company || 'A customer')} is overdue by <strong>${top.overdue_by_days || '?'} days</strong>.` : ''), hint: 'Tap to see who needs a call', prompt: `Which customers are most overdue for reorder and what's the value at risk?` });
       }
       if (activity.length > 0) {
         const grouped = {};
@@ -374,7 +374,7 @@
         const biggest = Object.entries(grouped).sort((a,b) => b[1]-a[1])[0];
         if (biggest && biggest[1] > 0) {
           const row = activity.find(r => String(r.order_id) === String(biggest[0]));
-          insights.push({ type: 'info', icon: '📦', text: `Biggest active job: Order <strong>#${biggest[0]}</strong>` + (row?.customer_name ? ` for <strong>${row.customer_name}</strong>` : '') + `, <strong>${fmtNum(biggest[1])} units</strong>.`, hint: 'Tap to ask about this order', prompt: `Tell me everything about order #${biggest[0]}` });
+          insights.push({ type: 'info', icon: '📦', text: `Biggest active job: Order <strong>#${atamEsc(biggest[0])}</strong>` + (row?.customer_name ? ` for <strong>${atamEsc(row.customer_name)}</strong>` : '') + `, <strong>${fmtNum(biggest[1])} units</strong>.`, hint: 'Tap to ask about this order', prompt: `Tell me everything about order #${biggest[0]}` });
         }
       }
       if (insights.length === 0) insights.push({ type: 'info', icon: '📡', text: 'Loading your production data… refresh the dashboard to see live insights here.', hint: null, prompt: "What can you help me with?" });
