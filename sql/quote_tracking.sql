@@ -1,6 +1,6 @@
 -- Quote tracking for ATAM GO (applied to Supabase project aobosyvlhgkxhjxkfzlz on 12 Oct 2026).
 --
--- Source of truth is DecoNetwork itself. The n8n workflow WF7_Quotes_Sync (hourly, plus a manual 150-day backfill)
+-- Source of truth is DecoNetwork itself. The n8n workflow WF7_Quotes_Sync (every 6 hours, plus a manual 150-day backfill)
 -- reads manage_orders/find and upserts into public.quotes:
 --   order_type 2 + no date_ordered  = an open quote
 --   order_type 3 + date_ordered     = a quote the customer approved (date_started = created, date_ordered = approved)

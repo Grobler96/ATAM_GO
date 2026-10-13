@@ -1,6 +1,6 @@
 // quotes.js — "Quotes" tab: sales pipeline + salesperson performance.
 //
-// Where the data comes from (all straight from DecoNetwork, via the WF7_Quotes_Sync n8n workflow -> public.quotes):
+// Where the data comes from (all straight from DecoNetwork, via the WF7_Quotes_Sync n8n workflow (every 6 hours) -> public.quotes):
 //   - A quote is an order with order_type 2 and no date_ordered yet. When the customer approves it, DecoNetwork sets
 //     date_ordered and the order becomes order_type 3. So: created = date_started, converted = date_ordered.
 //   - Notes of type to_customer / from_customer are emails sent to / received from the customer. They count as chases
@@ -305,7 +305,7 @@
       return;
     }
     destroyChart();
-    if (!state.rows.length) { el.innerHTML = '<div class="qt-empty">No quotes have been synced yet. The sync runs every hour.</div>'; return; }
+    if (!state.rows.length) { el.innerHTML = '<div class="qt-empty">No quotes have been synced yet. The sync runs every 6 hours.</div>'; return; }
     if (state.tab === 'pipeline') el.innerHTML = boardHtml();
     else if (state.tab === 'team') { el.innerHTML = teamHtml(); drawChart(); }
     else el.innerHTML = tableHtml(state.tab);
@@ -840,7 +840,7 @@ body.qt-lock { overflow:hidden; }
         <div>
           <p class="eyebrow">Sales</p>
           <h2>Quotes</h2>
-          <p>Every DecoNetwork quote from the day it is created to the day the customer approves it. Anything quiet for 3 days needs chasing, and a quote with no activity for 30 days is treated as lost. Emails sent from DecoNetwork count as chases automatically. Synced hourly.</p>
+          <p>Every DecoNetwork quote from the day it is created to the day the customer approves it. Anything quiet for 3 days needs chasing, and a quote with no activity for 30 days is treated as lost. Emails sent from DecoNetwork count as chases automatically. Synced every 6 hours.</p>
         </div>
         <div class="qt-updated" id="qtUpdated" aria-live="polite"></div>
       </div>
