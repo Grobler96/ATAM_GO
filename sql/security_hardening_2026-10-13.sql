@@ -41,4 +41,16 @@ begin
   end loop;
 end $$;
 
--- Still to do (needs testing, one at a time): wip_orders / monthly_revenue "public read" policies -> authenticated only.
+-- 6. wip_orders and monthly_revenue were readable by anyone with the public key (customer names, order values, salespeople).
+--    Only revenue.js and payments.js read them, after login, and both tables already had a separate signed-in read policy.
+--    Verified: signed-in role still sees all rows; signed-out requests return 401.
+--    Rollback if ever needed:
+--      alter policy "Public read wip_orders" on public.wip_orders to public;
+--      alter policy "Public read monthly_revenue" on public.monthly_revenue to public;
+--      grant select on public.wip_orders, public.monthly_revenue to anon;
+alter policy "Public read wip_orders" on public.wip_orders to authenticated;
+alter policy "Public read monthly_revenue" on public.monthly_revenue to authenticated;
+revoke select on public.wip_orders from anon;
+revoke select on public.monthly_revenue from anon;
+
+-- Still to do: rotate the shared X-Atam-Go-Token, Supabase Auth settings, escaping audit of the older tabs.
