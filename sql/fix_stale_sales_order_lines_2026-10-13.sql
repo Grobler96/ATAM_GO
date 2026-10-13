@@ -14,3 +14,24 @@ create or replace view public.sales_lines_outstanding as
      LEFT JOIN upcoming_orders u ON u.order_id = l.order_id AND (u.payment_status = ANY (ARRAY[4, 5])) AND u.outstanding_balance = 0::numeric AND COALESCE(u.billable_amount, 0::numeric) > 0::numeric AND u.dismissed_at IS NULL AND (u.order_status = ANY (ARRAY[1, 2, 8, 9]))
   WHERE CASE WHEN u.order_id IS NOT NULL THEN GREATEST(COALESCE(l.qty_shipped, 0), COALESCE(l.qty_required, 0)) ELSE l.qty_shipped END > l.qty_invoiced
     AND NOT EXISTS (SELECT 1 FROM sales_order_lines n WHERE n.order_id = l.order_id AND n.synced_at > l.synced_at + interval '5 minutes');
+
+-- "Rebuild from DecoNetwork" button on a sales invoice card (13 Oct 2026, Steph): discards manual edits on a draft that is
+-- waiting for review so the next staging run rebuilds it from the latest DecoNetwork data. Signed-in users only.
+create or replace function public.rebuild_sales_invoice(p_id uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare r record;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  select * into r from pending_sales_invoices where id = p_id for update;
+  if not found then raise exception 'Invoice not found'; end if;
+  if r.status = 'approved' then raise exception 'Undo the approval first, then rebuild.'; end if;
+  if r.status not in ('awaiting_review','in_review') then
+    raise exception 'Only invoices that are waiting for review can be rebuilt (status is %).', r.status;
+  end if;
+  update pending_sales_invoices set status = 'awaiting_review', final_xero_contact_id = null, final_xero_contact_name = null,
+    final_reference = null, final_invoice_date = null, final_due_date = null, final_lines = null, final_subtotal = null,
+    reviewed_by = null, reviewed_at = null, auto_approved = false, post_error = null, post_attempts = 0, updated_at = now()
+  where id = p_id;
+end $$;
+revoke all on function public.rebuild_sales_invoice(uuid) from public, anon;
+grant execute on function public.rebuild_sales_invoice(uuid) to authenticated;
