@@ -16,7 +16,7 @@
 // How the stage is decided (stage = where the customer is right now in the current "cycle", the time since their last order):
 //   Lost       closed by hand, or the last contact was "not interested" (comes back by itself if they order again)
 //   Parked     set aside until a date
-//   Won back   they ordered after we contacted them (within 60 days), or approved a quote after we contacted them
+//   Won back   they ordered after we contacted them (within 120 days), or approved a quote after we contacted them
 //   Quote out  they have a live quote (touched in the last 30 days)
 //   Replied    the last contact was "they replied" or "asked for a quote"
 //   Waiting    we contacted them since their last order and are waiting to hear back
@@ -196,7 +196,7 @@
     let won = null;
     if (attributed && lastOrder && days(lastOrder, now) <= 400) won = { at: lastOrder, via: 'order', value: value, by: r.attributed_contact_by || '' };
     if (!won && lastContact) {
-      const q = qs.filter(x => x.approved && days(x.approved, now) <= WON_DAYS * 3 && x.approved >= new Date(lastContact.getTime() - DAY) && x.approved - lastContact <= 60 * DAY).sort((a, b) => b.approved - a.approved)[0];
+      const q = qs.filter(x => x.approved && days(x.approved, now) <= WON_DAYS * 3 && x.approved >= new Date(lastContact.getTime() - DAY) && x.approved - lastContact <= 120 * DAY).sort((a, b) => b.approved - a.approved)[0];
       if (q) won = { at: q.approved, via: 'quote', value: q.value, by: r.last_contact_by || '', quote: q };
     }
     if (!won && cycleContact && outcome === 'ordered') won = { at: lastContact, via: 'told', value: value, by: r.last_contact_by || '' };

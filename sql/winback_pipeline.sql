@@ -116,7 +116,7 @@ left join winback_state s on s.customer_id = a.customer_id
 left join lateral (select * from winback_contacts c where c.customer_id = a.customer_id order by c.created_at desc limit 1) lc on true
 left join lateral (select count(*)::int n from winback_contacts c where c.customer_id = a.customer_id) cn on true
 left join lateral (select * from winback_contacts c where c.customer_id = a.customer_id and a.last_order_date is not null
-                   and c.created_at::date <= a.last_order_date and c.created_at::date >= a.last_order_date - 60 order by c.created_at desc limit 1) ac on true
+                   and c.created_at::date <= a.last_order_date and c.created_at::date >= a.last_order_date - 120 order by c.created_at desc limit 1) ac on true
 left join wip_owner wc on wc.k = wb_norm(a.company)
 left join wip_owner wn on wn.k = wb_norm(a.name)
 left join quote_owner qo on qo.customer_id = a.customer_id
