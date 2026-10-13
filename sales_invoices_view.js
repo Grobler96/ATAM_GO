@@ -548,10 +548,10 @@
     let inner = '';
     switch (row.status) {
       case 'awaiting_review':
-        inner = b('reject', 'Reject', 'si-btn-danger') + b('ignore', 'Ignore') + b('hold', 'Hold') + b('save', 'Save changes') + b('approve', 'Approve', 'si-btn-primary');
+        inner = b('reject', 'Reject', 'si-btn-danger') + b('ignore', 'Ignore') + b('hold', 'Hold') + b('rebuild', 'Rebuild from DecoNetwork') + b('save', 'Save changes') + b('approve', 'Approve', 'si-btn-primary');
         break;
       case 'in_review':
-        inner = b('reject', 'Reject', 'si-btn-danger') + b('ignore', 'Ignore') + b('resume', 'Move back to review') + b('save', 'Save changes') + b('approve', 'Approve', 'si-btn-primary');
+        inner = b('reject', 'Reject', 'si-btn-danger') + b('ignore', 'Ignore') + b('resume', 'Move back to review') + b('rebuild', 'Rebuild from DecoNetwork') + b('save', 'Save changes') + b('approve', 'Approve', 'si-btn-primary');
         break;
       case 'approved':
         inner = b('unapprove', 'Undo approval') + b('post-now', 'Post this one now', 'si-btn-primary');
@@ -770,6 +770,15 @@
         })();
       case 'resume':
         return withBusy(btn, async () => { await rpc('unsnooze_sales_invoice', { p_id: id }); toast('Moved back to Needs review.'); await loadAll(); })();
+      case 'rebuild':
+        return withBusy(btn, async () => {
+          if (!confirm('Rebuild this invoice from the latest DecoNetwork data? Any changes you have made to it here will be thrown away.')) return;
+          await rpc('rebuild_sales_invoice', { p_id: id });
+          const { ok } = await callHook('stage-sales-invoices-now', {});
+          if (!ok) { toast('Reset, but the rebuild could not start. Press "Check for new orders" in a minute.', 'error'); await loadAll(); return; }
+          toast('Rebuilding from DecoNetwork. This takes about a minute, then the page refreshes.');
+          setTimeout(loadAll, 60000);
+        })();
       case 'unapprove':
         return withBusy(btn, async () => { await rpc('unapprove_sales_invoice', { p_id: id }); toast('Approval undone. It is back in Needs review.'); await loadAll(); })();
       case 'restore':
