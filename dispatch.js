@@ -496,12 +496,9 @@
     const cfg = window.ATAM_GO_CONFIG || {};
     const webhookUrl = cfg.WEBHOOKS?.dispatchConfirm;
     if (webhookUrl && order) {
-      fetch(webhookUrl, {
+      window.atamGoWebhookHeaders().then(headers => fetch(webhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Atam-Go-Token': '42f5d7bb154d98a8cfc5d8b7e2d83693a088e0f78b2357bf352c518ce25f07cc'
-        },
+        headers,
         body: JSON.stringify({
           action: 'dispatch_confirmed',
           order_id: orderId,
@@ -510,7 +507,7 @@
           confirmed_at: new Date().toISOString(),
           source: 'ATAM GO Dispatch'
         })
-      }).catch(() => {});
+      })).catch(() => {});
     }
   }
 

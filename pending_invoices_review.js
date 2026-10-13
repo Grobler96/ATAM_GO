@@ -8,7 +8,6 @@
 
   const RETRY_MATCH_WEBHOOK = 'https://atamcpi.app.n8n.cloud/webhook/retry-po-match';
   const CREATE_XERO_SUPPLIER_WEBHOOK = 'https://atamcpi.app.n8n.cloud/webhook/create-xero-supplier';
-  const RETRY_MATCH_TOKEN = '42f5d7bb154d98a8cfc5d8b7e2d83693a088e0f78b2357bf352c518ce25f07cc';
 
   const MATCH_META = {
     clean_match:        { stamp: '✓', cls: 'clean',  label: 'Clean match' },
@@ -519,10 +518,7 @@
     try {
       const res = await fetch(CREATE_XERO_SUPPLIER_WEBHOOK, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Atam-Go-Token': RETRY_MATCH_TOKEN
-        },
+        headers: await window.atamGoWebhookHeaders(),
         body: JSON.stringify({ id, vendor })
       });
       const data = await res.json().catch(() => ({}));
@@ -1086,10 +1082,7 @@
     try {
       const res = await fetch(RETRY_MATCH_WEBHOOK, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Atam-Go-Token': RETRY_MATCH_TOKEN
-        },
+        headers: await window.atamGoWebhookHeaders(),
         body: JSON.stringify({
           id: id,
           vendor: vendor,
