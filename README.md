@@ -27,6 +27,14 @@ Data comes straight from DecoNetwork: the n8n workflow `WF7_Quotes_Sync` (every 
 copies quotes (order type 2) and approved quotes (order type 3) into `public.quotes`. The tab reads the `quotes_board`
 view and writes phone/visit chases through `log_quote_chase()`. SQL is in `sql/quote_tracking.sql`.
 
+## Win-back tab
+
+`winback.js` is the reorder-review pipeline: customers past their usual reorder time move through Due soon, Needs a call,
+Contacted waiting, Replied, Quote out and Won back. The team logs calls and emails on each customer (a drawer opens from the card);
+quotes from DecoNetwork are matched to customers automatically (manual link, then email, then company or name) and move the card to
+Quote out by themselves. Quotes that cannot be matched are listed under Unmatched quotes so they can be linked once.
+Database objects and functions are in `sql/winback_pipeline.sql`.
+
 ## Security notes
 
 - Any text that comes from the database (customer, vendor, notes, PO numbers...) must go through the file's escape helper
