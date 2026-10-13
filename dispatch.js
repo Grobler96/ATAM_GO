@@ -352,16 +352,16 @@
 
     const countdown = dueDate && !isDone ? getCountdown(dueDate) : null;
     const countdownHtml = countdown
-      ? `<div class="dc-countdown ${countdown.urgent ? 'dc-countdown-urgent' : ''}" data-due="${order.date_due}">
+      ? `<div class="dc-countdown ${countdown.urgent ? 'dc-countdown-urgent' : ''}" data-due="${esc(order.date_due)}">
           ${countdown.text}
         </div>`
       : '';
 
     return `
-      <div class="dispatch-card ${urgency} ${isDone ? 'dc-done' : ''}" data-order-id="${order.order_id}">
+      <div class="dispatch-card ${urgency} ${isDone ? 'dc-done' : ''}" data-order-id="${esc(order.order_id)}">
         <div class="dc-header">
           <div class="dc-order-id">
-            <span class="dc-hash">#</span>${order.order_id}
+            <span class="dc-hash">#</span>${esc(order.order_id)}
           </div>
           <div class="dc-urgency-dot ${urgency}"></div>
         </div>
@@ -401,7 +401,7 @@
         <div class="dc-actions">
           ${isDone
             ? `<div class="dc-dispatched-badge">✓ Dispatched ${order.date_shipped ? new Date(order.date_shipped).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</div>`
-            : `<button class="dispatch-btn ${!isProduced ? 'dispatch-btn-warn' : ''}" data-order-id="${order.order_id}">
+            : `<button class="dispatch-btn ${!isProduced ? 'dispatch-btn-warn' : ''}" data-order-id="${esc(order.order_id)}">
                 ${!isProduced ? '⚠️ Mark Dispatched' : '✓ Mark Dispatched'}
               </button>`
           }

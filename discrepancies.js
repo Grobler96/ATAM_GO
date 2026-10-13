@@ -102,11 +102,11 @@
 
     let whyText = '';
     if (row.discrepancy_type === 'vendor_mismatch') {
-      whyText = `The purchase order is attached to <b>${row.po_vendor || 'an unknown vendor'}</b> in DecoNetwork, but the matched invoice is from <b>${row.invoice_vendor || 'a different vendor'}</b>. These may be entirely separate businesses.`;
+      whyText = `The purchase order is attached to <b>${atamEsc(row.po_vendor || 'an unknown vendor')}</b> in DecoNetwork, but the matched invoice is from <b>${atamEsc(row.invoice_vendor || 'a different vendor')}</b>. These may be entirely separate businesses.`;
     } else if (row.discrepancy_type === 'amount_variance') {
       whyText = `The invoiced total differs from the PO's sub-total + tax by ${varianceTxt} (${row.variance_pct != null ? row.variance_pct + '%' : 'outside tolerance'}), beyond the agreed ±2%/£1 tolerance.`;
     } else {
-      whyText = `An invoice arrived from <b>${row.invoice_vendor || 'this vendor'}</b> with no PO number the system could match against DecoNetwork. The <b>${fmtMoney(row.invoice_goods)}</b> goods + <b>${fmtMoney(row.invoice_vat)}</b> VAT (<b>${fmtMoney(row.variance_amount)}</b> total, incl. VAT) shown is the full invoice value, not a variance against anything — there's simply no PO on file to compare it to yet.`;
+      whyText = `An invoice arrived from <b>${atamEsc(row.invoice_vendor || 'this vendor')}</b> with no PO number the system could match against DecoNetwork. The <b>${fmtMoney(row.invoice_goods)}</b> goods + <b>${fmtMoney(row.invoice_vat)}</b> VAT (<b>${fmtMoney(row.variance_amount)}</b> total, incl. VAT) shown is the full invoice value, not a variance against anything — there's simply no PO on file to compare it to yet.`;
     }
 
     const decoFlag = row.deconetwork_correction_needed ? `
@@ -120,9 +120,9 @@
         <div class="disc-case-head">
           <div class="disc-stamp ${meta.cls}">${meta.stamp}</div>
           <div class="disc-case-main">
-            <div class="disc-case-po">PO ${row.po_number || 'UNKNOWN'} · FLAGGED ${fmtDate(row.created_at)}</div>
-            <div class="disc-case-title">${meta.label}${row.po_vendor && row.invoice_vendor ? ` — ${row.po_vendor} vs ${row.invoice_vendor}` : ''}</div>
-            <div class="disc-case-sub">${row.invoice_vendor || row.po_vendor || 'Unknown vendor'}</div>
+            <div class="disc-case-po">PO ${atamEsc(row.po_number || 'UNKNOWN')} · FLAGGED ${fmtDate(row.created_at)}</div>
+            <div class="disc-case-title">${meta.label}${row.po_vendor && row.invoice_vendor ? ` — ${atamEsc(row.po_vendor)} vs ${atamEsc(row.invoice_vendor)}` : ''}</div>
+            <div class="disc-case-sub">${atamEsc(row.invoice_vendor || row.po_vendor || 'Unknown vendor')}</div>
           </div>
           <div class="disc-case-meta">
             <span class="disc-amt">${fmtMoney(row.invoice_goods)}</span>
@@ -139,14 +139,14 @@
           <div class="disc-compare">
             <div class="disc-compare-card mismatch">
               <div class="disc-ct-label">DecoNetwork PO</div>
-              <div class="disc-ct-vendor">${row.po_vendor || '—'}</div>
+              <div class="disc-ct-vendor">${atamEsc(row.po_vendor || '—')}</div>
               <div class="disc-ct-row"><span>Sub-total</span><b>${fmtMoney(row.po_sub_total)}</b></div>
               <div class="disc-ct-row"><span>Tax</span><b>${fmtMoney(row.po_tax)}</b></div>
             </div>
             <div class="disc-compare-arrow">→</div>
             <div class="disc-compare-card">
               <div class="disc-ct-label">Invoice</div>
-              <div class="disc-ct-vendor">${row.invoice_vendor || '—'}</div>
+              <div class="disc-ct-vendor">${atamEsc(row.invoice_vendor || '—')}</div>
               <div class="disc-ct-row"><span>Goods</span><b>${fmtMoney(row.invoice_goods)}</b></div>
               <div class="disc-ct-row"><span>VAT</span><b>${fmtMoney(row.invoice_vat)}</b></div>
             </div>
@@ -169,7 +169,7 @@
 
           <div class="disc-field">
             <label>Resolution notes</label>
-            <textarea id="notes-${row.id}" placeholder="Add a note before resolving...">${row.resolution_notes || ''}</textarea>
+            <textarea id="notes-${row.id}" placeholder="Add a note before resolving...">${atamEsc(row.resolution_notes || '')}</textarea>
           </div>
 
           ${decoFlag}
@@ -207,11 +207,12 @@
   // ---- Export (PDF / Excel) ----
   // Uses jsPDF + SheetJS, loaded on demand only when the tab is used,
   // to avoid adding weight to every other page's load.
-  function loadScript(src) {
+  function loadScript(src, integrity) {
     return new Promise((resolve, reject) => {
       if (document.querySelector(`script[src="${src}"]`)) return resolve();
       const s = document.createElement('script');
       s.src = src; s.onload = resolve; s.onerror = reject;
+      if (integrity) { s.integrity = integrity; s.crossOrigin = 'anonymous'; }
       document.head.appendChild(s);
     });
   }
@@ -233,7 +234,7 @@
   }
 
   async function exportPDF() {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk');
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const rows = rowsForPeriod();
@@ -269,7 +270,7 @@
   }
 
   async function exportXLSX() {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/SheetJS/0.18.5/xlsx.full.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw');
     const rows = rowsForPeriod();
     const header = ['PO Number', 'PO Vendor', 'Invoice Vendor', 'Issue Type', 'Invoice Goods (£)', 'Invoice VAT (£)', 'Variance (£)', 'Variance (%)', 'Nominal Code', 'Status', 'Resolved By', 'Resolved At', 'Xero Bill Ref', 'Notes'];
     const body = rows.map(r => [r.po_number, r.po_vendor, r.invoice_vendor, r.discrepancy_type, r.invoice_goods, r.invoice_vat, r.variance_amount, r.variance_pct, r.proposed_nominal_code, r.status, r.resolved_by, r.resolved_at, r.xero_bill_id, r.resolution_notes]);

@@ -477,7 +477,7 @@ function render() {
         <td>${orderButton(r.order_id)}</td>
         <td>${esc(r.customer_name || 'Unknown')}</td>
         <td>${esc(r.product_name || '—')}</td>
-        <td><span class="badge ${esc(r.decoration_type)}">${title(r.decoration_type)}</span></td>
+        <td><span class="badge ${esc(r.decoration_type)}">${esc(title(r.decoration_type))}</span></td>
         <td>${esc(r.process_code || '—')}</td>
         <td>${num(r.quantity)}</td>
         <td>${esc(r.area_name || '—')}</td>
@@ -509,7 +509,7 @@ function render() {
       <tr>
         <td>${orderButton(r.order_id)}</td>
         <td>${esc(r.customer_name || 'Unknown')}</td>
-        <td><span class="badge ${esc(r.risk_status)}">${title(r.risk_status)}</span></td>
+        <td><span class="badge ${esc(r.risk_status)}">${esc(title(r.risk_status))}</span></td>
         <td>${date(r.date_due)}</td>
         <td>${num(r.total_quantity)}</td>
       </tr>
@@ -648,7 +648,7 @@ function renderActivity() {
         <td>${orderButton(r.order_id)}</td>
         <td>${esc(r.customer_name || 'Unknown')}</td>
         <td>${esc(r.product_name || '—')}</td>
-        <td><span class="badge ${esc(r.decoration_type)}">${title(r.decoration_type)}</span></td>
+        <td><span class="badge ${esc(r.decoration_type)}">${esc(title(r.decoration_type))}</span></td>
         <td>${esc(r.process_code || '—')}</td>
         <td>${num(r.quantity)}</td>
         <td>${esc(r.area_name || '—')}</td>
@@ -674,7 +674,7 @@ function renderProductionActivity() {
         <td>${orderButton(r.order_id)}</td>
         <td>${esc(r.customer_name || 'Unknown')}</td>
         <td>${esc(r.product_name || '—')}</td>
-        <td><span class="badge ${esc(r.decoration_type)}">${title(r.decoration_type)}</span></td>
+        <td><span class="badge ${esc(r.decoration_type)}">${esc(title(r.decoration_type))}</span></td>
         <td>${esc(r.process_code || '—')}</td>
         <td>${num(r.quantity)}</td>
         <td>${esc(r.area_name || '—')}</td>
@@ -852,7 +852,7 @@ function renderCustomerAlerts() {
           ${date(row.last_order_date)}
           <div class="muted">#${esc(row.last_order_id || '—')}</div>
         </td>
-        <td>${row.days_since_last_order ?? '—'}</td>
+        <td>${esc(row.days_since_last_order ?? '—')}</td>
         <td>
           ${row.mean_reorder_days ? `${num(row.mean_reorder_days)} days` : '—'}
           <div class="muted">
@@ -1151,7 +1151,7 @@ function openOrderModal(orderId) {
         row => `
           <tr>
             <td>${esc(row.product_name || '—')}</td>
-            <td><span class="badge ${esc(row.decoration_type)}">${title(row.decoration_type)}</span></td>
+            <td><span class="badge ${esc(row.decoration_type)}">${esc(title(row.decoration_type))}</span></td>
             <td>${esc(row.process_code || '—')}</td>
             <td>${esc(row.view_name || '—')}</td>
             <td>${esc(row.area_name || '—')}</td>

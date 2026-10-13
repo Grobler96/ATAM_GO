@@ -273,7 +273,7 @@
     el.innerHTML = TABS.map(t => {
       const n = tabCount(t);
       const attn = (t.key === 'review' && n > 0) ? ' si-tab-attn' : '';
-      return `<button type="button" class="si-tab${t.key === currentTab ? ' active' : ''}${attn}" data-tab="${t.key}">${esc(t.label)}${n == null ? '' : ` <span class="si-tab-n">${n}</span>`}</button>`;
+      return `<button type="button" class="si-tab${t.key === currentTab ? ' active' : ''}${attn}" data-tab="${esc(t.key)}">${esc(t.label)}${n == null ? '' : ` <span class="si-tab-n">${n}</span>`}</button>`;
     }).join('');
   }
 

@@ -282,7 +282,7 @@
     if (!box) return;
     const list = poNumbersState[id] || [];
     box.innerHTML = list.map((po, i) => `
-      <span class="rev-po-tag">${po.replace(/</g, '&lt;')}<button type="button" data-remove-idx="${i}">&times;</button></span>
+      <span class="rev-po-tag">${escHtml(po)}<button type="button" data-remove-idx="${i}">&times;</button></span>
     `).join('') + `<input type="text" class="rev-po-taginput" id="poinput-${id}" placeholder="${list.length ? '' : 'e.g. 876218'}">`;
 
     box.querySelectorAll('[data-remove-idx]').forEach(btn => {
@@ -355,9 +355,9 @@
         <div class="rev-case-head" style="cursor:default">
           <div class="rev-stamp clean">✓</div>
           <div class="rev-case-main">
-            <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Approved by ${row.reviewed_by || 'unknown'} at ${fmtDate(row.reviewed_at)}</div>
-            <div class="rev-case-title">${row.final_vendor || row.extracted_vendor || 'Unknown vendor'}</div>
-            <div class="rev-case-sub">${row.final_po_reference ? 'PO ' + row.final_po_reference : 'No PO reference'} · Waiting to post to Xero</div>
+            <div class="rev-case-ref">Invoice ${escHtml(row.extracted_invoice_number || 'unknown')} · Approved by ${escHtml(row.reviewed_by || 'unknown')} at ${fmtDate(row.reviewed_at)}</div>
+            <div class="rev-case-title">${escHtml(row.final_vendor || row.extracted_vendor || 'Unknown vendor')}</div>
+            <div class="rev-case-sub">${escHtml(row.final_po_reference ? 'PO ' + row.final_po_reference : 'No PO reference')} · Waiting to post to Xero</div>
           </div>
           <div class="rev-case-meta">
             <span class="rev-amt">${fmtMoney(row.final_total)}</span>
@@ -417,9 +417,9 @@
         <div class="rev-case-head" style="cursor:default">
           <div class="rev-stamp nomatch">🔖</div>
           <div class="rev-case-main">
-            <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Tagged by ${row.snoozed_by || 'unknown'} at ${fmtDate(row.snoozed_at)}</div>
-            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'}</div>
-            <div class="rev-case-sub">${row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet'}</div>
+            <div class="rev-case-ref">Invoice ${escHtml(row.extracted_invoice_number || 'unknown')} · Tagged by ${escHtml(row.snoozed_by || 'unknown')} at ${fmtDate(row.snoozed_at)}</div>
+            <div class="rev-case-title">${escHtml(row.extracted_vendor || 'Unknown vendor')}</div>
+            <div class="rev-case-sub">${escHtml(row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet')}</div>
           </div>
           <div class="rev-case-meta">
             <span class="rev-amt">${fmtMoney(row.extracted_total)}</span>
@@ -635,9 +635,9 @@
         <div class="rev-case-head" style="cursor:default">
           <div class="rev-stamp vendor">\u2715</div>
           <div class="rev-case-main">
-            <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} \u00b7 Rejected by ${row.reviewed_by || 'unknown'} at ${fmtDate(row.reviewed_at)}</div>
-            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'}</div>
-            <div class="rev-case-sub">${row.review_notes ? row.review_notes : 'No reason given'}</div>
+            <div class="rev-case-ref">Invoice ${escHtml(row.extracted_invoice_number || 'unknown')} \u00b7 Rejected by ${escHtml(row.reviewed_by || 'unknown')} at ${fmtDate(row.reviewed_at)}</div>
+            <div class="rev-case-title">${escHtml(row.extracted_vendor || 'Unknown vendor')}</div>
+            <div class="rev-case-sub">${escHtml(row.review_notes ? row.review_notes : 'No reason given')}</div>
           </div>
           <div class="rev-case-meta">
             <span class="rev-amt">${fmtMoney(row.extracted_total)}</span>
@@ -720,8 +720,8 @@
         📎 ${siblings.length} other document${siblings.length > 1 ? 's' : ''} arrived in this same email — worth a quick look before approving, in case one is a backing sheet or supporting document rather than a separate bill.
         ${siblings.map(s => `
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
-            <span style="font-size:12px;color:#e2e8f0">${(s.extracted_vendor || 'Unknown vendor').replace(/</g, '&lt;')} · Invoice ${(s.extracted_invoice_number || 'unknown').toString().replace(/</g, '&lt;')} · ${fmtMoney(s.extracted_total)}</span>
-            ${s.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${s.pdf_url}" style="white-space:nowrap;flex-shrink:0">View PDF</button>` : ''}
+            <span style="font-size:12px;color:#e2e8f0">${escHtml(s.extracted_vendor || 'Unknown vendor')} · Invoice ${escHtml(s.extracted_invoice_number || 'unknown')} · ${fmtMoney(s.extracted_total)}</span>
+            ${s.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${escHtml(s.pdf_url)}" style="white-space:nowrap;flex-shrink:0">View PDF</button>` : ''}
           </div>
         `).join('')}
       </div>`;
@@ -777,17 +777,17 @@
           <div class="rev-fix-label" style="color:#a78bfa">Pick the correct Xero contact</div>
           <p style="font-size:12px;color:#94a3b8;margin:0 0 10px">Often means this supplier has separate Xero contacts per payment method (e.g. BACS vs Direct Debit vs Card) - pick whichever one this invoice should actually be paid through.</p>
           ${row.xero_contact_candidates.map(c => `
-            <button type="button" class="rev-btn primary" data-action="pick-contact" data-contact-id="${c.contact_id}" data-contact-name="${(c.name || '').replace(/"/g, '&quot;')}" style="width:100%;margin-bottom:6px;text-align:left">Use "${c.name}"</button>
+            <button type="button" class="rev-btn primary" data-action="pick-contact" data-contact-id="${escHtml(c.contact_id)}" data-contact-name="${escHtml(c.name || '')}" style="width:100%;margin-bottom:6px;text-align:left">Use "${escHtml(c.name)}"</button>
           `).join('')}
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8;margin-top:6px">
             <input type="checkbox" id="remember-${row.id}" checked style="width:auto">
-            Remember this choice for all future ${row.extracted_vendor || 'this vendor'} invoices
+            Remember this choice for all future ${escHtml(row.extracted_vendor || 'this vendor')} invoices
           </label>
         </div>` : '';
       bounceHtml = `
         <div class="rev-why" style="border-left-color:#a78bfa;background:rgba(167,139,250,0.08)">
           <div class="rev-why-label" style="color:#a78bfa">🔁 Bounced back from Xero</div>
-          <p>${row.review_notes}</p>
+          <p>${escHtml(row.review_notes)}</p>
         </div>
         ${pickerHtml}`;
     }
@@ -797,9 +797,9 @@
       const deliveryNote = Number(row.identified_delivery_charge) > 0
         ? ` This includes a ${fmtMoney(row.identified_delivery_charge)} delivery/carriage charge, which was correctly netted out before matching since it isn't on the original PO.`
         : '';
-      whyHtml = `<div class="rev-why rev-why-good"><div class="rev-why-label">Looks good</div><p>Vendor and amount both line up with PO ${row.matched_po_number} within tolerance.${deliveryNote} Safe to approve as-is, or adjust anything below first if something looks off.</p></div>`;
+      whyHtml = `<div class="rev-why rev-why-good"><div class="rev-why-label">Looks good</div><p>Vendor and amount both line up with PO ${escHtml(row.matched_po_number)} within tolerance.${deliveryNote} Safe to approve as-is, or adjust anything below first if something looks off.</p></div>`;
     } else if (row.match_status === 'vendor_mismatch') {
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>This invoice is from <b>${row.extracted_vendor || 'this vendor'}</b>, but the matched PO (${row.matched_po_number}) is recorded under <b>${row.matched_po_vendor || 'a different vendor'}</b> in DecoNetwork. Could be a genuine data-entry error on the PO, or the wrong PO matched.</p></div>
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>This invoice is from <b>${escHtml(row.extracted_vendor || 'this vendor')}</b>, but the matched PO (${escHtml(row.matched_po_number)}) is recorded under <b>${escHtml(row.matched_po_vendor || 'a different vendor')}</b> in DecoNetwork. Could be a genuine data-entry error on the PO, or the wrong PO matched.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
           <li>Check the amounts below actually match this PO. If they do, the vendor field in DecoNetwork is likely just wrong.</li>
           <li>Update the <b>Vendor</b> field below to the correct one, then hit <b>Retry Match</b> to confirm it now lines up before approving.</li>
@@ -818,7 +818,7 @@
       const deliveryNote = deliveryCharge > 0
         ? ` (${fmtMoney(deliveryCharge)} identified delivery/carriage charge already netted out of this comparison)`
         : '';
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total${deliveryNote} (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${row.matched_po_number}'s value (${fmtMoney(poCombined)}), outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total${deliveryNote} (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${escHtml(row.matched_po_number)}'s value (${fmtMoney(poCombined)}), outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
           <li>Check the line items below against the PO for what caused the difference: an added charge, a partial delivery, or a genuine pricing change.</li>
           <li>If the PO itself has since been corrected in DecoNetwork, hit <b>Retry Match</b> to re-check against the current figures.</li>
@@ -826,9 +826,9 @@
           <li>If something looks wrong, correct the fields below before approving, or reject and follow up with the supplier.</li>
         </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'duplicate_suspected') {
-      whyHtml = `<div class="rev-why"><div class="rev-why-label">Possible duplicate invoice</div><p>${row.extraction_notes || ('PO ' + row.matched_po_number + ' appears to already be fully allocated across other invoices in the system - this one would push it over the PO\'s value, which usually means a genuine duplicate rather than a legitimate back order.')}</p></div>
+      whyHtml = `<div class="rev-why"><div class="rev-why-label">Possible duplicate invoice</div><p>${escHtml(row.extraction_notes || ('PO ' + row.matched_po_number + ' appears to already be fully allocated across other invoices in the system - this one would push it over the PO\'s value, which usually means a genuine duplicate rather than a legitimate back order.'))}</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to check this</div><ol>
-          <li>Look up the other invoice(s) already matched to PO ${row.matched_po_number} - check <span class="rev-where">Approved Invoices</span> and the rest of this list for the same PO number.</li>
+          <li>Look up the other invoice(s) already matched to PO ${escHtml(row.matched_po_number)} - check <span class="rev-where">Approved Invoices</span> and the rest of this list for the same PO number.</li>
           <li>If this really is the same invoice sent twice (same amount, same or very similar invoice date), <b>reject this one</b> rather than approving it.</li>
           <li>If it's genuinely a separate delivery/back-order that happens to push the PO over its original value (e.g. a price increase, an extra item), you can still approve it - just double-check the numbers first, since this warning exists specifically to make you look before approving.</li>
         </ol>${retryMatchButton}</div>`;
@@ -849,7 +849,7 @@
       const items = JSON.parse(row.extracted_line_items || '[]');
       if (items.length) {
         lineItemsHtml = items.map(li =>
-          `<div class="rev-li-row"><span>${li.description || ''}</span><span>${li.quantity || ''} × ${fmtMoney(li.unit_price)}</span><span>${fmtMoney(li.line_total)}</span></div>`
+          `<div class="rev-li-row"><span>${escHtml(li.description || '')}</span><span>${li.quantity || ''} × ${fmtMoney(li.unit_price)}</span><span>${fmtMoney(li.line_total)}</span></div>`
         ).join('');
       }
     } catch (e) { /* ignore malformed line items */ }
@@ -882,7 +882,7 @@
     const poBreakdownHtml = (Array.isArray(row.matched_pos_breakdown) && row.matched_pos_breakdown.length > 1)
       ? `<div class="rev-po-breakdown">
           <div class="rev-ct-label" style="margin-bottom:6px">${row.matched_pos_breakdown.length} POs making up this total</div>
-          ${row.matched_pos_breakdown.map(p => `<div class="rev-po-breakdown-row"><span>PO ${p.po_number}</span><span>${fmtMoney((Number(p.sub_total)||0) + (Number(p.tax)||0))}</span></div>`).join('')}
+          ${row.matched_pos_breakdown.map(p => `<div class="rev-po-breakdown-row"><span>PO ${escHtml(p.po_number)}</span><span>${fmtMoney((Number(p.sub_total)||0) + (Number(p.tax)||0))}</span></div>`).join('')}
         </div>`
       : '';
 
@@ -942,9 +942,9 @@
         <div class="rev-case-head">
           <div class="rev-stamp ${bouncedBack ? 'nomatch' : meta.cls}" ${bouncedBack ? 'style="border-color:#a78bfa;color:#a78bfa;background:rgba(167,139,250,0.1)"' : ''}>${bouncedBack ? '🔁' : meta.stamp}</div>
           <div class="rev-case-main">
-            <div class="rev-case-ref">Invoice ${row.extracted_invoice_number || 'unknown'} · Received ${fmtDate(row.received_at)}</div>
-            <div class="rev-case-title">${row.extracted_vendor || 'Unknown vendor'} · ${bouncedBack ? 'Bounced back from Xero' : meta.label}</div>
-            <div class="rev-case-sub">${row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet'} ${confBadge}${keptNote(row) ? ' <span class="rev-badge-mini" title="' + escHtml(keptNote(row)) + '">📝 note</span>' : ''}</div>
+            <div class="rev-case-ref">Invoice ${escHtml(row.extracted_invoice_number || 'unknown')} · Received ${fmtDate(row.received_at)}</div>
+            <div class="rev-case-title">${escHtml(row.extracted_vendor || 'Unknown vendor')} · ${bouncedBack ? 'Bounced back from Xero' : meta.label}</div>
+            <div class="rev-case-sub">${escHtml(row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet')} ${confBadge}${keptNote(row) ? ' <span class="rev-badge-mini" title="' + escHtml(keptNote(row)) + '">📝 note</span>' : ''}</div>
           </div>
           <div class="rev-case-meta">
             <span class="rev-amt">${fmtMoney(row.extracted_total)}</span>
@@ -953,17 +953,17 @@
         </div>
 
         <div class="rev-case-detail">
-          ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${row.pdf_url}" style="margin-bottom:14px;width:100%">📄 View Original Invoice</button>` : ''}
+          ${row.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${escHtml(row.pdf_url)}" style="margin-bottom:14px;width:100%">📄 View Original Invoice</button>` : ''}
           ${siblingsHtml}
           ${bounceHtml}
           ${whyHtml}
-          ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${row.extraction_notes}</div>` : ''}
+          ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${escHtml(row.extraction_notes)}</div>` : ''}
           ${keptNote(row) ? `<div class="rev-notes-flag" style="background:rgba(56,189,248,0.08);border-left-color:#38bdf8;color:#bae6fd"><b>Your note on this invoice:</b> ${escHtml(keptNote(row)).replace(/\n/g, '<br>')}</div>` : ''}
 
           <div class="rev-compare">
             <div class="rev-compare-card">
               <div class="rev-ct-label">Matched DecoNetwork PO</div>
-              <div class="rev-ct-vendor">${row.matched_po_vendor || 'No match'}</div>
+              <div class="rev-ct-vendor">${escHtml(row.matched_po_vendor || 'No match')}</div>
               <div class="rev-ct-row"><span>Sub-total</span><b>${fmtMoney(row.matched_po_sub_total)}</b></div>
               <div class="rev-ct-row"><span>Tax</span><b>${fmtMoney(row.matched_po_tax)}</b></div>
               ${deliveryChargeRow}
@@ -973,7 +973,7 @@
             <div class="rev-compare-arrow">→</div>
             <div class="rev-compare-card ${row.match_status !== 'clean_match' ? 'mismatch' : ''}">
               <div class="rev-ct-label">Extracted from invoice</div>
-              <div class="rev-ct-vendor">${row.extracted_vendor || '—'}</div>
+              <div class="rev-ct-vendor">${escHtml(row.extracted_vendor || '—')}</div>
               <div class="rev-ct-row"><span>Goods</span><b>${fmtMoney(row.extracted_goods)}</b></div>
               <div class="rev-ct-row"><span>VAT</span><b>${fmtMoney(row.extracted_vat)}</b></div>
               ${invTotalRow}

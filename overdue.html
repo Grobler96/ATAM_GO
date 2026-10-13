@@ -203,7 +203,7 @@
 
   function esc(v) {
     return String(v == null ? '' : v)
-      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   }
   function num(v) { return new Intl.NumberFormat('en-GB').format(Number(v || 0)); }
   function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
