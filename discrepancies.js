@@ -175,6 +175,7 @@
           ${decoFlag}
 
           <div class="disc-actions">
+            <button type="button" class="disc-btn ask-dan-btn" data-ask-dan="discrepancy" data-id="${atamEsc(row.id)}" data-label="${atamEsc('discrepancy on PO ' + (row.po_number || 'unknown'))}" title="Ask DAN to explain this and walk you through it">🤖 Ask DAN</button>
             <button type="button" class="disc-btn danger" data-action="reject">Reject</button>
             <button type="button" class="disc-btn" data-action="correct">Correct &amp; post</button>
             <button type="button" class="disc-btn primary" data-action="approve">Approve &amp; post to Xero</button>

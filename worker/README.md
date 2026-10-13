@@ -18,5 +18,6 @@ Roll back: Workers & Pages -> danbotv2 -> Deployments -> pick the previous versi
 ## How it works
 - Every request needs the signed-in user's Supabase login token (the page sends it). The worker checks it with Supabase, then reads and writes the database as that user, so the dashboard's row-level security applies to DAN too.
 - DAN is a tool-using agent: `business_pulse`, `list_tables`, `query_table` (whitelisted tables, filters, grouping), `query_stock`, `get_customer`, and confirmed actions (`log_winback_contact`, `set_winback_state`, `reassign_order`, `mark_deconetwork_correction_done`).
+- `focus` ({kind, id}) on a chat request puts DAN in guide mode for one record (sales invoice, supplier invoice, discrepancy): the record, the DecoNetwork / PO checks and an accounts playbook are added to its instructions. Extra actions in guide mode: rebuild a sales invoice, hold it, undo its approval (each needs a yes).
 - `/alerts` (no AI) and `/briefing` (written by DAN) feed the chat panel.
 - Add a table to the `TABLES` list at the top of the file to let DAN read it.

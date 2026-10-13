@@ -41,6 +41,10 @@ DAN is a tool-using agent that runs as a Cloudflare worker (`worker/danbotv2.js`
 The chat panel sends the signed-in user's login with every question, so DAN sees exactly what that person can see. On opening the panel
 it shows a morning briefing and a list of alerts (late orders, replies waiting, quotes going cold, invoices above the DecoNetwork total...).
 
+Sales invoices, supplier (purchase) invoices and discrepancies have an **Ask DAN** button. It opens the chat panel pointed at that exact record;
+DAN loads it, explains why it was flagged with the real numbers, and walks the person through the next clicks. It can rebuild, hold or
+undo approval on a sales invoice after a yes, but never approves or posts.
+
 ## Security notes
 
 - Any text that comes from the database (customer, vendor, notes, PO numbers...) must go through the file's escape helper

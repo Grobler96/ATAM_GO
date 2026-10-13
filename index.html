@@ -47,6 +47,16 @@
     #dan-fab.dan-alert:not(.dan-open) { animation: danPulse 2.4s ease-in-out infinite; }
     @keyframes danPulse { 0%,100% { box-shadow: 0 4px 24px rgba(56,189,248,0.5); } 50% { box-shadow: 0 4px 28px rgba(239,68,68,0.75), 0 0 0 8px rgba(239,68,68,0.14); } }
     .dan-tools { margin-top: 8px; font-size: 10.5px; color: #64748b; }
+    .ask-dan-btn { border-color: rgba(56,189,248,0.55) !important; color: #bae6fd !important; background: rgba(56,189,248,0.08) !important; }
+    .ask-dan-btn:hover { background: rgba(56,189,248,0.2) !important; }
+    #dan-focus { display: none; padding: 8px 14px; border-top: 1px solid rgba(56,189,248,0.2); background: rgba(56,189,248,0.07); font-size: 12px; color: #bae6fd; }
+    #dan-focus.on { display: block; }
+    #dan-focus .dan-focus-top { display: flex; align-items: center; gap: 8px; }
+    #dan-focus .dan-focus-top span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #dan-focus .dan-focus-x { border: none; background: transparent; color: #94a3b8; cursor: pointer; font-size: 14px; }
+    #dan-focus .dan-focus-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    #dan-focus .dan-focus-chips button { padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(56,189,248,0.4); background: transparent; color: #e0f2fe; font-size: 11px; cursor: pointer; }
+    #dan-focus .dan-focus-chips button:hover { background: rgba(56,189,248,0.18); }
     @media (prefers-reduced-motion: reduce) { #dan-fab.dan-alert { animation: none; } }
     #dan-panel {
       position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 92vw;
@@ -253,6 +263,7 @@
     <div id="dan-insights"></div>
     <div class="dan-divider"></div>
     <div id="dan-messages"></div>
+    <div id="dan-focus" aria-live="polite"></div>
     <div id="dan-input-row">
       <input id="dan-input" type="text" placeholder="Ask DAN anything about the business…" onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
       <button id="dan-mic" onclick="danToggleListening()" title="Speak to DAN">🎤</button>
@@ -270,6 +281,7 @@
     const QUICK_PROMPTS = ["Brief me","What needs my attention?","Who should we call first?","Which quotes need chasing?","Any late orders?","How is revenue this month?"];
     const danHistory = [];   // last turns, sent with each question so DAN remembers the conversation
     let danAlerts = null;
+    let danFocus = null;   // the record the user pressed Ask DAN on, sent with every message while set
 
     let voiceEnabled = (localStorage.getItem('dan-voice-enabled') === 'true');
     let isListening = false;
@@ -494,7 +506,7 @@
     function danRemoveTyping() { const el = document.getElementById('dan-typing'); if (el) el.remove(); }
     function danScroll() { const msgs = document.getElementById('dan-messages'); msgs.scrollTop = msgs.scrollHeight; }
 
-    async function danSendText(text) {
+    async function danSendText(text, focusOverride) {
       if (isBusy || !text.trim()) return;
       isBusy = true;
       const insights = document.getElementById('dan-insights');
@@ -506,7 +518,7 @@
       const s = window.state || {};
       try {
         const headers = await window.atamGoWebhookHeaders();
-        const res = await fetch(WEBHOOK_URL, { method: 'POST', headers, body: JSON.stringify({ message: text, history: danHistory.slice(-12), context: { dateFrom: s.dateFrom || null, dateTo: s.dateTo || null } }) });
+        const res = await fetch(WEBHOOK_URL, { method: 'POST', headers, body: JSON.stringify({ message: text, history: danHistory.slice(-12), focus: focusOverride || danFocus ? { kind: (focusOverride || danFocus).kind, id: (focusOverride || danFocus).id } : null, context: { dateFrom: s.dateFrom || null, dateTo: s.dateTo || null } }) });
         danRemoveTyping();
         if (res.status === 401) { danAppendBot('Your sign-in has expired. Please <a href="login.html" style="color:#7dd3fc">sign in again</a>, then ask me once more.', false); return; }
         let data = {};
@@ -537,6 +549,36 @@
     window.danToggle = danToggle;
     window.danSend = danSend;
     window.danSendText = danSendText;
+    // "Ask DAN" buttons on invoices: open the panel already pointed at that record.
+    const FOCUS_CHIPS = {
+      sales_invoice: ['Why was this flagged?', 'What do I click next?', 'Do the totals look right?', 'Is the VAT right?'],
+      supplier_invoice: ['Does this match the PO?', 'What do I click next?', 'Is there a delivery charge in here?', 'Is it a duplicate?'],
+      discrepancy: ['What is wrong here?', 'What do I click next?', 'Does this need fixing in DecoNetwork?']
+    };
+    function danRenderFocus() {
+      const bar = document.getElementById('dan-focus'); if (!bar) return;
+      if (!danFocus) { bar.classList.remove('on'); bar.innerHTML = ''; return; }
+      bar.classList.add('on');
+      bar.innerHTML = '<div class="dan-focus-top"><span>🔎 Helping with: ' + atamEsc(danFocus.label) + '</span><button type="button" class="dan-focus-x" title="Stop focusing on this record" aria-label="Stop focusing on this record">✕</button></div><div class="dan-focus-chips"></div>';
+      bar.querySelector('.dan-focus-x').onclick = () => { danFocus = null; danRenderFocus(); };
+      const chips = bar.querySelector('.dan-focus-chips');
+      (FOCUS_CHIPS[danFocus.kind] || []).forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => danSendText(t); chips.appendChild(b); });
+    }
+    function askDan(kind, id, label) {
+      if (!kind || !id) return;
+      if (!danFocus || danFocus.id !== id) danHistory.length = 0;   // a new record starts a fresh conversation for DAN
+      danFocus = { kind, id, label: label || 'this record' };
+      if (!isOpen) { hasGreeted = true; danToggle(); }
+      danRenderFocus();
+      danSendText('I need help with this ' + danFocus.label + '. Walk me through it.');
+    }
+    window.askDan = askDan;
+    document.addEventListener('click', e => {
+      const b = e.target.closest && e.target.closest('[data-ask-dan]');
+      if (!b) return;
+      e.preventDefault(); e.stopPropagation();
+      askDan(b.dataset.askDan, b.dataset.id, b.dataset.label);
+    }, true);
     window.danRefresh = renderInsights;
     window.danToggleVoice = danToggleVoice;
     window.danToggleListening = danToggleListening;
@@ -1264,7 +1306,7 @@
   <script src="revenue.js"></script>
   <script src="discrepancies.js"></script>
   <script src="pending_invoices_review.js"></script>
-  <script src="sales_invoices_view.js?v=20261013a"></script>
+  <script src="sales_invoices_view.js?v=20261013b"></script>
     <script src="customer_spend.js?v=20261008"></script>
   <script src="quotes.js?v=20261012"></script>
   <script src="winback.js?v=20261013"></script>
