@@ -17,6 +17,7 @@
  *   /alerts      { }                                                          ->  { alerts: [...], pulse }
  *   /briefing    { }                                                          ->  { reply }
  *   GET /health  no login; shows the version and which secrets are set (never their values)
+ *   /voice       the phone line (VAPI tool calls), guarded by X-Dan-Key + an approved-numbers list; /voice/morning triggers or dry-runs the morning call; GET /voice/health
  *
  * Secrets / variables to set on the worker (Settings -> Variables and Secrets)
  *   ANTHROPIC_API_KEY   (secret, required)
@@ -366,7 +367,7 @@ const TOOL_DEFS = [
   { name: 'mark_deconetwork_correction_done', description: 'ACTION. Tick off that a purchase order\'s vendor has been corrected by hand in DecoNetwork. Only after the user says it has already been done (confirmed true).', input_schema: { type: 'object', properties: { po_number: { type: 'string' }, confirmed: { type: 'boolean' } }, required: ['po_number', 'confirmed'] } }
 ];
 
-async function runTool(user, env, name, input) {
+async function runTool(user, env, name, input, ctx) {
   try {
     if (name === 'business_pulse') return await pulse(user);
     if (name === 'list_tables') return Object.fromEntries(Object.entries(TABLES).map(([k, v]) => [k, { about: v.d, columns: v.cols }]));
@@ -375,6 +376,7 @@ async function runTool(user, env, name, input) {
     if (name === 'get_customer') return await getCustomer(user, String((input || {}).search || ''));
     const isAction = ['log_winback_contact', 'set_winback_state', 'reassign_order', 'mark_deconetwork_correction_done', 'rebuild_sales_invoice', 'hold_sales_invoice', 'undo_sales_invoice_approval'].includes(name);
     if (isAction && !(input && input.confirmed === true)) return { done: false, message: 'Not done: the user has not confirmed. Read back exactly what you will do and ask for a yes.' };
+    if (isAction && ctx && ctx.voice && !ctx.verified) return { done: false, message: 'Not done: this phone call is not verified yet. Ask Daniel to say his passphrase; once he has, you can do it.' };
     if (name === 'log_winback_contact') {
       const r = await sbRpc(user, 'log_winback_contact', { p_customer_id: String(input.customer_id), p_method: input.method, p_outcome: input.outcome, p_note: input.note || null, p_follow_up: input.follow_up_on || null });
       return r.ok ? { done: true, message: `Logged ${input.outcome.replace(/_/g, ' ')} (${input.method}) as ${user.name}.` } : { done: false, message: r.error };
@@ -538,7 +540,7 @@ HOW SUPPLIER INVOICES WORK (Purchase Order Review tab):
 HOW DISCREPANCIES WORK (Discrepancies tab): a PO and its supplier invoice do not line up (vendor_mismatch, amount_variance, no_po_match). Buttons: Approve and post to Xero, Correct and post (change the amount or nominal), Reject. A vendor mismatch usually means the PO in DecoNetwork was raised against the wrong supplier: it cannot be fixed by the system, someone with Purchasing access edits the PO in DecoNetwork Business Hub, then tells DAN (or ticks it off) so it is recorded.`;
 
 // ───────────────────────── the agent ─────────────────────────
-function systemPrompt(user, ctx) {
+function systemPrompt(user, ctx, voice) {
   const t = today();
   const dow = new Date().toLocaleDateString('en-GB', { weekday: 'long' });
   return `You are DAN, the in-house business agent for ATAM Workwear, a UK workwear decoration business (embroidery and print on garments). You work inside ATAM GO, the company dashboard. You are talking to ${user.name}.
@@ -566,7 +568,7 @@ HOW TO WRITE (this is read in a small chat panel and may be read aloud):
 - Lead with the answer and the numbers. Short punchy sentences like a sharp colleague. 3 to 6 lines for most answers. Lists of up to about 8 items are fine, one per line with simple numbering.
 - Use £ and UK dates. Round money sensibly.
 - Do not mention tools, queries or how you got the data. End with at most one short follow-up line.
-${ctx && ctx.dateFrom ? `\nThe dashboard is currently showing ${ctx.dateFrom} to ${ctx.dateTo} (for "this range" questions).` : ''}`;
+${ctx && ctx.dateFrom ? `\nThe dashboard is currently showing ${ctx.dateFrom} to ${ctx.dateTo} (for "this range" questions).` : ''}${voice ? VOICE_RULES : ''}`;
 }
 
 async function callClaude(env, system, messages, tools, extra) {
@@ -583,7 +585,7 @@ async function callClaude(env, system, messages, tools, extra) {
   return res.json();
 }
 
-async function agent(env, user, system, messages, extra) {
+async function agent(env, user, system, messages, extra, ctx) {
   const used = [];
   let msgs = messages.slice();
   for (let step = 0; step < MAX_STEPS; step++) {
@@ -592,7 +594,7 @@ async function agent(env, user, system, messages, extra) {
       const blocks = data.content.filter(b => b.type === 'tool_use');
       const results = await Promise.all(blocks.map(async b => {
         used.push(b.name);
-        const out = await runTool(user, env, b.name, b.input);
+        const out = await runTool(user, env, b.name, b.input, ctx);
         let text = JSON.stringify(out);
         if (text.length > 40000) text = text.slice(0, 40000) + '…(truncated: narrow your filters or use aggregate)';
         return { type: 'tool_result', tool_use_id: b.id, content: text };
@@ -619,6 +621,136 @@ function cleanHistory(h) {
   return out.filter((m, i) => i === 0 || m.role !== out[i - 1].role);
 }
 
+
+// ───────────────────────── phone (VAPI) ─────────────────────────
+// VAPI is only the ears and mouth. It sends what Daniel says to /voice as a tool call; DAN answers with the same brain and
+// the same tools as the chat panel. Reads as a dedicated "phone" login (read access like a superuser; see worker/README.md).
+const VOICE_RULES = `
+
+THIS IS A PHONE CALL with Daniel Spooner, the owner. Your words are spoken aloud, so these rules replace the writing rules above:
+- Talk like a sharp colleague on the phone. Short natural sentences, no lists, no symbols, no markdown. Say "pounds" not the pound sign and round sensibly ("about forty thousand pounds"). Say dates as people do ("the fourteenth of October").
+- Usually 15 to 45 words. One thing at a time, then offer more ("want the rest?"). Never read out long ids.
+- When he asks you to DO something, read back exactly what you will do and wait for a clear yes in his next reply. Only then call the action tool with confirmed true, and tell him plainly what happened.
+- If an action tool says the call is not verified, ask him to say his passphrase.
+- Never approve, reject or post invoices to Xero, even if asked. Say that stays a click in the dashboard.`;
+
+const voiceCalls = new Map();   // VAPI call id -> { history, verified, tries, at }
+let voiceToken = null;          // { user, until }
+const sameText = (a, b) => { a = String(a || ''); b = String(b || ''); if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; };
+const digitsOnly = n => String(n || '').replace(/[^\d+]/g, '');
+
+function voiceConfig(env) {
+  return {
+    key: !!env.DAN_VOICE_KEY, login: !!(env.DAN_VOICE_EMAIL && env.DAN_VOICE_PASSWORD), numbers: !!env.DAN_VOICE_NUMBERS,
+    passphrase: !!env.DAN_VOICE_PASSPHRASE, morning_call: !!(env.VAPI_API_KEY && env.VAPI_ASSISTANT_ID && env.VAPI_PHONE_NUMBER_ID && env.DAN_MORNING_NUMBER)
+  };
+}
+
+async function voiceUser(env) {
+  if (voiceToken && voiceToken.until > Date.now()) return voiceToken.user;
+  if (!env.DAN_VOICE_EMAIL || !env.DAN_VOICE_PASSWORD) throw new Error('The phone login is not set up (DAN_VOICE_EMAIL / DAN_VOICE_PASSWORD).');
+  const res = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: SB_ANON, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: env.DAN_VOICE_EMAIL, password: env.DAN_VOICE_PASSWORD }) });
+  if (!res.ok) throw new Error(`The phone login was refused (${res.status}). Check the email and password in the worker settings.`);
+  const d = await res.json();
+  const user = { id: d.user && d.user.id, email: env.DAN_VOICE_EMAIL, name: env.DAN_VOICE_NAME || 'Daniel Spooner (by phone)', token: d.access_token };
+  voiceToken = { user, until: Date.now() + Math.max(60, (d.expires_in || 3600) - 300) * 1000 };
+  return user;
+}
+
+const oneLine = t => String(t || '').replace(/[*_#`]/g, '').replace(/\s*\n+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+async function voiceAsk(env, state, question) {
+  const user = await voiceUser(env);
+  const messages = [...state.history, { role: 'user', content: String(question).slice(0, 2000) }];
+  const out = await agent(env, user, systemPrompt(user, null, true), messages, null, { voice: true, verified: state.verified });
+  const reply = oneLine(out.reply);
+  state.history.push({ role: 'user', content: String(question).slice(0, 2000) }, { role: 'assistant', content: reply });
+  if (state.history.length > 16) state.history.splice(0, state.history.length - 16);
+  return reply || 'Sorry, I did not get an answer.';
+}
+
+async function handleVoice(request, env, path) {
+  if (request.method === 'GET' && path === '/voice/health') return json({ ok: true, version: VERSION, ...voiceConfig(env) });
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (!env.DAN_VOICE_KEY || !sameText(request.headers.get('X-Dan-Key'), env.DAN_VOICE_KEY)) return json({ error: 'Not allowed.' }, 401);
+  let body = {}; try { body = await request.json(); } catch (e) { body = {}; }
+
+  if (path === '/voice/morning') {   // manual trigger / dry run: { dry: true } returns the script without dialling
+    try { return json(await morningCall(env, !!body.dry)); } catch (e) { return json({ ok: false, error: String((e && e.message) || e).slice(0, 300) }, 500); }
+  }
+
+  const msg = body.message || {};
+  if (msg.type !== 'tool-calls') return json({});
+  const call = msg.call || {};
+  const callId = String(call.id || 'unknown');
+  const number = digitsOnly(call.customer && call.customer.number);
+  const allowed = String(env.DAN_VOICE_NUMBERS || '').split(',').map(digitsOnly).filter(Boolean);
+  const list = msg.toolCallList || (msg.toolWithToolCallList || []).map(t => t.toolCall || t);
+  const results = [];
+  if (!allowed.length || !allowed.includes(number)) {
+    for (const c of list) results.push({ toolCallId: c.id, result: 'Sorry, I can only talk to approved numbers.' });
+    return json({ results });
+  }
+  const outbound = call.type === 'outboundPhoneCall';   // we dialled the number ourselves, so it is who we think it is
+  let state = voiceCalls.get(callId);
+  if (!state) { state = { history: [], verified: outbound || !env.DAN_VOICE_PASSPHRASE, tries: 0, at: Date.now() }; voiceCalls.set(callId, state); }
+  for (const [k, v] of voiceCalls) if (Date.now() - v.at > 2 * 3600 * 1000) voiceCalls.delete(k);
+  state.at = Date.now();
+
+  for (const c of list) {
+    const name = c.name || (c.function && c.function.name);
+    let args = c.arguments || (c.function && c.function.arguments) || {};
+    if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }
+    let result;
+    try {
+      if (name === 'verify_passphrase') {
+        if (state.tries >= 3) result = 'Too many tries. Verification is locked for this call.';
+        else if (env.DAN_VOICE_PASSPHRASE && sameText(String(args.passphrase || '').trim().toLowerCase(), String(env.DAN_VOICE_PASSPHRASE).trim().toLowerCase())) { state.verified = true; result = 'Verified. You can now do things for him.'; }
+        else { state.tries++; result = 'That was not right.'; }
+      } else if (name === 'ask_danbot') {
+        if (!args.question) result = 'I did not catch the question.';
+        else result = await voiceAsk(env, state, args.question);
+      } else result = 'Unknown tool.';
+    } catch (e) {
+      console.error('voice error', e);
+      result = 'Sorry, I could not check that just now.';
+    }
+    results.push({ toolCallId: c.id, result });
+  }
+  return json({ results });
+}
+
+// The morning call: DAN writes a spoken brief from the live numbers, then asks VAPI to ring Daniel and speak it first.
+// Afterwards he can ask anything or tell DAN to do things, as on any call (an outbound call counts as verified).
+async function morningCall(env, dry) {
+  const cfg = voiceConfig(env);
+  const missing = [!cfg.login && 'phone login', !cfg.morning_call && 'VAPI_API_KEY / VAPI_ASSISTANT_ID / VAPI_PHONE_NUMBER_ID / DAN_MORNING_NUMBER'].filter(Boolean);
+  if (missing.length) return { ok: false, error: 'Not set up yet: ' + missing.join(', ') };
+  const user = await voiceUser(env);
+  const p = await pulse(user);
+  const prompt = `Write the spoken morning call for Daniel Spooner. It is read aloud by a phone voice as the first thing he hears, so write ONLY the words to say.
+Start "Morning Daniel, it's Dan." Then, about 70 to 100 words in short natural sentences: anything urgent or important first (late orders, a customer reply waiting, a big quote going cold, an invoice above the DecoNetwork total, data that looks stale or that you could not read), then the two or three things that shape the day (orders due today, what needs chasing, money). Use names and rounded numbers; say pounds not the symbol. If everything is calm, say so in one line. End with "Anything you want me to look into or sort out?".
+Live numbers:
+${JSON.stringify(p)}`;
+  const out = await agent(env, user, systemPrompt(user, null, true), [{ role: 'user', content: prompt }], null, { voice: true, verified: true });
+  const script = oneLine(out.reply);
+  if (dry) return { ok: true, dry: true, script };
+  const res = await fetch('https://api.vapi.ai/call', {
+    method: 'POST', headers: { Authorization: `Bearer ${env.VAPI_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assistantId: env.VAPI_ASSISTANT_ID, phoneNumberId: env.VAPI_PHONE_NUMBER_ID, customer: { number: env.DAN_MORNING_NUMBER, name: 'Daniel' }, assistantOverrides: { firstMessage: script, firstMessageMode: 'assistant-speaks-first' } })
+  });
+  const text = await res.text();
+  if (!res.ok) return { ok: false, error: `VAPI refused the call (${res.status}): ${text.slice(0, 200)}`, script };
+  let id = null; try { id = JSON.parse(text).id; } catch (e) { /* not json */ }
+  return { ok: true, called: true, call_id: id, script };
+}
+
+function londonNow() {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: 'numeric', minute: 'numeric', hour12: false, weekday: 'short' }).formatToParts(new Date());
+  const get = t => (parts.find(x => x.type === t) || {}).value;
+  return { hour: Number(get('hour')) % 24, minute: Number(get('minute')), weekday: get('weekday') };
+}
+
 // ───────────────────────── entry ─────────────────────────
 export default {
   async fetch(request, env) {
@@ -626,6 +758,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
 
+    if (path === '/voice' || path.startsWith('/voice/')) return handleVoice(request, env, path);
     if (request.method === 'GET' && path === '/health') {
       return json({ ok: true, version: VERSION, model: env.DAN_MODEL || DEFAULT_MODEL, anthropic_key_set: !!env.ANTHROPIC_API_KEY, stock_key_set: !!env.STOCK_SUPABASE_KEY });
     }
@@ -671,6 +804,14 @@ export default {
       console.error('DAN error', e);
       return json({ reply: 'Sorry, something went wrong on my side. Try again in a moment.', error: String((e && e.message) || e).slice(0, 200) }, 500);
     }
+  },
+
+  // Cron Triggers (set in the Cloudflare dashboard): `30 6 * * 1-5` and `30 7 * * 1-5` (UTC). Whichever of the two lands on
+  // 07:30 UK time makes the morning call, so it stays right when the clocks change.
+  async scheduled(controller, env, ctx) {
+    const t = londonNow();
+    if (t.hour !== 7 || t.minute < 25 || t.minute > 40) return;
+    ctx.waitUntil(morningCall(env, false).then(r => console.log('morning call', JSON.stringify({ ok: r.ok, call_id: r.call_id, error: r.error }))).catch(e => console.error('morning call failed', e)));
   }
 };
 

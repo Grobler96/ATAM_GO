@@ -21,3 +21,22 @@ Roll back: Workers & Pages -> danbotv2 -> Deployments -> pick the previous versi
 - `focus` ({kind, id}) on a chat request puts DAN in guide mode for one record (sales invoice, supplier invoice, discrepancy): the record, the DecoNetwork / PO checks and an accounts playbook are added to its instructions. Extra actions in guide mode: rebuild a sales invoice, hold it, undo its approval (each needs a yes).
 - `/alerts` (no AI) and `/briefing` (written by DAN) feed the chat panel.
 - Add a table to the `TABLES` list at the top of the file to let DAN read it.
+
+## Phone (VAPI): ring DAN, and DAN rings Daniel each morning
+VAPI is only the ears and mouth. It sends what is said to `/voice`; the same DAN brain answers.
+
+Extra variables and secrets on the worker:
+| name | what it is |
+|---|---|
+| `DAN_VOICE_KEY` (secret) | a long random string. VAPI sends it in an `X-Dan-Key` header; without it `/voice` refuses |
+| `DAN_VOICE_EMAIL`, `DAN_VOICE_PASSWORD` (secret) | the login of a dedicated "phone" user in Supabase (Authentication -> Users -> Add user, auto confirm). Then run `sql/dan_voice.sql` so it can see everything |
+| `DAN_VOICE_NUMBERS` | numbers allowed to use the phone line, comma separated, e.g. `+447...` (Daniel's) |
+| `DAN_VOICE_PASSPHRASE` (secret, optional) | on inbound calls DAN can only act (rebuild, reassign, log...) after the caller says this. Outbound calls we make ourselves need no passphrase |
+| `VAPI_API_KEY` (secret), `VAPI_ASSISTANT_ID`, `VAPI_PHONE_NUMBER_ID` | to place the morning call |
+| `DAN_MORNING_NUMBER` | the number to ring each morning (Daniel's) |
+
+Morning call: add two Cron Triggers on the worker (Settings -> Triggers -> Cron): `30 6 * * 1-5` and `30 7 * * 1-5`. Whichever lands on 07:30 UK time makes the call, so it is right in summer and winter.
+Test it without ringing: `POST /voice/morning` with header `X-Dan-Key` and body `{"dry":true}` returns the script. Without `dry` it rings now.
+`GET /voice/health` shows which settings are present.
+
+Actions by voice: same ones as chat, each after DAN reads it back and gets a yes. Never approving or posting invoices.
