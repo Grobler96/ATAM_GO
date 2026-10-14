@@ -427,6 +427,7 @@
         </div>
         <div style="padding:0 20px 16px">
           ${row.snooze_note ? `<div class="rev-notes-flag">📝 ${escHtml(row.snooze_note).replace(/\n/g, '<br>')}</div>` : '<div class="rev-notes-flag" style="opacity:.6">No note left</div>'}
+          <button type="button" class="rev-btn ask-dan-btn" data-ask-dan="supplier_invoice" data-id="${escHtml(row.id)}" data-label="${escHtml('supplier invoice ' + (row.extracted_invoice_number || '') + ' from ' + (row.extracted_vendor || 'a supplier'))}" style="width:100%;margin-bottom:8px">🤖 Ask DAN</button>
           <button type="button" class="rev-btn primary" data-action="resume-review" data-id="${row.id}" style="width:100%">↩ Resume Review</button>
         </div>
       </div>
@@ -946,6 +947,7 @@
             <div class="rev-case-title">${escHtml(row.extracted_vendor || 'Unknown vendor')} · ${bouncedBack ? 'Bounced back from Xero' : meta.label}</div>
             <div class="rev-case-sub">${escHtml(row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet')} ${confBadge}${keptNote(row) ? ' <span class="rev-badge-mini" title="' + escHtml(keptNote(row)) + '">📝 note</span>' : ''}</div>
           </div>
+          <button type="button" class="rev-btn ask-dan-btn" data-ask-dan="supplier_invoice" data-id="${escHtml(row.id)}" data-label="${escHtml('supplier invoice ' + (row.extracted_invoice_number || '') + ' from ' + (row.extracted_vendor || 'a supplier'))}" style="padding:5px 10px;font-size:11px;white-space:nowrap" title="Stuck? Ask DAN to walk you through this invoice">🤖 Ask DAN</button>
           <div class="rev-case-meta">
             <span class="rev-amt">${fmtMoney(row.extracted_total)}</span>
             ${row.extracted_invoice_date ? fmtDate(row.extracted_invoice_date).split(',')[0] : ''}
@@ -1036,6 +1038,7 @@
           </div>
 
           <div class="rev-actions">
+            <button type="button" class="rev-btn ask-dan-btn" data-ask-dan="supplier_invoice" data-id="${escHtml(row.id)}" data-label="${escHtml('supplier invoice ' + (row.extracted_invoice_number || '') + ' from ' + (row.extracted_vendor || 'a supplier'))}" title="Ask DAN to explain this invoice and walk you through it">🤖 Ask DAN</button>
             <button type="button" class="rev-btn danger" data-action="reject">Reject</button>
             <button type="button" class="rev-btn" data-action="snooze">🔖 Move to In Review</button>
             <button type="button" class="rev-btn primary" data-action="approve">Approve, ready to post</button>
