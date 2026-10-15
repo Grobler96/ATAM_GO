@@ -1,0 +1,58 @@
+# ATAM GO: handover notes for Claude
+
+Read this first. It is the standing context so a new chat does not need the history. Keep it short and update it when things change.
+
+## What this is
+ATAM GO is the dashboard for ATAM Workwear (UK workwear embroidery and print). The owner is Oliver (Oli). The team: Daniel Spooner (owner, sales), Steph (accounts), Bethan Kaye, Francesca Spooner, Emma Harman, Julie Sheehan, Christine Ball.
+Oliver is not a developer. Explain plainly, give exact click-by-click steps for anything he has to do himself, and say what you have not tested.
+
+## How it fits together
+- **The site:** static pages on GitHub Pages (repo `Grobler96/ATAM_GO`, branch `main`, site origin `https://grobler96.github.io`). One JS file per tab, Supabase JS client, Chart.js. Tabs that are added later inject their own nav button and page (see `quotes.js`, `winback.js`), because `app.js` binds the nav once.
+- **Database and login:** Supabase project `aobosyvlhgkxhjxkfzlz`. Row level security everywhere. The key in `config.js` is the public one and is meant to be public.
+- **Automation:** n8n cloud (`atamcpi.app.n8n.cloud`). Workflows sync DecoNetwork, post to Xero, and serve the buttons on the site.
+- **DecoNetwork:** the order system (`atamworkwear.co.uk`). Quotes, orders, purchase orders come from its API.
+- **Xero:** accounting. Invoices are posted as drafts; people approve in Xero.
+- **DAN (the assistant):** a Cloudflare worker, `danbotv2`, code in `worker/danbotv2.js`. See below.
+- **VAPI:** the phone side of DAN. The assistant "Danbot Live", phone number +44 7888 867857.
+
+## Working rules (agreed with Oliver)
+- Work on a branch, open a **draft PR**, and **wait for Oliver to say "merge it"**. Never merge on your own.
+- Nothing is live on the site until it is merged. The Cloudflare worker is **not** deployed from GitHub: Oliver pastes `worker/danbotv2.js` into Cloudflare by hand (steps in `worker/README.md`). Say so whenever the worker changes.
+- Database changes are applied directly with the Supabase tool and also saved as a file in `sql/`. Keep both.
+- Money actions stay human: never approve, reject or post invoices to Xero from DAN or from automation.
+- Check your work and say what you could not test. Do not claim something works that you only mocked.
+- Never put passwords, API keys or the Xero secret in the repo or in chat.
+
+## Security rules in force (13 Oct 2026 lockdown)
+- Signed-out users get nothing: anon access to data is revoked; the browser sends the signed-in user's Supabase token.
+- n8n webhooks check the login (a "Verify Login" step calls Supabase `/auth/v1/user`). The old shared token is gone.
+- Any text from the database that goes into `innerHTML` must be escaped (`esc`, `escHtml`, or the shared `atamEsc` in `atamgo-auth.js`). The CDN scripts are pinned with integrity hashes.
+- Functions that change data are security-definer and need a signed-in user. Do not loosen anon access to make something work; use the user's token instead.
+
+## Tabs added recently
+- **Quotes** (`quotes.js`): pipeline of DecoNetwork quotes (hot, needs chasing, going cold, lost, converted), per-salesperson stats. Data: `quotes` table filled by n8n workflow WF7 every 6 hours; view `quotes_board`. A quote is order type 2 with no `date_ordered`; approved when `date_ordered` is set. Orders approved within an hour of creation are excluded from conversion rate.
+- **Win-back** (`winback.js`): overdue-reorder customers move through Due soon, Needs a call, Contacted waiting, Replied, Quote out, Won back (plus Parked, Lost). Quotes are matched to customers automatically (manual link, then email, then company name). Owner = salesperson on the customer's last order. Won = an order or approved quote within 120 days after a logged contact. Database: `winback_*` tables and views, `sql/winback_pipeline.sql`.
+- **Sales invoices** and **Purchase Order Review** and **Discrepancies** each have an **Ask DAN** button.
+- The Sales Invoices card has **Rebuild from DecoNetwork** (discards edits and rebuilds the draft).
+
+## DAN (Cloudflare worker v13)
+- Needs the signed-in user's token; reads and writes as that user, so row level security applies. Tool-using agent: business pulse, any whitelisted table (`TABLES` at the top of the file), customer lookup, stock, and actions that need a spoken or typed yes.
+- Chat panel: morning briefing on first open each day, alert list, badge on the robot button, Ask DAN focus on a single invoice.
+- Phone line `/voice` (VAPI): guarded by a shared key header and an approved-numbers list. Inbound calls can ask anything but can only act after a spoken passphrase. The 07:30 UK time weekday morning call to Daniel runs from a Cloudflare Cron Trigger (two entries, `30 6 * * 1-5` and `30 7 * * 1-5`). `POST /voice/morning` with `{"dry":true}` shows the script without ringing.
+- Worker settings are listed in `worker/README.md`. Tests were run against mocks, not against live phone calls.
+
+## Known issues and things waiting
+- **Phone line not finished:** needs a "phone" Supabase user (Oliver creates it; then run `sql/dan_voice.sql`), the Cloudflare settings and Cron Triggers, and a check that the VAPI phone number's inbound assistant is "Danbot Live". Then one test call to Daniel.
+- **Purchase Order Review, DPS Embroidery email:** Steph reported "1 invoice with attachments, not 3 bills". The database shows three separate invoices and three separate Xero bills for that email. Waiting to hear where she saw it. Likely cause: the blue "other documents in the same email" box wording (written for backing sheets) reads as if the others are attachments. Proposed fix: reword it to say each is its own invoice.
+- **Secrets in plain text:** the DecoNetwork password is stored in plain text in several n8n workflows, and the Xero client secret in at least three. Needs n8n credentials created, then the workflows rewired, then the secrets rotated.
+- **Supabase Auth:** turn on leaked-password protection; change Daniel Spooner's password.
+- **Old worker `danbot`** (the first one in Cloudflare) is probably an open leftover; check and delete.
+- **SQL still to run by Oliver:** `sql/cleanup_old_quote_tracking.sql` (the Supabase tool hangs on DROP statements).
+- n8n workflows that call Supabase can fail on a one-off Supabase blip. Retries were added to Retry PO Match and the sales invoice workflow (WF6); the other webhook workflows could get the same.
+- The sales invoice email workflow runs in **dry-run** mode and logs about 117 invoices every 30 minutes; it sends no emails.
+
+## Handy facts
+- Supabase tool quirks: `execute_sql` returns only the last statement's result; DROP statements hang; use plain `create or replace`.
+- n8n tool quirks: after changing a workflow you must publish it; large workflow dumps are huge, so fetch only the nodes you need.
+- DecoNetwork: when an order is edited it issues new workflow item ids and the old `sales_order_lines` rows stay behind. The outstanding-lines view ignores rows more than 5 minutes older than the newest row on the order (`sql/fix_stale_sales_order_lines_2026-10-13.sql`).
+- The Supabase publishable key and the worker's shared voice key are not stored here on purpose.
