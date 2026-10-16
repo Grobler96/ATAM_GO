@@ -428,7 +428,7 @@
           <div class="cs-share-ctl">
             <label class="cs-field"><span>Group customers spending less than</span>
               <select id="csThreshold" aria-label="Group customers spending less than">
-                <option value="5000">£5,000</option><option value="10000">£10,000</option>
+                <option value="3000">£3,000</option><option value="5000">£5,000</option><option value="10000">£10,000</option>
                 <option value="25000">£25,000</option><option value="50000">£50,000</option>
               </select></label>
             <label class="cs-field"><span>Spend over</span>
@@ -630,7 +630,7 @@
   function loadShareChoice() {
     try {
       const t = localStorage.getItem('cs_threshold'), p = localStorage.getItem('cs_period');
-      if (t && ['5000', '10000', '25000', '50000'].includes(t)) state.threshold = +t;
+      if (t && ['3000', '5000', '10000', '25000', '50000'].includes(t)) state.threshold = +t;
       if (p === 'l12m' || p === 'ytd') state.period = p;
     } catch (e) { }
   }
