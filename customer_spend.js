@@ -33,7 +33,8 @@
 
   const state = {
     loaded: false, level: 'group', sort: 'spend', search: '', showAll: false,
-    summary: {}, matrix: {}, alerts: {}, charts: [], drillStack: []
+    summary: {}, matrix: {}, alerts: {}, charts: [], drillStack: [],
+    threshold: 10000, period: 'l12m', otherOpen: false
   };
 
   // ───────────────────────── helpers ─────────────────────────
@@ -227,6 +228,49 @@
 #customerspend .cs-total .cs-num { font-size: 34px; font-weight: 700; line-height: 1; }
 #customerspend .cs-total .cs-k { font-size: 12px; color: ${C.muted}; margin-top: 4px; }
 
+#customerspend .cs-share { border: 1px solid ${C.line}; border-radius: 22px; padding: 20px clamp(14px, 2.2vw, 24px) 18px; margin-bottom: 26px;
+  background: radial-gradient(120% 100% at 0% 0%, rgba(255,122,26,0.07), transparent 55%), rgba(15,23,42,0.7); }
+#customerspend .cs-share-top { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
+#customerspend .cs-share-h { font-family: var(--cs-display); font-weight: 700; font-size: 28px; margin: 0 0 4px; }
+#customerspend .cs-share-sub { margin: 0; color: ${C.muted}; font-size: 13px; line-height: 1.5; max-width: 58ch; }
+#customerspend .cs-share-sub b { color: ${C.text}; font-weight: 600; }
+#customerspend .cs-share-ctl { display: flex; flex-wrap: wrap; gap: 12px; }
+#customerspend .cs-field { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: ${C.muted}; }
+#customerspend .cs-field select { appearance: none; -webkit-appearance: none; font: inherit; font-size: 14px; font-weight: 600; color: ${C.text}; min-width: 170px;
+  background: rgba(2,6,23,0.7) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%2394A3B8' stroke-width='1.8' stroke-linecap='round'/></svg>") no-repeat right 12px center;
+  border: 1px solid ${C.line}; border-radius: 10px; padding: 10px 34px 10px 12px; cursor: pointer; }
+#customerspend .cs-field select:hover { border-color: rgba(255,122,26,0.5); }
+#customerspend .cs-field select:focus-visible { outline: 2px solid ${C.orange}; outline-offset: 2px; }
+#customerspend .cs-field select option { background: #0B1226; color: ${C.text}; }
+#customerspend .cs-tm { position: relative; width: 100%; border-radius: 14px; overflow: hidden; }
+#customerspend .cs-tile { position: absolute; padding: 0; margin: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+#customerspend .cs-tile .cs-tile-in { position: absolute; inset: 2px; border-radius: 10px; padding: 10px 11px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;
+  background: var(--bg); border: 1px solid rgba(255,255,255,0.08); transition: transform .15s, border-color .15s, filter .15s; }
+#customerspend .cs-tile:hover .cs-tile-in, #customerspend .cs-tile:focus-visible .cs-tile-in { border-color: rgba(255,255,255,0.55); filter: brightness(1.12); transform: scale(0.985); }
+#customerspend .cs-tile:focus-visible { outline: 2px solid ${C.orange}; outline-offset: -2px; border-radius: 12px; }
+#customerspend .cs-tile .cs-t-name { font-size: 13px; font-weight: 600; line-height: 1.25; color: #fff; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+#customerspend .cs-tile .cs-t-val { font-family: var(--cs-display); font-variant-numeric: tabular-nums; font-weight: 700; font-size: var(--fs, 24px); line-height: 1; color: #fff; }
+#customerspend .cs-tile .cs-t-pct { font-size: 11px; color: rgba(255,255,255,0.72); margin-top: 3px; }
+#customerspend .cs-tile.cs-tiny .cs-t-name, #customerspend .cs-tile.cs-tiny .cs-t-pct { display: none; }
+#customerspend .cs-tile.cs-mini .cs-t-name, #customerspend .cs-tile.cs-mini .cs-t-pct, #customerspend .cs-tile.cs-mini .cs-t-val { display: none; }
+#customerspend .cs-tile.cs-mini .cs-tile-in { padding: 0; }
+#customerspend .cs-tile.cs-other .cs-tile-in { background: repeating-linear-gradient(135deg, rgba(184,196,210,0.16) 0 8px, rgba(184,196,210,0.10) 8px 16px); border: 1px dashed rgba(184,196,210,0.5); }
+#customerspend .cs-tile.cs-other.open .cs-tile-in { border-style: solid; border-color: ${C.silver}; }
+#customerspend .cs-tile .cs-t-dot { position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,0.25); }
+#customerspend .cs-share-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+#customerspend .cs-stat { flex: 1 1 150px; background: rgba(2,6,23,0.55); border: 1px solid ${C.line}; border-radius: 12px; padding: 11px 14px; }
+#customerspend .cs-stat .cs-k { font-size: 11.5px; color: ${C.muted}; }
+#customerspend .cs-stat .cs-num { font-size: 28px; font-weight: 700; line-height: 1.1; margin-top: 2px; }
+#customerspend .cs-stat .cs-s-sub { font-size: 11.5px; color: ${C.muted}; }
+#customerspend .cs-other-panel { margin-top: 14px; border: 1px solid rgba(184,196,210,0.3); border-radius: 14px; padding: 14px 16px; background: rgba(2,6,23,0.5); }
+#customerspend .cs-other-panel h4 { font-family: var(--cs-display); font-size: 20px; font-weight: 700; margin: 0 0 10px; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+#customerspend .cs-other-panel h4 button { font: inherit; font-size: 12px; color: ${C.muted}; background: none; border: 1px solid ${C.line}; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+#customerspend .cs-other-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; max-height: 320px; overflow-y: auto; }
+#customerspend .cs-other-list button { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: rgba(15,23,42,0.8); border: 1px solid ${C.line}; border-radius: 10px; padding: 9px 12px; font-size: 13px; }
+#customerspend .cs-other-list button:hover, #customerspend .cs-other-list button:focus-visible { border-color: rgba(255,122,26,0.55); outline: none; }
+#customerspend .cs-other-list .cs-o-v { font-family: var(--cs-display); font-weight: 700; font-size: 17px; white-space: nowrap; }
+
 #customerspend .cs-stage { position: relative; border-radius: 22px; overflow: hidden; border: 1px solid ${C.line};
   background: radial-gradient(120% 90% at 50% 0%, rgba(255,122,26,0.10), transparent 60%), rgba(2,6,23,0.9); height: 440px; margin-bottom: 26px; }
 #customerspend .cs-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
@@ -375,6 +419,28 @@
         </div>
         <div class="cs-totals" id="csTotals"></div>
       </div>
+      <div class="cs-share" id="csShare">
+        <div class="cs-share-top">
+          <div>
+            <h3 class="cs-share-h">Where the money comes from</h3>
+            <p class="cs-share-sub">Every box is a customer group, sized by what they spend. Smaller customers are folded into one <b>Other customers</b> box so the big ones stand out.</p>
+          </div>
+          <div class="cs-share-ctl">
+            <label class="cs-field"><span>Group customers spending less than</span>
+              <select id="csThreshold" aria-label="Group customers spending less than">
+                <option value="5000">£5,000</option><option value="10000">£10,000</option>
+                <option value="25000">£25,000</option><option value="50000">£50,000</option>
+              </select></label>
+            <label class="cs-field"><span>Spend over</span>
+              <select id="csPeriod" aria-label="Spend period">
+                <option value="l12m">Last 12 months</option><option value="ytd">Financial year to date</option>
+              </select></label>
+          </div>
+        </div>
+        <div class="cs-tm" id="csTreemap" role="list"><div class="cs-empty">Loading…</div></div>
+        <div class="cs-share-stats" id="csShareStats"></div>
+        <div class="cs-other-panel" id="csOtherPanel" hidden></div>
+      </div>
       <div class="cs-stage" id="csStage">
         <div class="cs-stage-fallback">Building the spend landscape…</div>
       </div>
@@ -414,7 +480,7 @@
       btn.classList.add('active');
       sec.classList.add('active');
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      if (!state.loaded) loadAll(); else landscape.resume();
+      if (!state.loaded) loadAll(); else { renderTreemap(); landscape.resume(); }
     });
     document.addEventListener('click', e => {
       const other = e.target.closest('.nav-link');
@@ -431,6 +497,20 @@
       sec.querySelectorAll('[data-sort]').forEach(x => x.classList.toggle('on', x === b));
       renderGrid();
     }));
+    loadShareChoice();
+    const thrSel = sec.querySelector('#csThreshold'), perSel = sec.querySelector('#csPeriod');
+    thrSel.value = String(state.threshold); perSel.value = state.period;
+    thrSel.addEventListener('change', () => {
+      state.threshold = +thrSel.value; try { localStorage.setItem('cs_threshold', thrSel.value); } catch (e) { }
+      renderTreemap();
+    });
+    perSel.addEventListener('change', () => {
+      state.period = perSel.value; try { localStorage.setItem('cs_period', perSel.value); } catch (e) { }
+      renderTreemap();
+    });
+    let tmTimer = null;
+    window.addEventListener('resize', () => { clearTimeout(tmTimer); tmTimer = setTimeout(renderTreemap, 120); });
+
     sec.querySelector('#csSearch').addEventListener('input', e => { state.search = e.target.value.trim().toLowerCase(); renderGrid(); });
     sec.querySelector('#csMore').addEventListener('click', () => { state.showAll = true; renderGrid(); });
 
@@ -457,6 +537,7 @@
       state.matrix = { group: mg, account: ma };
       state.asOf = sg.as_of;
       renderTotals();
+      renderTreemap();
       renderAlerts();
       renderGrid();
       landscape.build();
@@ -509,6 +590,120 @@
       if (a.parent && a.parent !== a.key) stack.push({ level: 'group', key: a.parent, label: a.parent });
       stack.push({ level: 'account', key: a.key, label: a.label });
       openDrill(stack);
+    }));
+  }
+
+  // ───────────────────────── spend share treemap ─────────────────────────
+  // Squarified treemap (Bruls et al.): lays boxes out so they stay close to square.
+  function treemapLayout(items, W, H) {
+    const total = sum(items.map(i => i.v));
+    if (total <= 0 || W <= 0 || H <= 0) return [];
+    const k = W * H / total;
+    const nodes = items.map(it => ({ it, a: it.v * k }));
+    const out = [];
+    let x = 0, y = 0, w = W, h = H, row = [], i = 0;
+    const worst = (r, side) => {
+      const s = sum(r.map(n => n.a)), mx = Math.max(...r.map(n => n.a)), mn = Math.min(...r.map(n => n.a));
+      return Math.max(side * side * mx / (s * s), s * s / (side * side * mn));
+    };
+    const flush = () => {
+      const s = sum(row.map(n => n.a));
+      if (w >= h) {
+        const rw = s / h; let cy = y;
+        row.forEach(n => { const rh = n.a / rw; out.push({ it: n.it, x, y: cy, w: rw, h: rh }); cy += rh; });
+        x += rw; w -= rw;
+      } else {
+        const rh = s / w; let cx = x;
+        row.forEach(n => { const rw = n.a / rh; out.push({ it: n.it, x: cx, y, w: rw, h: rh }); cx += rw; });
+        y += rh; h -= rh;
+      }
+      row = [];
+    };
+    while (i < nodes.length) {
+      const side = Math.min(w, h), n = nodes[i];
+      if (!row.length || worst(row.concat(n), side) <= worst(row, side)) { row.push(n); i++; } else flush();
+    }
+    if (row.length) flush();
+    return out;
+  }
+
+  function loadShareChoice() {
+    try {
+      const t = localStorage.getItem('cs_threshold'), p = localStorage.getItem('cs_period');
+      if (t && ['5000', '10000', '25000', '50000'].includes(t)) state.threshold = +t;
+      if (p === 'l12m' || p === 'ytd') state.period = p;
+    } catch (e) { }
+  }
+
+  function renderTreemap() {
+    const box = document.getElementById('csTreemap');
+    if (!box || !state.summary.group) return;
+    const W = box.clientWidth;
+    if (!W) return;                                   // tab not showing yet; redrawn when it opens
+    const H = Math.round(clamp(W * (W < 600 ? 1.0 : 0.5), 320, 460));
+    box.style.height = H + 'px';
+
+    const thr = state.threshold, per = state.period;
+    const rows = state.summary.group.map(r => ({ r, v: num(r[per]) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+    const total = sum(rows.map(x => x.v));
+    const big = rows.filter(x => x.v >= thr), small = rows.filter(x => x.v < thr);
+    const smallTotal = sum(small.map(x => x.v));
+    const maxV = big.length ? big[0].v : 1;
+    const al = state.alerts.group || {};
+
+    const items = big.map(x => ({ v: x.v, r: x.r }));
+    if (small.length) items.push({ v: smallTotal, other: true });
+    items.sort((a, b) => b.v - a.v);
+
+    if (!items.length) { box.innerHTML = '<div class="cs-empty">No spend to show for this period.</div>'; }
+    else {
+      box.innerHTML = treemapLayout(items, W, H).map((t, idx) => {
+        const it = t.it, pct = total ? it.v / total * 100 : 0;
+        const cls = ['cs-tile'];
+        if (it.other) cls.push('cs-other');
+        if (t.w < 96 || t.h < 62) cls.push('cs-tiny');
+        if (t.w < 52 || t.h < 34) cls.push('cs-mini');
+        const fs = clamp(Math.min(t.w / 6.5, t.h / 2.6), 15, 38).toFixed(0);
+        const heat = Math.sqrt(it.v / maxV);                      // 0..1, darker = bigger
+        const bg = it.other ? '' : `--bg:linear-gradient(145deg, hsl(${(22 + 8 * (1 - heat)).toFixed(0)} ${(62 + 28 * heat).toFixed(0)}% ${(24 + 26 * heat).toFixed(0)}%), hsl(18 70% ${(16 + 18 * heat).toFixed(0)}%));`;
+        const name = it.other ? 'Other customers' : it.r.label;
+        const sub = it.other ? `${small.length} customer${small.length === 1 ? '' : 's'} under ${money(thr)}` : '';
+        const a = it.other ? null : al[it.r.key];
+        const dot = a ? `<span class="cs-t-dot" style="background:${STATUS[a.status].color}" title="${STATUS[a.status].label}"></span>` : '';
+        const label = `${name}: ${money(it.v)} (${pct.toFixed(1)}% of spend)` + (it.other ? '. Tap to see who is in here.' : '');
+        return `<button type="button" role="listitem" class="${cls.join(' ')}${it.other && state.otherOpen ? ' open' : ''}" data-i="${idx}" title="${esc(label)}" aria-label="${esc(label)}"
+          style="left:${t.x.toFixed(1)}px;top:${t.y.toFixed(1)}px;width:${t.w.toFixed(1)}px;height:${t.h.toFixed(1)}px;${bg}--fs:${fs}px">
+          <div class="cs-tile-in">${dot}
+            <div class="cs-t-name">${esc(name)}${sub ? `<div class="cs-t-pct" style="margin-top:2px">${esc(sub)}</div>` : ''}</div>
+            <div><div class="cs-t-val">${money(it.v, true)}</div><div class="cs-t-pct">${pct.toFixed(pct < 10 ? 1 : 0)}% of spend</div></div>
+          </div></button>`;
+      }).join('');
+      const laid = treemapLayout(items, W, H);
+      box.querySelectorAll('.cs-tile').forEach(b => b.addEventListener('click', () => {
+        const it = laid[+b.dataset.i].it;
+        if (it.other) { state.otherOpen = !state.otherOpen; b.classList.toggle('open', state.otherOpen); renderOtherPanel(small, thr); }
+        else openDrill([{ level: 'group', key: it.r.key, label: it.r.label }]);
+      }));
+    }
+
+    const top5 = sum(big.slice(0, 5).map(x => x.v));
+    document.getElementById('csShareStats').innerHTML = `
+      <div class="cs-stat"><div class="cs-k">Shown individually</div><div class="cs-num">${big.length}</div><div class="cs-s-sub">customers at ${money(thr)} or more</div></div>
+      <div class="cs-stat"><div class="cs-k">Grouped together</div><div class="cs-num">${small.length}</div><div class="cs-s-sub">${money(smallTotal, true)}, ${total ? (smallTotal / total * 100).toFixed(0) : 0}% of spend</div></div>
+      <div class="cs-stat"><div class="cs-k">Biggest five customers</div><div class="cs-num">${total ? (top5 / total * 100).toFixed(0) : 0}%</div><div class="cs-s-sub">${money(top5, true)} of ${money(total, true)}</div></div>`;
+    renderOtherPanel(small, thr);
+  }
+
+  function renderOtherPanel(small, thr) {
+    const p = document.getElementById('csOtherPanel');
+    if (!state.otherOpen || !small.length) { p.hidden = true; if (!small.length) state.otherOpen = false; return; }
+    p.hidden = false;
+    p.innerHTML = `<h4><span>Other customers: ${small.length} under ${money(thr)}</span><button type="button" id="csOtherClose">Close</button></h4>
+      <div class="cs-other-list">${small.map((x, i) => `<button type="button" data-o="${i}"><span>${esc(x.r.label)}</span><span class="cs-o-v">${money(x.v)}</span></button>`).join('')}</div>`;
+    p.querySelector('#csOtherClose').addEventListener('click', () => { state.otherOpen = false; renderTreemap(); });
+    p.querySelectorAll('[data-o]').forEach(b => b.addEventListener('click', () => {
+      const r = small[+b.dataset.o].r;
+      openDrill([{ level: 'group', key: r.key, label: r.label }]);
     }));
   }
 
