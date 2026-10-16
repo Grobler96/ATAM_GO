@@ -716,16 +716,21 @@
   function renderSiblingsHtml(row) {
     const siblings = getSiblingRows(row);
     if (!siblings.length) return '';
+    const n = siblings.length;
+    // A sibling with no invoice number and no total is the only kind that might
+    // really be a backing sheet; everything else is its own invoice and card.
+    const maybeBacking = siblings.filter(s => !s.extracted_invoice_number && !(Number(s.extracted_total) > 0)).length;
     return `
-      <div class="rev-notes-flag" style="background:rgba(56,189,248,0.08);border-left-color:#38bdf8;color:#bae6fd">
-        📎 ${siblings.length} other document${siblings.length > 1 ? 's' : ''} arrived in this same email — worth a quick look before approving, in case one is a backing sheet or supporting document rather than a separate bill.
+      <details class="rev-siblings" ${n <= 3 ? 'open' : ''} style="background:rgba(56,189,248,0.08);border-left:3px solid #38bdf8;border-radius:6px;padding:8px 12px;margin:8px 0;color:#bae6fd">
+        <summary style="cursor:pointer;font-size:13px">📎 ${n} other invoice${n > 1 ? 's' : ''} came in this same email — each is its own invoice with its own card, nothing is merged.</summary>
         ${siblings.map(s => `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
-            <span style="font-size:12px;color:#e2e8f0">${escHtml(s.extracted_vendor || 'Unknown vendor')} · Invoice ${escHtml(s.extracted_invoice_number || 'unknown')} · ${fmtMoney(s.extracted_total)}</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px">
+            <span style="font-size:12px;color:#e2e8f0">Invoice ${escHtml(s.extracted_invoice_number || 'unknown')} · ${escHtml(s.extracted_vendor || 'Unknown vendor')}${(s.matched_po_number || s.extracted_po_number) ? ` · PO ${escHtml(s.matched_po_number || s.extracted_po_number)}` : ''} · ${fmtMoney(s.extracted_total)}</span>
             ${s.pdf_url ? `<button type="button" class="rev-btn" data-action="view-pdf" data-path="${escHtml(s.pdf_url)}" style="white-space:nowrap;flex-shrink:0">View PDF</button>` : ''}
           </div>
         `).join('')}
-      </div>`;
+        ${maybeBacking ? `<div style="font-size:12px;margin-top:8px">${maybeBacking} of these has no invoice number or total, so it may be a backing sheet rather than a bill.</div>` : ''}
+      </details>`;
   }
 
   function renderCase(row) {
