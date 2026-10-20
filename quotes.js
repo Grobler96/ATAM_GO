@@ -22,6 +22,11 @@
   const DAY = 86400000;
   const HOUR = 3600000;
   const REFRESH_MS = 5 * 60 * 1000;
+  const REPLY_DAYS = 3;     // after emailing, wait this long for an answer before the next chase is due
+  // Email chasing goes out through the n8n workflow "quote-email-send" (Microsoft 365). Keep this false until that
+  // workflow is built, tested and published, then flip it to true.
+  const EMAIL_SENDING_ENABLED = false;
+  const EMAIL_WEBHOOK = 'https://atamcpi.app.n8n.cloud/webhook/quote-email-send';
   const DECO_ORDER_URL = 'https://atamworkwear.co.uk/bh/orders?p=2&id=';
 
   const STATUS = {
@@ -56,7 +61,7 @@
     rows: [], loaded: false, loading: false, error: null,
     tab: 'pipeline', period: '90', rep: '', store: '', q: '',
     sort: { key: 'idle', dir: -1 },
-    chart: null, timer: null, openId: null, animate: true, updatedAt: null
+    chart: null, timer: null, openId: null, senders: null, composeOpen: false, animate: true, updatedAt: null
   };
 
   // remember the last tab / period / salesperson / store on this device
@@ -131,7 +136,14 @@
     // the customer wrote last and nobody has answered yet
     const awaitingUs = !approved && stage !== 'lost' && !!lastFrom && (!lastTo || lastFrom > lastTo) && (!lastChase || lastFrom > lastChase);
     const toClose = approved ? (approved - created) : null;
+    // emails sent from ATAM GO: has the customer answered, and is the next chase due?
+    const emailSentAt = toDate(r.email_sent_at), emailDueAt = toDate(r.email_due_at), emailRepliedAt = toDate(r.email_replied_at);
+    const emailReplied = !!emailSentAt && (!!emailRepliedAt || (!!lastFrom && lastFrom > emailSentAt));
+    const open = !approved && stage !== 'lost';
+    const emailWaiting = open && !!emailSentAt && !emailReplied;
+    const emailDue = emailWaiting && !!emailDueAt && now >= emailDueAt;
     return {
+      emailNo: num(r.email_chase_no), emailSentAt, emailDueAt, emailReplied, emailWaiting, emailDue, emailSender: r.email_sender || '',
       id: String(r.order_id), decoId: r.deco_id, job: r.job_name || '', customer: r.customer_name || 'Unknown customer',
       contact: r.contact_name || '', email: r.contact_email || '', po: r.customer_po || '',
       store: r.store_name || '', rep: r.assigned_to || '',
@@ -311,6 +323,19 @@
     else el.innerHTML = tableHtml(state.tab);
   }
 
+  // ----- email chase timer -----
+  function leftText(ms) {
+    const h = Math.max(0, Math.floor(ms / HOUR));
+    return h >= 24 ? Math.floor(h / 24) + 'd ' + (h % 24) + 'h' : h >= 1 ? h + 'h' : 'under an hour';
+  }
+  function emailTimerHtml(r) {
+    if (!r.emailSentAt || ['won', 'lost'].includes(r.stage)) return '';
+    if (r.emailReplied) return `<div class="qt-timer qt-timer-ok">✉️ Chase #${r.emailNo} emailed. The customer has replied</div>`;
+    if (r.emailDue) return `<div class="qt-timer qt-timer-due">⏰ Chase #${r.emailNo + 1} is due. No reply to chase #${r.emailNo}</div>`;
+    const left = r.emailDueAt ? r.emailDueAt - Date.now() : REPLY_DAYS * DAY;
+    return `<div class="qt-timer" title="Emailed ${esc(fmtDateTime(r.emailSentAt))} from ${esc(r.emailSender)}">✉️ Chase #${r.emailNo} emailed. Waiting for a reply: ${esc(leftText(left))} left</div>`;
+  }
+
   // ----- pipeline board -----
   function cardHtml(r, i) {
     const open = ['fresh', 'chase', 'cold'].includes(r.stage);
@@ -320,7 +345,8 @@
     let foot;
     if (open) foot = `<div class="qt-bar" title="${r.idle} of ${LOST_DAYS} days before this is treated as lost"><i style="width:${pct}%;background:${st.color}"></i></div>
       <div class="qt-card-foot"><span>Quiet ${esc(quiet(r.idle))}</span><span>${r.toCount + r.chases ? plural(r.toCount + r.chases, 'chase') : 'not chased'}</span></div>
-      ${needsChase ? `<button type="button" class="qt-quick" data-quick="${esc(r.id)}" title="Log a phone chase now">📞 Mark chased</button>` : ''}`;
+      ${emailTimerHtml(r)}
+      ${needsChase ? `<div class="qt-quick-row"><button type="button" class="qt-quick qt-mail" data-email="${esc(r.id)}" title="Write and send a chase email">✉️ ${r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email customer'}</button><button type="button" class="qt-quick" data-quick="${esc(r.id)}" title="Log a phone chase now">📞 Mark chased</button></div>` : ''}`;
     else if (r.stage === 'won') foot = `<div class="qt-card-foot"><span>Approved ${esc(fmtDate(r.approved))}</span><span>${r.daysToClose != null ? (r.instant ? 'same hour' : r.daysToClose < 1 ? 'same day' : Math.round(r.daysToClose) + 'd to close') : ''}</span></div>`;
     else foot = `<div class="qt-card-foot"><span>${esc(r.lostReason || 'Lost')}</span><span>${esc(fmtDate(r.closedAt))}</span></div>`;
     return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
@@ -580,6 +606,7 @@
         ${fact('Customer replies', String(r.fromCount))}
         ${fact('Chases logged', String(r.chases))}
       </div>
+      ${open ? `<div class="qt-email-wrap">${emailTimerHtml(r)}<button type="button" class="qt-btn qt-primary qt-mailbtn" data-act="compose" data-for="${esc(r.id)}">✉️ ${r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email the customer'}</button><div id="qtCompose"></div></div>` : ''}
       ${open ? `<form class="qt-chase" id="qtChaseForm" data-id="${esc(r.id)}">
         <h4>Log a chase</h4>
         <div class="qt-chase-row">
@@ -598,6 +625,7 @@
     try {
       const ch = await client().from('quote_chases').select('*').eq('order_id', id).order('created_at', { ascending: true });
       if (ch.error) throw ch.error;
+      const em = await client().from('quote_emails').select('chase_no,sender_email,to_email,subject,status,error,sent_at,created_at,sent_by,replied_at').eq('order_id', id);
       const items = [];
       if (r) {
         items.push({ when: r.created, icon: '📝', text: 'Quote created', cls: '' });
@@ -607,7 +635,12 @@
         if (r.approved) items.push({ when: r.approved, icon: '✅', text: 'Approved and converted into an order', cls: 'good' });
         if (r.stage === 'lost' && r.closedAt) items.push({ when: r.closedAt, icon: '✖', text: r.lostReason || 'Lost', cls: 'bad' });
       }
-      (ch.data || []).forEach(c => items.push({
+      ((em && em.data) || []).forEach(m => {
+        if (m.status === 'sent') items.push({ when: new Date(m.sent_at), icon: '✉️', text: 'Chase #' + m.chase_no + ' emailed to ' + m.to_email + ' from ' + m.sender_email + (m.sent_by ? ' (sent by ' + m.sent_by + ')' : '') + ' — “' + m.subject + '”', cls: '' });
+        else if (m.status === 'failed') items.push({ when: new Date(m.created_at), icon: '⚠️', text: 'Email to ' + m.to_email + ' did not send: ' + (m.error || 'unknown error'), cls: 'bad' });
+        if (m.replied_at) items.push({ when: new Date(m.replied_at), icon: '💬', text: 'Customer replied to chase #' + m.chase_no, cls: 'good' });
+      });
+      (ch.data || []).filter(c => !(c.method === 'email' && /^Emailed via ATAM GO/.test(c.note || ''))).forEach(c => items.push({
         when: new Date(c.created_at), icon: c.method === 'email' ? '✉️' : c.method === 'visit' ? '🚗' : c.method === 'call' ? '📞' : '💬',
         text: 'Chased' + (c.method ? ' by ' + c.method : '') + (c.chased_by ? ' · ' + c.chased_by : '') + (c.note ? ' — “' + c.note + '”' : ''), cls: ''
       }));
@@ -634,6 +667,88 @@
       console.error('chase failed', e);
       toast('Couldn\'t log the chase: ' + ((e && e.message) || 'unknown error'), true);
       btn.disabled = false; btn.textContent = 'Log chase';
+    }
+  }
+
+  // ───────────────────────── email the customer ─────────────────────────
+  async function loadSenders() {
+    if (state.senders) return state.senders;
+    const res = await client().from('mail_senders').select('*').eq('active', true).order('kind').order('label');
+    if (res.error) throw res.error;
+    state.senders = res.data || [];
+    return state.senders;
+  }
+  const firstName = n => (String(n || '').trim().split(/\s+/)[0] || '');
+  function pickSender(list, rep) {
+    return list.find(s => s.kind === 'rep' && s.rep_name && s.rep_name === rep) || list.find(s => s.kind === 'shared') || list[0];
+  }
+  function draftEmail(r, sender, no) {
+    const hi = firstName(r.contact) ? 'Hi ' + firstName(r.contact) : 'Hello';
+    const job = r.job ? ' for ' + r.job : '';
+    const me = sender && sender.kind === 'rep' ? firstName(sender.label) : 'The ATAM Workwear team';
+    const line = no <= 1
+      ? `I just wanted to follow up on the quote we sent${job} (quote #${r.id}). Do you have any questions, or would you like me to go ahead and get it started?`
+      : `I'm following up again on the quote${job} (quote #${r.id}). I haven't heard back, so I wanted to check it reached you and see whether you'd like any changes before it expires.`;
+    return {
+      subject: (no <= 1 ? 'Your quote' : 'Following up on your quote') + ' #' + r.id + (r.job ? ' - ' + r.job : ''),
+      body: `${hi},\n\n${line}\n\nKind regards,\n${me}\nATAM Workwear`
+    };
+  }
+
+  async function openCompose(id) {
+    const r = state.rows.find(x => x.id === id);
+    const box = $('qtCompose');
+    if (!r || !box) return;
+    if (!EMAIL_SENDING_ENABLED) { box.innerHTML = '<div class="qt-note">Email sending is not switched on yet. It is waiting for the Microsoft 365 connection to be set up.</div>'; return; }
+    box.innerHTML = '<div class="qt-dim">Loading…</div>';
+    let list;
+    try { list = await loadSenders(); } catch (e) { console.error('senders failed', e); box.innerHTML = '<div class="qt-note qt-note-bad">Couldn\'t load the sender list.</div>'; return; }
+    if (!list.length) { box.innerHTML = '<div class="qt-note">No sender mailboxes have been set up yet.</div>'; return; }
+    const def = pickSender(list, r.rep);
+    const no = r.emailNo + 1;
+    const d = draftEmail(r, def, no);
+    box.innerHTML = `<form class="qt-compose" id="qtComposeForm" data-id="${esc(r.id)}">
+      <h4>Chase #${no} by email</h4>
+      <label>From<select id="qtFrom">${list.map(s => `<option value="${esc(s.id)}" data-kind="${esc(s.kind)}" data-label="${esc(s.label)}"${s.id === def.id ? ' selected' : ''}>${esc(s.label)} (${esc(s.email)})</option>`).join('')}</select></label>
+      <label>To<input id="qtTo" type="email" value="${esc(r.email)}" placeholder="customer@example.com" required></label>
+      <label>Subject<input id="qtSubject" type="text" maxlength="300" value="${esc(d.subject)}" required></label>
+      <label>Message<textarea id="qtMsg" rows="9" required>${esc(d.body)}</textarea></label>
+      ${def.kind === 'shared' && r.rep ? `<p class="qt-dim" id="qtFromHint">${esc(r.rep)} has no mailbox set up, so this defaults to ${esc(def.label)}.</p>` : '<p class="qt-dim" id="qtFromHint"></p>'}
+      <div class="qt-compose-row"><button type="submit" class="qt-btn qt-primary" id="qtSendBtn">Send email</button><button type="button" class="qt-btn" data-act="compose-cancel">Cancel</button></div>
+      <p class="qt-dim">Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.</p>
+    </form>`;
+    const from = $('qtFrom');
+    from.addEventListener('change', () => {   // keep the sign-off name in step with the chosen sender
+      const o = from.options[from.selectedIndex];
+      const me = o.dataset.kind === 'rep' ? firstName(o.dataset.label) : 'The ATAM Workwear team';
+      $('qtMsg').value = $('qtMsg').value.replace(/Kind regards,\n[^\n]*\n/, 'Kind regards,\n' + me + '\n');
+    });
+    $('qtMsg').focus();
+  }
+
+  async function sendEmail(form) {
+    const id = form.getAttribute('data-id');
+    const btn = $('qtSendBtn');
+    const from = $('qtFrom');
+    const label = from.options[from.selectedIndex].textContent;
+    if (!window.confirm('Send this email to ' + $('qtTo').value.trim() + ' from ' + label + '?')) return;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const q = await client().rpc('queue_quote_email', { p_order_id: id, p_sender_id: Number(from.value), p_to: $('qtTo').value, p_subject: $('qtSubject').value, p_body: $('qtMsg').value });
+      if (q.error) throw q.error;
+      const sess = await client().auth.getSession();
+      const token = sess && sess.data && sess.data.session ? sess.data.session.access_token : '';
+      const res = await fetch(EMAIL_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ email_id: q.data }) });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || out.ok === false) throw new Error(out.error || ('the sending service said ' + res.status));
+      toast('Email sent. Chase logged.');
+      await load(true);
+      const r = state.rows.find(x => x.id === id);
+      if (state.openId === id && r) { $('qtSheet').innerHTML = drawerHtml(r, null); loadTimeline(id); }
+    } catch (e) {
+      console.error('email failed', e);
+      toast('Email not sent: ' + ((e && e.message) || 'unknown error'), true);
+      btn.disabled = false; btn.textContent = 'Send email';
     }
   }
 
@@ -805,6 +920,26 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-btn:disabled { opacity:.5; }
 .qt-drawer .qt-dim { color:#64748b; font-size:12px; }
 .qt-drawer .qt-chase p { margin:10px 0 0; }
+#quotes .qt-quick-row { display:flex; gap:6px; }
+#quotes .qt-quick-row .qt-quick { flex:1; width:auto; }
+#quotes .qt-quick.qt-mail { --c:#f97316; }
+#quotes .qt-timer { margin-top:8px; padding:6px 9px; border-radius:8px; font-size:11.5px; line-height:1.4; background:rgba(148,163,184,.12); color:#cbd5e1; }
+#quotes .qt-timer-due { background:rgba(244,63,94,.16); color:#fecdd3; font-weight:600; }
+#quotes .qt-timer-ok { background:rgba(34,197,94,.14); color:#bbf7d0; }
+.qt-drawer .qt-email-wrap { margin-top:18px; }
+.qt-drawer .qt-email-wrap .qt-timer { margin:0 0 10px; padding:8px 11px; border-radius:8px; font-size:12.5px; background:rgba(148,163,184,.12); color:#cbd5e1; }
+.qt-drawer .qt-email-wrap .qt-timer-due { background:rgba(244,63,94,.16); color:#fecdd3; font-weight:600; }
+.qt-drawer .qt-email-wrap .qt-timer-ok { background:rgba(34,197,94,.14); color:#bbf7d0; }
+.qt-drawer .qt-mailbtn { width:100%; }
+.qt-drawer .qt-note { margin-top:10px; padding:10px 12px; border-radius:10px; font-size:12.5px; line-height:1.5; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.3); color:#fde68a; }
+.qt-drawer .qt-note-bad { background:rgba(244,63,94,.1); border-color:rgba(244,63,94,.3); color:#fecdd3; }
+.qt-drawer .qt-compose { margin-top:12px; padding:14px; border-radius:12px; background:rgba(249,115,22,.07); border:1px solid rgba(249,115,22,.3); display:grid; gap:10px; }
+.qt-drawer .qt-compose h4 { margin:0; font-size:13px; }
+.qt-drawer .qt-compose label { display:grid; gap:4px; font-size:12px; color:#94a3b8; }
+.qt-drawer .qt-compose select, .qt-drawer .qt-compose input, .qt-drawer .qt-compose textarea { padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:#0f172a; color:#e2e8f0; font:inherit; font-size:13px; width:100%; box-sizing:border-box; }
+.qt-drawer .qt-compose textarea { resize:vertical; line-height:1.5; min-height:150px; }
+.qt-drawer .qt-compose p { margin:0; }
+.qt-drawer .qt-compose-row { display:flex; gap:8px; }
 .qt-drawer .qt-timeline { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
 .qt-drawer .qt-timeline li { display:flex; gap:11px; font-size:13px; line-height:1.4; }
 .qt-drawer .qt-timeline li.good { color:#86efac; } .qt-drawer .qt-timeline li.bad { color:#fca5a5; }
@@ -888,6 +1023,8 @@ body.qt-lock { overflow:hidden; }
     sec.addEventListener('click', e => {
       const quick = e.target.closest('[data-quick]');
       if (quick) { e.stopPropagation(); quickChase(quick.dataset.quick, quick); return; }
+      const mail = e.target.closest('[data-email]');
+      if (mail) { e.stopPropagation(); openDrawer(mail.dataset.email); setTimeout(() => { const b = document.querySelector('[data-act="compose"]'); if (b) b.click(); }, 0); return; }
       const act = e.target.closest('[data-act]');
       if (act && act.dataset.act === 'reload') { load(); return; }
       if (act && act.dataset.act === 'export') { exportCsv(); return; }
@@ -908,7 +1045,7 @@ body.qt-lock { overflow:hidden; }
     });
     sec.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.closest('[data-quick]')) return;
+      if (e.target.closest('[data-quick], [data-email]')) return;
       const item = e.target.closest('.qt-card[data-id], .qt-first-card[data-id], tr[data-id]');
       if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
       const repCard = e.target.closest('.qt-rep-card');
@@ -920,9 +1057,13 @@ body.qt-lock { overflow:hidden; }
 
     drawer.addEventListener('click', e => {
       if (e.target.closest('[data-act="close"]')) closeDrawer();
+      const c = e.target.closest('[data-act="compose"]');
+      if (c) openCompose(c.dataset.for);
+      if (e.target.closest('[data-act="compose-cancel"]')) { const b = $('qtCompose'); if (b) b.innerHTML = ''; }
     });
     drawer.addEventListener('submit', e => {
       if (e.target.id === 'qtChaseForm') { e.preventDefault(); submitChase(e.target); }
+      if (e.target.id === 'qtComposeForm') { e.preventDefault(); sendEmail(e.target); }
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.openId) closeDrawer(); });
 
