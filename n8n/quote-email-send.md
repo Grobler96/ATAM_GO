@@ -1,4 +1,4 @@
-# n8n: emailing customers from the Quotes tab (to build once n8n is reconnected and 365 is set up)
+# n8n: emailing customers from the Quotes tab
 
 The database and website parts are already built (`sql/quote_email_chase.sql`, `quotes.js`). The switch
 `EMAIL_SENDING_ENABLED` in `quotes.js` stays `false` until both workflows below are built, tested and published.
@@ -34,3 +34,20 @@ The Quotes tab also treats a DecoNetwork customer reply newer than the email as 
 ## Not built on purpose
 - No automatic second chase. At 3 days with no reply the card shows "Chase #2 is due" and a person sends it.
 - Nothing here touches Xero or any money action.
+
+## Built (20 Oct 2026) - both workflows exist in n8n but are NOT published
+- `Quote email send (Microsoft 365)` (id `iPFyyUkJ3AbQH9iR`, webhook path `quote-email-send`)
+- `Quote email reply check (every 30 min)` (id `wnPRUfjJX0qc9kBE`)
+Both use the existing "Supabase account 2" credential (must be the service-role key, because the `mark_*` functions are
+service-role only) and the shared error alert workflow. Both need a Generic OAuth2 credential named **Microsoft Graph Mailer**
+(client credentials, scope `https://graph.microsoft.com/.default`) attached to the Graph nodes: Create Draft, Send Email,
+Get Conversation Messages.
+
+Behaviour worth knowing:
+- Send Email has no retry (a retry could send twice).
+- If Create Draft or Send fails the row is marked failed and nothing is recorded as sent. A leftover draft may sit in the mailbox.
+- If the email is sent but Mark Sent fails, the row is NOT marked failed; the browser is told "sent but not recorded, do not send again".
+- A reply is any message in the conversation from an address other than the sender mailbox, received after `sent_at`
+  (an out-of-office auto-reply would count).
+- Tested with pinned data only: reply detection (own address ignored, case-insensitive) and the sent path of the webhook.
+  Not tested: real Graph, real Supabase writes, the failure branches, the `$filter` on `conversationId`.
