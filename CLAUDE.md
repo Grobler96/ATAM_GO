@@ -27,6 +27,7 @@ Oliver is not a developer. Explain plainly, give exact click-by-click steps for 
 - Signed-out users get nothing: anon access to data is revoked; the browser sends the signed-in user's Supabase token.
 - n8n webhooks check the login (a "Verify Login" step calls Supabase `/auth/v1/user`). The old shared token is gone.
 - Any text from the database that goes into `innerHTML` must be escaped (`esc`, `escHtml`, or the shared `atamEsc` in `atamgo-auth.js`). The CDN scripts are pinned with integrity hashes.
+- Row level security is on for every table (the last ten, the Xero sales and customer account tables, were fixed 20 Oct 2026: `sql/security_rls_xero_customer_tables_2026-10-20.sql`). Signed-in users can only read those; n8n writes with the service role. `vendor_xero_contact_override` and `xero_sync_state` are service-role only. New tables must have RLS on from the start.
 - Functions that change data are security-definer and need a signed-in user. Do not loosen anon access to make something work; use the user's token instead.
 
 ## Tabs added recently
