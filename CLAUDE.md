@@ -36,8 +36,8 @@ Oliver is not a developer. Explain plainly, give exact click-by-click steps for 
 - **Sales invoices** and **Purchase Order Review** and **Discrepancies** each have an **Ask DAN** button.
 - The Sales Invoices card has **Rebuild from DecoNetwork** (discards edits and rebuilds the draft).
 
-## DAN (Cloudflare worker v13)
-- Needs the signed-in user's token; reads and writes as that user, so row level security applies. Tool-using agent: business pulse, any whitelisted table (`TABLES` at the top of the file), customer lookup, stock, and actions that need a spoken or typed yes.
+## DAN (Cloudflare worker v14)
+- Needs the signed-in user's token; reads and writes as that user, so row level security applies. Tool-using agent: business pulse, any whitelisted table (`TABLES` at the top of the file), customer lookup, stock, and actions that need a spoken or typed yes. v14 adds quote chase emails (`prepare_quote_email`, `send_quote_email`), off until the worker variable `DAN_EMAIL_SENDING` is `on`; phone calls may only use the address already on the quote.
 - Chat panel: morning briefing on first open each day, alert list, badge on the robot button, Ask DAN focus on a single invoice.
 - Phone line `/voice` (VAPI): guarded by a shared key header and an approved-numbers list. Inbound calls can ask anything but can only act after a spoken passphrase. The 07:30 UK time weekday morning call to Daniel runs from a Cloudflare Cron Trigger (two entries, `30 6 * * 1-5` and `30 7 * * 1-5`). `POST /voice/morning` with `{"dry":true}` shows the script without ringing.
 - Worker settings are listed in `worker/README.md`. Tests were run against mocks, not against live phone calls.

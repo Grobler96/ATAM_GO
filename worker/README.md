@@ -25,6 +25,12 @@ Roll back: Workers & Pages -> danbotv2 -> Deployments -> pick the previous versi
 ## Phone (VAPI): ring DAN, and DAN rings Daniel each morning
 VAPI is only the ears and mouth. It sends what is said to `/voice`; the same DAN brain answers.
 
+Chase emails (v14): DAN can write and send a quote chase email, in chat and on the phone, only after reading it back and getting a yes.
+It sends by the same route as the Quotes tab (`queue_quote_email`, then the n8n workflow `quote-email-send`). It stays off until you add
+the variable `DAN_EMAIL_SENDING` = `on` (plain text, Settings -> Variables and Secrets). Add it only once Microsoft 365 sending works and
+`EMAIL_SENDING_ENABLED` is true in `quotes.js`. By phone DAN can only email the address already on the quote. Emails sent by phone show the
+"phone" user as the sender in the quote timeline.
+
 Extra variables and secrets on the worker:
 | name | what it is |
 |---|---|
