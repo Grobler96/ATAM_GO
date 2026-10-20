@@ -562,10 +562,12 @@
     $('qtSheet').innerHTML = drawerHtml(r, null);
     $('qtSheet').focus();
     loadTimeline(id);
+    loadHistory(id);
   }
   function closeDrawer() {
     state.openId = null;
     const d = $('qtDrawer'); if (d) d.classList.remove('open');
+    setHist('');
     document.body.classList.remove('qt-lock');
   }
   function refreshDrawerHead() {
@@ -668,6 +670,166 @@
       toast('Couldn\'t log the chase: ' + ((e && e.message) || 'unknown error'), true);
       btn.disabled = false; btn.textContent = 'Log chase';
     }
+  }
+
+  // ───────────────────────── customer history panel ─────────────────────────
+  // Fills the space beside the quote drawer with everything we know about the customer: orders, spend, money owed, what
+  // they buy, their last order, other quotes, and Win-back history. Orders / invoices come from the read-only database
+  // function quote_customer_history() (sql/quote_customer_history.sql), matched by company name. Quote figures come from
+  // the quotes already loaded on this page.
+  const HIST_TTL = 5 * 60 * 1000;
+  const histCache = new Map();   // customer key -> { at, data } (every quote of one customer shares it)
+  const custKey = n => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const pctChange = (a, b) => b > 0 ? Math.round((num(a) - num(b)) / num(b) * 100) : null;
+  const ago = d => { if (!d) return '—'; const n = days(d, new Date()); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n < 60 ? n + ' days ago' : Math.round(n / 30.4) + ' months ago'; };
+  const setHist = html => { const el = $('qtHist'); if (el) el.innerHTML = html; };
+
+  async function loadHistory(id) {
+    const row = state.rows.find(x => x.id === id);
+    const ck = row ? custKey(row.customer) : id;
+    const hit = histCache.get(ck);
+    if (hit && Date.now() - hit.at < HIST_TTL) { renderHistory(id, hit.data); return; }
+    setHist('<div class="qt-hgrid"><div class="qt-hc qt-hc-wide">Loading customer history…</div></div>');
+    try {
+      const res = await client().rpc('quote_customer_history', { p_order_id: id });
+      if (res.error) throw res.error;
+      histCache.set(ck, { at: Date.now(), data: res.data });
+      renderHistory(id, res.data);
+    } catch (e) {
+      console.error('customer history failed', e);
+      if (state.openId === id) setHist('<div class="qt-hgrid"><div class="qt-hc qt-hc-wide"><b>Couldn\'t load the customer history.</b> <button type="button" class="qt-btn" data-act="hist-retry">Try again</button></div></div>');
+    }
+  }
+  function renderHistory(id, h) {
+    if (state.openId !== id) return;
+    const r = state.rows.find(x => x.id === id);
+    if (!r) return;
+    setHist(histHtml(r, h || { found: false }));
+  }
+
+  function monthChart(months) {
+    const m = Array.isArray(months) ? months : [];
+    if (!m.length) return '';
+    const max = Math.max(1, ...m.map(x => num(x.v)));
+    const W = 1000, H = 150, bw = W / m.length;
+    const bars = m.map((x, i) => {
+      const hh = Math.round(num(x.v) / max * (H - 30));
+      const d = new Date(x.m + '-01T12:00:00');
+      const name = d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+      const lab = i % 3 === 0 || i === m.length - 1 ? `<text x="${i * bw + bw / 2}" y="${H - 3}" text-anchor="middle" font-size="11" fill="#64748b">${esc(d.toLocaleDateString('en-GB', { month: 'short' }))}</text>` : '';
+      return `<g><title>${esc(name)}: ${esc(gbp(x.v))} from ${plural(num(x.n), 'order')}</title><rect x="${i * bw + 3}" y="${H - 16 - hh}" width="${bw - 6}" height="${Math.max(hh, num(x.v) > 0 ? 2 : 0)}" rx="3" fill="${num(x.v) > 0 ? '#38bdf8' : 'rgba(148,163,184,.25)'}"/>${lab}</g>`;
+    }).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Spend by month for the last 24 months">${bars}</svg>`;
+  }
+
+  function histHtml(r, h) {
+    if (!h.found) return '<div class="qt-hgrid"><div class="qt-hc qt-hc-wide">No customer history to show for this quote.</div></div>';
+    const st = h.stats || {}, mo = h.money || {};
+    const orders = num(st.orders), first = toDate(st.first_shipped), last = toDate(st.last_shipped);
+    const openOrders = h.open_orders || [], recent = h.recent_orders || [], people = h.people || [], log = h.contact_log || [];
+    const mine = state.rows.filter(x => custKey(x.customer) === custKey(r.customer));
+    const others = mine.filter(x => x.id !== r.id).sort((a, b) => b.created - a.created);
+    const closed = mine.filter(x => (x.stage === 'won' && !x.instant) || x.stage === 'lost');
+    const won = closed.filter(x => x.stage === 'won').length;
+    const quotedTotal = mine.reduce((t, x) => t + x.value, 0);
+    const openValue = openOrders.reduce((t, o) => t + num(o.value), 0), openOwed = openOrders.reduce((t, o) => t + num(o.outstanding), 0);
+    const change = pctChange(st.spend_12m, st.spend_prev_12m);
+    const isNew = orders === 0 && num(mo.invoiced) === 0 && !openOrders.length;
+
+    // talking points in plain English
+    const tp = [];
+    if (isNew) tp.push('🆕 <b>New customer.</b> No previous orders or invoices found under this company name.' + (others.length ? ' They have ' + plural(others.length, 'other quote') + ' with us.' : ''));
+    else {
+      tp.push(`🤝 <b>${esc(h.customer)}</b> has ordered ${plural(orders, 'time')} since ${esc(fmtDate(first))}, worth <b>${esc(gbp(st.spend))}</b> in total. Last order ${esc(ago(last))}.`);
+      if (change != null && num(st.spend_prev_12m) > 0) tp.push(`${change >= 0 ? '📈' : '📉'} Spend in the last 12 months is <b>${esc(gbp(st.spend_12m))}</b>, ${change >= 0 ? 'up' : 'down'} <b>${Math.abs(change)}%</b> on the 12 months before (${esc(gbp(st.spend_prev_12m))}).`);
+      else if (num(st.spend_12m) > 0 && !num(st.spend_prev_12m)) tp.push(`📈 All of their spend (<b>${esc(gbp(st.spend_12m))}</b>) is from the last 12 months, so they are fairly new or restarted recently.`);
+      else if (!num(st.spend_12m)) tp.push('😴 <b>No orders in the last 12 months.</b> This could be a win-back.');
+      if (h.avg_gap_days != null && orders > 3) tp.push(`🔁 They usually order every <b>${esc(h.avg_gap_days)}</b> day${num(h.avg_gap_days) === 1 ? '' : 's'} (between days they ordered).`);
+      if ((h.reps || []).length) tp.push(`👤 Mostly handled by <b>${esc(h.reps[0].rep)}</b> (${plural(num(h.reps[0].orders), 'order')}, ${esc(gbp(h.reps[0].spend))}).`);
+    }
+    if (num(mo.overdue) > 0) tp.push(`⚠️ <b>${esc(gbp(mo.overdue))} is overdue</b> on invoices${mo.oldest_overdue_days ? ', the oldest by ' + esc(mo.oldest_overdue_days) + ' days' : ''}. Worth knowing before chasing a new quote.`);
+    else if (num(mo.unpaid) > 0) tp.push(`💷 ${esc(gbp(mo.unpaid))} unpaid across ${plural(num(mo.unpaid_count), 'invoice')}, none overdue.`);
+    else if (!isNew) tp.push('✅ Nothing owed. All invoices paid.');
+    if (h.avg_days_to_pay != null) tp.push(`⏱ They typically pay about <b>${esc(h.avg_days_to_pay)} days</b> after the order ships.`);
+    if (openOrders.length) tp.push(`🏭 ${plural(openOrders.length, 'order')} on the go right now, worth ${esc(gbp(openValue))}.`);
+    if (closed.length >= 2) tp.push(`🎯 Of ${closed.length} earlier quotes decided, <b>${won}</b> ${won === 1 ? 'was' : 'were'} won (${Math.round(won / closed.length * 100)}%).`);
+
+    const kpi = (label, value, sub, tone) => `<div class="qt-hk${tone ? ' ' + tone : ''}"><span>${esc(label)}</span><b>${value}</b>${sub ? `<i>${sub}</i>` : ''}</div>`;
+    const kpis = [
+      kpi('Lifetime spend', esc(gbp(st.spend)), plural(orders, 'order') + (first ? ' since ' + esc(fmtDate(first)) : '')),
+      kpi('Last 12 months', esc(gbp(st.spend_12m)), change != null ? (change >= 0 ? '▲ ' : '▼ ') + Math.abs(change) + '% on the year before' : 'no spend the year before', change != null ? (change >= 0 ? 'good' : 'bad') : ''),
+      kpi('Orders, last 12 months', String(num(st.orders_12m)), num(st.orders_prev_12m) + ' the year before'),
+      kpi('Average order', esc(gbp(st.avg_order)), 'largest ' + esc(gbp(st.largest))),
+      kpi('Garments supplied', num(st.garments).toLocaleString('en-GB'), 'across all orders'),
+      kpi('Last order', esc(ago(last)), esc(fmtDate(last))),
+      kpi('Orders every', h.avg_gap_days != null ? esc(h.avg_gap_days) + ' days' : '—', 'typical gap between order days'),
+      kpi('Owed now', esc(gbp(mo.unpaid)), plural(num(mo.unpaid_count), 'unpaid invoice'), num(mo.unpaid) > 0 ? 'warn' : ''),
+      kpi('Overdue', esc(gbp(mo.overdue)), mo.oldest_overdue_days ? 'oldest ' + esc(mo.oldest_overdue_days) + ' days late' : 'nothing late', num(mo.overdue) > 0 ? 'bad' : ''),
+      kpi('Usually pays in', h.avg_days_to_pay != null ? esc(h.avg_days_to_pay) + ' days' : '—', 'after the order ships'),
+      kpi('Invoiced in total', esc(gbp(mo.invoiced)), 'ex VAT, from Xero'),
+      kpi('Credit notes', esc(gbp(mo.credited)), 'ex VAT'),
+      kpi('On the go now', plural(openOrders.length, 'order'), openOrders.length ? esc(gbp(openValue)) + ' ex VAT' + (openOwed > 0 ? ', ' + esc(gbp(openOwed)) + ' still to pay' : '') : 'none open'),
+      kpi('No-charge orders', String(num(st.free_or_zero_orders)), 're-dos and samples at £0'),
+      kpi('Cancelled orders', String(num(st.cancelled)), '')
+    ].join('');
+
+    const payChip = o => o.invoice_status === 'PAID' ? '<span class="qt-hpill good">Paid</span>' : o.invoice_status ? `<span class="qt-hpill warn">${num(o.invoice_due) > 0 ? esc(gbp(o.invoice_due, true)) + ' due' : esc(o.invoice_status)}</span>` : '<span class="qt-dim">—</span>';
+    const proc = p => (p || []).length ? (p || []).join(', ') : '—';
+
+    // last order
+    const lo = h.last_order;
+    let lastCard = '';
+    if (lo) {
+      const lines = h.last_order_lines || [];
+      lastCard = `<section class="qt-hc qt-hc-wide"><h4>Last order <span class="qt-dim">(latest one with a charge)</span></h4>
+        <div class="qt-hfacts">
+          <div><span>Order</span><b>#${esc(lo.order_id)}</b></div><div><span>Shipped</span><b>${esc(fmtDate(toDate(lo.date_shipped)))}</b><i>${esc(ago(toDate(lo.date_shipped)))}</i></div>
+          <div><span>Value ex VAT</span><b>${esc(gbp(lo.order_value, true))}</b></div><div><span>Garments</span><b>${esc(lo.garment_qty != null ? lo.garment_qty : '—')}</b></div>
+          <div><span>Decoration</span><b>${esc(proc(lo.processes))}</b></div><div><span>Handled by</span><b>${esc(lo.assigned_to || '—')}</b></div>
+          <div><span>Delivery</span><b>${esc(lo.shipping_method || '—')}</b></div><div><span>Invoiced</span><b>${esc(fmtDate(toDate(lo.date_invoiced)))}</b></div>
+        </div>
+        ${lines.length ? `<table class="qt-ht"><thead><tr><th>What was ordered</th><th class="r">Qty</th><th class="r">Each</th><th class="r">Line total</th></tr></thead><tbody>${lines.map(l => `<tr><td>${esc(l.desc || '')}${l.type ? ` <span class="qt-dim">${esc(l.type)}</span>` : ''}</td><td class="r">${l.qty != null ? esc(Math.round(num(l.qty) * 100) / 100) : ''}</td><td class="r">${l.unit != null ? esc(gbp(l.unit, true)) : ''}</td><td class="r">${l.net != null ? esc(gbp(l.net, true)) : ''}</td></tr>`).join('')}</tbody></table>
+        <p class="qt-dim">${h.last_order_lines_from === 'invoice' ? 'Lines are from the Xero invoice for this order (ex VAT).' : 'Lines are from the DecoNetwork order (ex VAT).'}</p>` : '<p class="qt-dim">No line detail is stored for this order.</p>'}</section>`;
+    }
+
+    const openCard = openOrders.length ? `<section class="qt-hc qt-hc-wide"><h4>Orders on the go (${openOrders.length})</h4>
+      <table class="qt-ht"><thead><tr><th>Order</th><th>Status</th><th>Due</th><th>Decoration</th><th>Handled by</th><th class="r">Qty</th><th class="r">Value</th><th class="r">To pay</th></tr></thead><tbody>
+      ${openOrders.map(o => `<tr><td>#${esc(o.order_id)}</td><td>${esc(STATUS[o.status] || 'Status ' + o.status)}</td><td>${esc(fmtDate(toDate(o.due)))}</td><td>${esc(proc(o.processes))}</td><td>${esc(o.rep || '—')}</td><td class="r">${esc(o.qty != null ? o.qty : '—')}</td><td class="r">${esc(gbp(o.value, true))}</td><td class="r">${num(o.outstanding) > 0 ? esc(gbp(o.outstanding, true)) : '<span class="qt-dim">paid</span>'}</td></tr>`).join('')}</tbody></table>
+      <p class="qt-dim">Values are ex VAT; “to pay” includes VAT.</p></section>` : '';
+
+    const recentCard = recent.length ? `<section class="qt-hc qt-hc-wide"><h4>Recent orders <span class="qt-dim">(latest ${recent.length})</span></h4>
+      <table class="qt-ht"><thead><tr><th>Shipped</th><th>Order</th><th>Decoration</th><th>Handled by</th><th class="r">Qty</th><th class="r">Value</th><th>Invoice</th><th>Payment</th></tr></thead><tbody>
+      ${recent.map(o => `<tr><td>${esc(fmtDate(toDate(o.shipped)))}</td><td>#${esc(o.order_id)}</td><td>${esc(proc(o.processes))}</td><td>${esc(o.rep || '—')}</td><td class="r">${esc(o.qty != null ? o.qty : '—')}</td><td class="r">${num(o.value) > 0 ? esc(gbp(o.value, true)) : '<span class="qt-dim">£0</span>'}</td><td>${esc(o.invoice || '—')}</td><td>${payChip(o)}</td></tr>`).join('')}</tbody></table></section>` : '';
+
+    const mix = h.product_mix || [], mixMax = Math.max(1, ...mix.map(x => num(x.value)));
+    const bar = (label, val, text, w) => `<div class="qt-hbar"><span>${esc(label)}</span><div><i style="width:${Math.max(2, Math.round(w * 100))}%"></i></div><em>${text}</em></div>`;
+    const buyCard = (mix.length || (h.processes || []).length || (h.reps || []).length) ? `<section class="qt-hc"><h4>What they buy and who looks after them</h4>
+      ${mix.length ? `<div class="qt-hsub">Products (invoiced, ex VAT)</div>${mix.map(x => bar(x.type, 0, esc(gbp(x.value)) + ' · ' + esc(num(x.qty).toLocaleString('en-GB')) + ' pcs', num(x.value) / mixMax)).join('')}` : ''}
+      ${(h.processes || []).length ? `<div class="qt-hsub">Decoration (orders)</div><div class="qt-hchips">${h.processes.map(p => `<span class="qt-hpill">${esc(p.process)} · ${num(p.orders)}</span>`).join('')}</div>` : ''}
+      ${(h.reps || []).length ? `<div class="qt-hsub">Handled by (completed orders)</div>${h.reps.map(x => `<div class="qt-hrep">${avatar(x.rep)}<span>${esc(x.rep)}</span><em>${plural(num(x.orders), 'order')} · ${esc(gbp(x.spend))}</em></div>`).join('')}` : ''}</section>` : '';
+
+    const stageChip = x => `<span class="qt-chip" style="--c:${STAGES[x.stage].color}">${STAGES[x.stage].icon} ${esc(STAGES[x.stage].label)}</span>`;
+    const quotesCard = `<section class="qt-hc"><h4>Quotes with us (${mine.length})</h4>
+      <div class="qt-hfacts qt-hfacts-3"><div><span>Total quoted</span><b>${esc(gbp(quotedTotal))}</b></div><div><span>Won</span><b>${won} of ${closed.length}</b><i>${closed.length ? Math.round(won / closed.length * 100) + '% of decided quotes' : 'none decided yet'}</i></div><div><span>Average quote</span><b>${esc(gbp(mine.length ? quotedTotal / mine.length : 0))}</b></div></div>
+      ${others.length ? `<table class="qt-ht"><thead><tr><th>Quote</th><th>Job</th><th>Stage</th><th class="r">Value</th><th>Raised</th></tr></thead><tbody>${others.slice(0, 12).map(x => `<tr class="qt-hlink" data-hist-open="${esc(x.id)}" tabindex="0" role="button" title="Open this quote"><td>#${esc(x.id)}</td><td>${esc(x.job || '—')}</td><td>${stageChip(x)}</td><td class="r">${esc(gbp(x.value, true))}</td><td>${esc(fmtDate(x.created))}</td></tr>`).join('')}</tbody></table>${others.length > 12 ? `<p class="qt-dim">Showing the latest 12 of ${others.length}.</p>` : ''}` : '<p class="qt-dim">This is their only quote in the synced period.</p>'}</section>`;
+
+    // people: contacts on quotes + Win-back records
+    const contactMap = new Map();
+    mine.forEach(x => { const k = (x.email || x.contact || '').toLowerCase(); if (!k) return; const c = contactMap.get(k) || { name: x.contact, email: x.email, n: 0 }; c.n++; contactMap.set(k, c); });
+    const contacts = [...contactMap.values()].sort((a, b) => b.n - a.n);
+    const peopleCard = `<section class="qt-hc qt-hc-wide"><h4>People and Win-back</h4>
+      ${contacts.length ? `<div class="qt-hsub">Contacts we have quoted</div><div class="qt-hchips">${contacts.map(c => `<span class="qt-hpill">${esc(c.name || '')}${c.email ? ` <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ''} · ${plural(c.n, 'quote')}</span>`).join('')}</div>` : ''}
+      ${people.length ? `<div class="qt-hsub">Customer records (reorder pattern)</div><table class="qt-ht"><thead><tr><th>Name</th><th class="r">Orders</th><th>Last order</th><th class="r">Usual gap</th><th>Status</th><th>Owner</th><th>Last contact</th></tr></thead><tbody>
+        ${people.map(p => `<tr><td>${esc(p.name || '')}${p.email ? `<div class="qt-dim">${esc(p.email)}</div>` : ''}</td><td class="r">${esc(num(p.total_orders))}</td><td>${esc(fmtDate(toDate(p.last_order_date)))}</td><td class="r">${p.mean_reorder_days != null ? Math.round(num(p.mean_reorder_days)) + 'd' : '—'}</td><td>${esc(String(p.reorder_status || '—').replace(/_/g, ' '))}${num(p.overdue_by_days) > 0 ? `<div class="qt-dim">${Math.round(num(p.overdue_by_days))}d overdue</div>` : ''}</td><td>${esc(p.owner || '—')}</td><td>${p.last_contact_at ? esc(fmtDate(toDate(p.last_contact_at))) + (p.last_contact_outcome ? `<div class="qt-dim">${esc(String(p.last_contact_outcome).replace(/_/g, ' '))}</div>` : '') : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="qt-dim">No reorder record for this customer yet.</p>'}
+      ${log.length ? `<div class="qt-hsub">Win-back contact log</div><ul class="qt-hlog">${log.map(l => `<li><b>${esc(fmtDate(toDate(l.at)))}</b> ${esc(l.method || '')} · ${esc(String(l.outcome || '').replace(/_/g, ' '))}${l.by ? ' · ' + esc(l.by) : ''}${l.note ? ' — “' + esc(l.note) + '”' : ''}${l.follow_up_on ? ' <span class="qt-dim">follow up ' + esc(fmtDate(toDate(l.follow_up_on))) + '</span>' : ''}</li>`).join('')}</ul>` : ''}</section>`;
+
+    return `<div class="qt-hgrid">
+      <section class="qt-hc qt-hc-wide qt-hhead"><div><div class="qt-d-eyebrow">Customer history</div><h3>${esc(h.customer)}</h3></div>${isNew ? '<span class="qt-hpill good">New customer</span>' : `<span class="qt-hpill">${first ? 'Customer since ' + esc(fmtDate(first)) : 'Existing customer'}</span>`}</section>
+      <section class="qt-hc qt-hc-wide"><h4>Talking points</h4><ul class="qt-htp">${tp.map(t => `<li>${t}</li>`).join('')}</ul></section>
+      <section class="qt-hc qt-hc-wide"><h4>Key numbers</h4><div class="qt-hkpis">${kpis}</div></section>
+      <section class="qt-hc qt-hc-wide"><h4>Spend by month <span class="qt-dim">(last 24 months, ex VAT, by ship date)</span></h4>${monthChart(h.monthly)}</section>
+      ${lastCard}${openCard}${recentCard}${buyCard}${quotesCard}${peopleCard}
+      <p class="qt-dim qt-hnote">Orders and invoices are matched to this customer by company name, so a customer trading under two names may be split. Figures exclude VAT unless it says otherwise.</p></div>`;
   }
 
   // ───────────────────────── email the customer ─────────────────────────
@@ -949,6 +1111,49 @@ body.qt-lock { overflow:hidden; }
   #quotes .qt-kpis { grid-template-columns:repeat(2,1fr); } #quotes .qt-kpi:nth-child(3n) { border-right:1px solid rgba(255,255,255,.08); } #quotes .qt-kpi:nth-child(2n) { border-right:none; } #quotes .qt-kpi { border-bottom:1px solid rgba(255,255,255,.08); }
   #quotes .qt-board { grid-template-columns:repeat(5,82vw); scroll-snap-type:x mandatory; } #quotes .qt-col { scroll-snap-align:start; }
   #quotes input[type=search] { min-width:0; flex:1; } .qt-drawer .qt-facts { grid-template-columns:1fr; } }
+/* customer history panel: fills the space left of the quote drawer on wide screens */
+.qt-drawer .qt-hist { display:none; position:absolute; top:0; bottom:0; left:0; right:calc(min(480px,100%) + 44px); padding:22px 26px 22px 22px; overflow-y:auto; pointer-events:none; opacity:0; transform:translateX(24px); transition:opacity .25s .05s, transform .25s .05s; color:#f8fafc; }
+.qt-drawer.open .qt-hist { opacity:1; transform:none; }
+@media (min-width: 1180px) { .qt-drawer .qt-hist { display:block; } }
+.qt-hist .qt-hgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:14px; max-width:1100px; margin-left:auto; align-items:start; }
+.qt-hist .qt-hc { pointer-events:auto; background:rgba(11,18,32,.94); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:16px 18px; min-width:0; box-shadow:0 8px 28px rgba(0,0,0,.35); }
+.qt-hist .qt-hc-wide { grid-column:1/-1; }
+.qt-hist h3 { margin:2px 0 0; font-size:22px; overflow-wrap:anywhere; }
+.qt-hist h4 { margin:0 0 12px; font-size:13.5px; }
+.qt-hist .qt-d-eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; }
+.qt-hist .qt-dim { color:#64748b; font-size:12px; font-weight:400; }
+.qt-hist .qt-hhead { display:flex; justify-content:space-between; align-items:center; gap:12px; border-top:3px solid #38bdf8; }
+.qt-hist .qt-hpill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11.5px; font-weight:600; background:rgba(148,163,184,.14); border:1px solid rgba(148,163,184,.3); color:#cbd5e1; margin:0 6px 6px 0; }
+.qt-hist .qt-hpill.good { background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.4); color:#bbf7d0; }
+.qt-hist .qt-hpill.warn { background:rgba(245,158,11,.14); border-color:rgba(245,158,11,.4); color:#fde68a; }
+.qt-hist .qt-hpill a { color:#7dd3fc; }
+.qt-hist .qt-htp { margin:0; padding:0; list-style:none; display:grid; gap:9px; font-size:13.5px; line-height:1.5; color:#e2e8f0; }
+.qt-hist .qt-hkpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
+.qt-hist .qt-hk { background:#0f172a; border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:11px 13px; min-width:0; }
+.qt-hist .qt-hk span, .qt-hist .qt-hfacts span { display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:3px; }
+.qt-hist .qt-hk b { display:block; font-size:19px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.qt-hist .qt-hk i, .qt-hist .qt-hfacts i { display:block; font-style:normal; font-size:11.5px; color:#94a3b8; margin-top:2px; }
+.qt-hist .qt-hk.good b { color:#86efac; } .qt-hist .qt-hk.bad b { color:#fca5a5; } .qt-hist .qt-hk.warn b { color:#fde68a; }
+.qt-hist .qt-hfacts { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-bottom:12px; }
+.qt-hist .qt-hfacts-3 { grid-template-columns:repeat(3,1fr); }
+.qt-hist .qt-hfacts > div { background:#0f172a; border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:10px 12px; min-width:0; }
+.qt-hist .qt-hfacts b { font-size:13.5px; overflow-wrap:anywhere; }
+.qt-hist .qt-ht { width:100%; border-collapse:collapse; font-size:12.5px; }
+.qt-hist .qt-ht th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:600; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.1); }
+.qt-hist .qt-ht td { padding:7px 8px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:top; }
+.qt-hist .qt-ht .r { text-align:right; font-variant-numeric:tabular-nums; }
+.qt-hist .qt-hlink { cursor:pointer; } .qt-hist .qt-hlink:hover td, .qt-hist .qt-hlink:focus-visible td { background:rgba(56,189,248,.1); }
+.qt-hist .qt-hsub { margin:14px 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; }
+.qt-hist .qt-hsub:first-of-type { margin-top:0; }
+.qt-hist .qt-hbar { display:grid; grid-template-columns:130px 1fr auto; gap:10px; align-items:center; font-size:12.5px; margin-bottom:6px; }
+.qt-hist .qt-hbar > div { height:8px; background:rgba(255,255,255,.07); border-radius:4px; overflow:hidden; } .qt-hist .qt-hbar i { display:block; height:100%; background:linear-gradient(90deg,#38bdf8,#6366f1); }
+.qt-hist .qt-hbar em { font-style:normal; color:#94a3b8; font-size:12px; white-space:nowrap; }
+.qt-hist .qt-hrep { display:flex; align-items:center; gap:8px; font-size:12.5px; margin-bottom:6px; } .qt-hist .qt-hrep em { margin-left:auto; font-style:normal; color:#94a3b8; }
+.qt-hist .qt-hlog { margin:0; padding-left:18px; font-size:12.5px; line-height:1.55; color:#cbd5e1; }
+.qt-hist .qt-hnote { grid-column:1/-1; margin:0; pointer-events:none; }
+.qt-hist .qt-btn { padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; color:#e2e8f0; border:1px solid rgba(255,255,255,.14); background:transparent; margin-left:8px; }
+.qt-hist .qt-hc:focus-within, .qt-hist :focus-visible { outline:2px solid #38bdf8; outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { .qt-drawer .qt-hist { transition:none !important; } }
 @media (prefers-reduced-motion: reduce) { #quotes *, #quotes *::before, #quotes *::after, .qt-drawer .qt-sheet, .qt-drawer .qt-backdrop { animation:none !important; transition:none !important; } }
 `;
     document.head.appendChild(s);
@@ -999,7 +1204,7 @@ body.qt-lock { overflow:hidden; }
     drawer.setAttribute('role', 'dialog');
     drawer.setAttribute('aria-modal', 'true');
     drawer.setAttribute('aria-label', 'Quote details');
-    drawer.innerHTML = '<div class="qt-backdrop" data-act="close"></div><div class="qt-sheet" id="qtSheet" tabindex="-1"></div>';
+    drawer.innerHTML = '<div class="qt-backdrop" data-act="close"></div><aside class="qt-hist" id="qtHist" aria-label="Customer history"></aside><div class="qt-sheet" id="qtSheet" tabindex="-1"></div>';
     document.body.appendChild(drawer);
 
     // app.js binds its nav buttons once at startup, so it does not know about this page.
@@ -1060,6 +1265,13 @@ body.qt-lock { overflow:hidden; }
       const c = e.target.closest('[data-act="compose"]');
       if (c) openCompose(c.dataset.for);
       if (e.target.closest('[data-act="compose-cancel"]')) { const b = $('qtCompose'); if (b) b.innerHTML = ''; }
+      const ho = e.target.closest('[data-hist-open]');
+      if (ho) openDrawer(ho.dataset.histOpen);
+      if (e.target.closest('[data-act="hist-retry"]') && state.openId) { const rr = state.rows.find(x => x.id === state.openId); if (rr) histCache.delete(custKey(rr.customer)); loadHistory(state.openId); }
+    });
+    drawer.addEventListener('keydown', e => {
+      const ho = e.target.closest && e.target.closest('[data-hist-open]');
+      if (ho && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDrawer(ho.dataset.histOpen); }
     });
     drawer.addEventListener('submit', e => {
       if (e.target.id === 'qtChaseForm') { e.preventDefault(); submitChase(e.target); }
