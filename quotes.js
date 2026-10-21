@@ -844,17 +844,56 @@
   function pickSender(list, rep) {
     return list.find(s => s.kind === 'rep' && s.rep_name && s.rep_name === rep) || list.find(s => s.kind === 'shared') || list[0];
   }
-  function draftEmail(r, sender, no) {
-    const hi = firstName(r.contact) ? 'Hi ' + firstName(r.contact) : 'Hello';
+  // Ready-made wordings for the chase email. Fixed templates (no AI), filled only with facts from the quote. They never
+  // promise prices, dates or expiry. Every one ends "Kind regards,\n<name>\nATAM Workwear" so the sign-off follows the From box.
+  const TONES = [
+    { key: 'friendly', label: 'Friendly', hint: 'warm and chatty' },
+    { key: 'short', label: 'Short and direct', hint: 'two lines' },
+    { key: 'formal', label: 'Formal', hint: 'polite and professional' },
+    { key: 'gentle', label: 'Gentle nudge', hint: 'no pressure' },
+    { key: 'helpful', label: 'Helpful', hint: 'offers changes' },
+    { key: 'ready', label: 'Ready to go', hint: 'makes saying yes easy' }
+  ];
+  function draftEmail(r, sender, no, tone) {
+    tone = TONES.some(t => t.key === tone) ? tone : 'friendly';
+    const fn = firstName(r.contact);
+    const hi = fn ? 'Hi ' + fn : 'Hello';
     const job = r.job ? ' for ' + r.job : '';
-    const me = sender && sender.kind === 'rep' ? firstName(sender.label) : 'The ATAM Workwear team';
-    const line = no <= 1
-      ? `I just wanted to follow up on the quote we sent${job} (quote #${r.id}). Do you have any questions, or would you like me to go ahead and get it started?`
-      : `I'm following up again on the quote${job} (quote #${r.id}). I haven't heard back, so I wanted to check it reached you and see whether you'd like any changes before it expires.`;
-    return {
-      subject: (no <= 1 ? 'Your quote' : 'Following up on your quote') + ' #' + r.id + (r.job ? ' - ' + r.job : ''),
-      body: `${hi},\n\n${line}\n\nKind regards,\n${me}\nATAM Workwear`
+    const items = r.qty ? ` (${r.qty} item${num(r.qty) === 1 ? '' : 's'})` : '';
+    const me = sender && sender.kind === 'rep' ? firstName(sender.label) : 'Customer Support';
+    const first = no <= 1;
+    const q = `quote #${r.id}`;
+    const L = {
+      friendly: first
+        ? `I just wanted to follow up on the quote we sent${job} (${q}). Do you have any questions, or would you like me to go ahead and get it started?`
+        : `I'm following up again on the quote${job} (${q}). I haven't heard back, so I wanted to check it reached you and see whether you'd like any changes.`,
+      short: first
+        ? `Just checking you received ${q}${job}. Happy to answer any questions, or to get it started when you're ready.`
+        : `A quick follow-up on ${q}${job}. Is this still something you'd like to go ahead with?`,
+      formal: first
+        ? `${fn ? 'Dear ' + fn : 'Good day'},\n\nI am writing to follow up on ${q}${job}${items}, which we sent to you recently. Please let me know if you have any questions or would like any amendments, or if you wish to proceed.`
+        : `${fn ? 'Dear ' + fn : 'Good day'},\n\nFurther to my previous email, I am following up on ${q}${job}. I would be grateful if you could let me know whether you wish to proceed, or if there is anything you would like us to revise.`,
+      gentle: first
+        ? `No rush at all, I just wanted to make sure ${q}${job} didn't get lost in your inbox. Whenever you've had a chance to look, I'm happy to answer any questions.`
+        : `I know things get busy, so I'm just popping ${q}${job} back to the top of your inbox. If now isn't the right time, just let me know and I'll leave it with you.`,
+      helpful: first
+        ? `I'm following up on ${q}${job}${items}. If anything needs changing, such as quantities, colours, logo placement or sizes, just tell me and I'll update the quote for you.`
+        : `I'm following up on ${q}${job}. If it isn't quite right, I'm happy to adjust it, whether that's quantities, colours, logo placement or something else. Just let me know what would help.`,
+      ready: first
+        ? `I'm following up on ${q}${job}${items}. If you're happy with it, just reply "yes" to this email and I'll get it started.`
+        : `Just a quick reminder about ${q}${job}. If you're happy to go ahead, reply "yes" to this email and I'll get it moving.`
     };
+    const formal = tone === 'formal';
+    const body = formal ? `${L.formal}\n\nKind regards,\n${me}\nATAM Workwear` : `${hi},\n\n${L[tone]}\n\nKind regards,\n${me}\nATAM Workwear`;
+    const subjects = {
+      friendly: (first ? 'Your quote' : 'Following up on your quote') + ' #' + r.id + (r.job ? ' - ' + r.job : ''),
+      short: 'Quote #' + r.id + (r.job ? ' - ' + r.job : ''),
+      formal: 'Quote #' + r.id + (r.job ? ' - ' + r.job : '') + (first ? '' : ' - follow-up'),
+      gentle: (first ? 'Checking in on your quote' : 'Just checking in') + ' #' + r.id,
+      helpful: 'Your quote' + ' #' + r.id + (r.job ? ' - ' + r.job : '') + ' - happy to adjust',
+      ready: 'Ready when you are - quote #' + r.id + (r.job ? ' - ' + r.job : '')
+    };
+    return { subject: subjects[tone], body };
   }
 
   async function openCompose(id) {
@@ -868,9 +907,10 @@
     if (!list.length) { box.innerHTML = '<div class="qt-note">No sender mailboxes have been set up yet.</div>'; return; }
     const def = pickSender(list, r.rep);
     const no = r.emailNo + 1;
-    const d = draftEmail(r, def, no);
+    const d = draftEmail(r, def, no, 'friendly');
     box.innerHTML = `<form class="qt-compose" id="qtComposeForm" data-id="${esc(r.id)}">
       <h4>Chase #${no} by email</h4>
+      <div class="qt-tones" role="group" aria-label="Choose a tone for this email"><span class="qt-dim">Tone:</span>${TONES.map(t => `<button type="button" class="qt-tone${t.key === 'friendly' ? ' on' : ''}" data-tone="${esc(t.key)}" title="${esc(t.hint)}" aria-pressed="${t.key === 'friendly'}">${esc(t.label)}</button>`).join('')}</div>
       <label>From<select id="qtFrom">${list.map(s => `<option value="${esc(s.id)}" data-kind="${esc(s.kind)}" data-label="${esc(s.label)}"${s.id === def.id ? ' selected' : ''}>${esc(s.label)} (${esc(s.email)})</option>`).join('')}</select></label>
       <label>To<input id="qtTo" type="email" value="${esc(r.email)}" placeholder="customer@example.com" required></label>
       <label>Subject<input id="qtSubject" type="text" maxlength="300" value="${esc(d.subject)}" required></label>
@@ -880,10 +920,22 @@
       <p class="qt-dim">Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.</p>
     </form>`;
     const from = $('qtFrom');
+    let lastGen = { subject: d.subject, body: d.body };   // what the tone buttons last wrote, so we can tell if someone has edited it
+    box.querySelector('.qt-tones').addEventListener('click', e => {
+      const b = e.target.closest('[data-tone]'); if (!b) return;
+      const edited = $('qtMsg').value !== lastGen.body || $('qtSubject').value !== lastGen.subject;
+      if (edited && !window.confirm('Replace what you have typed with this wording?')) return;
+      const o = from.options[from.selectedIndex];
+      const sender = { kind: o.dataset.kind, label: o.dataset.label };
+      const nd = draftEmail(r, sender, no, b.dataset.tone);
+      $('qtSubject').value = nd.subject; $('qtMsg').value = nd.body; lastGen = { subject: nd.subject, body: nd.body };
+      box.querySelectorAll('[data-tone]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+    });
     from.addEventListener('change', () => {   // keep the sign-off name in step with the chosen sender
       const o = from.options[from.selectedIndex];
-      const me = o.dataset.kind === 'rep' ? firstName(o.dataset.label) : 'The ATAM Workwear team';
+      const me = o.dataset.kind === 'rep' ? firstName(o.dataset.label) : 'Customer Support';
       $('qtMsg').value = $('qtMsg').value.replace(/Kind regards,\n[^\n]*\n/, 'Kind regards,\n' + me + '\n');
+      lastGen = { subject: lastGen.subject, body: lastGen.body.replace(/Kind regards,\n[^\n]*\n/, 'Kind regards,\n' + me + '\n') };   // a sender change is not an edit
     });
     $('qtMsg').focus();
   }
@@ -1101,6 +1153,10 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-compose select, .qt-drawer .qt-compose input, .qt-drawer .qt-compose textarea { padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:#0f172a; color:#e2e8f0; font:inherit; font-size:13px; width:100%; box-sizing:border-box; }
 .qt-drawer .qt-compose textarea { resize:vertical; line-height:1.5; min-height:150px; }
 .qt-drawer .qt-compose p { margin:0; }
+.qt-drawer .qt-tones { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.qt-drawer .qt-tone { padding:5px 11px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; color:#cbd5e1; border:1px solid rgba(255,255,255,.18); background:transparent; }
+.qt-drawer .qt-tone:hover { background:rgba(249,115,22,.12); }
+.qt-drawer .qt-tone.on { color:#fff; background:rgba(249,115,22,.28); border-color:rgba(249,115,22,.7); }
 .qt-drawer .qt-compose-row { display:flex; gap:8px; }
 .qt-drawer .qt-timeline { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
 .qt-drawer .qt-timeline li { display:flex; gap:11px; font-size:13px; line-height:1.4; }
