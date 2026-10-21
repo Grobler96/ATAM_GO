@@ -23,9 +23,9 @@
   const HOUR = 3600000;
   const REFRESH_MS = 5 * 60 * 1000;
   const REPLY_DAYS = 3;     // after emailing, wait this long for an answer before the next chase is due
-  // Email chasing goes out through the n8n workflow "quote-email-send" (Microsoft 365). Keep this false until that
-  // workflow is built, tested and published, then flip it to true.
-  const EMAIL_SENDING_ENABLED = false;
+  // Email chasing goes out through the n8n workflow "quote-email-send" (Microsoft 365). Switched on 21 Oct 2026 after a real
+  // test send. If sending ever has to be stopped, set this to false (and unpublish the workflow).
+  const EMAIL_SENDING_ENABLED = true;
   const EMAIL_WEBHOOK = 'https://atamcpi.app.n8n.cloud/webhook/quote-email-send';
   const DECO_ORDER_URL = 'https://atamworkwear.co.uk/bh/orders?p=2&id=';
 
