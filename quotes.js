@@ -448,6 +448,42 @@
       .sort((a, b) => b.s.raisedValue - a.s.raisedValue || b.rows.length - a.rows.length);
   }
 
+  // Win-rate trend: the same win rate as the ring (won, not counting orders keyed straight in, divided by quotes decided, by the
+  // date each was decided), for the last 7 days / 30 days / 12 months against the equal stretch just before. Shown as a change
+  // in percentage points between the two rounded figures, so the numbers on screen always add up.
+  const TREND_WINDOWS = [
+    { key: 'week', label: 'Week', days: 7, cur: 'the last 7 days', prev: 'the 7 days before', min: 1 },
+    { key: 'month', label: 'Month', days: 30, cur: 'the last 30 days', prev: 'the 30 days before', min: 1 },
+    { key: 'year', label: 'Year', days: 365, cur: 'the last 12 months', prev: 'the 12 months before', min: 10 }
+  ];
+  function rateBetween(rows, from, to) {
+    let won = 0, lost = 0;
+    rows.forEach(r => {
+      if (r.stage === 'won' && r.approved && r.approved >= from && r.approved < to && !r.instant) won++;
+      else if (r.stage === 'lost' && r.closedAt && r.closedAt >= from && r.closedAt < to) lost++;
+    });
+    const n = won + lost;
+    return { won, n, pct: n ? Math.round(won / n * 100) : null };
+  }
+  function trendHtml(rows) {
+    const now = Date.now();
+    return `<div class="qt-trend" aria-label="Win rate compared with the period before">${TREND_WINDOWS.map(w => {
+      const len = w.days * DAY;
+      const cur = rateBetween(rows, new Date(now - len), new Date(now));
+      const prev = rateBetween(rows, new Date(now - 2 * len), new Date(now - len));
+      const lbl = `Win rate in ${w.cur}: ${cur.pct == null ? 'nothing decided' : cur.pct + '% (' + cur.won + ' won of ' + cur.n + ' decided)'}. In ${w.prev}: ${prev.pct == null ? 'nothing decided' : prev.pct + '% (' + prev.won + ' won of ' + prev.n + ' decided)'}.`;
+      if (cur.n < w.min || prev.n < w.min || cur.pct == null || prev.pct == null) {
+        const why = w.key === 'year' ? 'Not enough history for a fair year-on-year yet: reliable quote data only starts around June 2026.' : 'Not enough decided quotes in one of the two periods to compare.';
+        return `<span class="qt-tr qt-tr-na" title="${esc(why + ' ' + lbl)}"><b>${w.label}</b><em>—</em></span>`;
+      }
+      const d = cur.pct - prev.pct;
+      const weak = cur.n < 5 || prev.n < 5;
+      const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
+      const txt = d === 0 ? 'no change' : (d > 0 ? '▲ ' : '▼ ') + Math.abs(d) + ' pt' + (Math.abs(d) === 1 ? '' : 's');
+      return `<span class="qt-tr qt-tr-${cls}${weak ? ' qt-tr-weak' : ''}" title="${esc(lbl + (weak ? ' Small numbers, so treat this change with care.' : ''))}"><b>${w.label}</b><em>${txt}</em><small>${cur.pct}% vs ${prev.pct}%${weak ? ' · few quotes' : ''}</small></span>`;
+    }).join('')}</div>`;
+  }
+
   function ringHtml(rate) {
     const pct = rate == null ? 0 : Math.round(rate * 100);
     return `<div class="qt-ring" style="--p:${pct}" title="Quotes won out of quotes decided. Orders approved within an hour of being created are left out."><div><b>${rate == null ? '—' : pct + '%'}</b><span>win rate</span></div></div>`;
@@ -462,6 +498,7 @@
     return `<div class="qt-chartbox"><div class="qt-chart-h"><h3>Weekly activity</h3><span class="qt-dim">quotes raised vs approved, last 12 weeks</span></div>
         <div class="qt-chart"><canvas id="qtChart" role="img" aria-label="Quotes raised and approved per week"></canvas></div></div>
       <div class="qt-team-h"><h3>Salespeople</h3><span class="qt-dim">figures for ${esc(per)} · click a card to filter the pipeline to that person</span></div>
+      <div class="qt-team-trend"><span>Whole team win rate vs the period before</span>${trendHtml(state.rows.filter(r => (!state.store || r.store === state.store) && (!state.q || r.search.includes(state.q))))}</div>
       <div class="qt-team">${team.map((t, idx) => {
         const s = t.s;
         const since = s.lastRaised ? days(s.lastRaised, new Date()) : null;
@@ -486,6 +523,7 @@
           </div>
           ${tot ? `<div class="qt-split" title="${s.won.length} converted · ${s.open.length} open · ${s.lost.length} lost">
             ${s.won.length ? `<i style="flex:${s.won.length};background:#22c55e"></i>` : ''}${s.open.length ? `<i style="flex:${s.open.length};background:#38bdf8"></i>` : ''}${s.lost.length ? `<i style="flex:${s.lost.length};background:#64748b"></i>` : ''}</div>` : ''}
+          ${trendHtml(t.rows)}
           <div class="qt-spark-row">${spark(wk.raised, 'hsl(' + hue(t.name) + ' 70% 62%)', 150, 30)}<span>quotes raised per week</span></div>
           <footer><span>${s.valueRate == null ? 'No decided quotes yet' : 'By value: ' + Math.round(s.valueRate * 100) + '% won'}</span><span>${plural(chases, 'chase')} sent</span></footer>
         </article>`;
@@ -1107,6 +1145,17 @@
 #quotes .qt-rep-grid span { font-size:10.5px; color:#64748b; }
 #quotes .qt-split { display:flex; gap:2px; height:6px; border-radius:3px; overflow:hidden; margin-top:14px; }
 #quotes .qt-split i { display:block; }
+#quotes .qt-trend { display:flex; gap:6px; margin-top:12px; }
+#quotes .qt-tr { flex:1; min-width:0; padding:6px 8px; border-radius:9px; background:rgba(148,163,184,.1); border:1px solid rgba(148,163,184,.2); display:grid; gap:1px; line-height:1.25; }
+#quotes .qt-tr b { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; font-weight:600; }
+#quotes .qt-tr em { font-style:normal; font-size:12.5px; font-weight:700; color:#cbd5e1; font-variant-numeric:tabular-nums; }
+#quotes .qt-tr small { font-size:10.5px; color:#94a3b8; font-variant-numeric:tabular-nums; }
+#quotes .qt-tr-up { background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.4); } #quotes .qt-tr-up em { color:#86efac; }
+#quotes .qt-tr-down { background:rgba(244,63,94,.12); border-color:rgba(244,63,94,.4); } #quotes .qt-tr-down em { color:#fda4af; }
+#quotes .qt-tr-weak { opacity:.75; border-style:dashed; }
+#quotes .qt-tr-na em { color:#64748b; }
+#quotes .qt-team-trend { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 0 14px; padding:10px 14px; border-radius:12px; background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); font-size:12.5px; color:#94a3b8; }
+#quotes .qt-team-trend .qt-trend { margin:0; flex:1; min-width:260px; max-width:460px; }
 #quotes .qt-spark-row { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:11px; color:#64748b; }
 #quotes .qt-spark-row .qt-spark { flex:none; }
 #quotes .qt-rep-card footer { display:flex; justify-content:space-between; gap:8px; margin-top:14px; padding-top:11px; border-top:1px solid rgba(255,255,255,.07); font-size:11.5px; color:#94a3b8; }
