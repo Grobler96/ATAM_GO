@@ -854,11 +854,25 @@
     { key: 'helpful', label: 'Helpful', hint: 'offers changes' },
     { key: 'ready', label: 'Ready to go', hint: 'makes saying yes easy' }
   ];
+  // DecoNetwork job titles are often internal notes ("E03688213 - 4002D ATR RG150 Men's black shell", "Samples for Andrew",
+  // "T-shirts and Hoodies for Wetherby District Explorers Morocco Expedition 2027"), which read badly in a customer email.
+  // So the job is only mentioned when its first short part clearly names a product ("T-shirts and Hoodies"); anything with a
+  // code, a person's name or an internal word is left out and the email just uses the quote number.
+  const JOB_WORDS = /\b(t-?shirts?|tees?|polos?|polo-?shirts?|shirts?|hoodies?|sweat(?:shirt)?s?|fleeces?|jackets?|coats?|gilets?|gillets?|bodywarmers?|softshells?|shells?|trousers?|shorts|hi[- ]?vis|caps?|hats?|beanies?|aprons?|lanyards?|helmets?|boots?|workwear|overalls?|tabards?|vests?|gloves?|bags?|towels?|mugs?|banners?|badges?)\b/i;
+  const JOB_BAD = /\b(samples?|induction|quote|back ?order|ref|po|starter|replacement|re-?do|repeat|trial|test)\b/i;
+  function shortJob(job) {
+    const full = String(job || '').replace(/\s+/g, ' ').trim().replace(/\s+x\s*\d+$/i, '');
+    let part = full.split(/\s+(?:for|-|–|—|at|on|with)\s+|[:(,/]/i)[0].trim();
+    if (part.length < 3 || part.length > 34 || /\d{3,}/.test(part) || JOB_BAD.test(part) || !JOB_WORDS.test(part)) return '';
+    if (part === part.toUpperCase()) part = part.toLowerCase();
+    return part;
+  }
   function draftEmail(r, sender, no, tone) {
     tone = TONES.some(t => t.key === tone) ? tone : 'friendly';
     const fn = firstName(r.contact);
     const hi = fn ? 'Hi ' + fn : 'Hello';
-    const job = r.job ? ' for ' + r.job : '';
+    const sj = shortJob(r.job);
+    const job = sj ? ' for ' + sj : '';
     const items = r.qty ? ` (${r.qty} item${num(r.qty) === 1 ? '' : 's'})` : '';
     const me = sender && sender.kind === 'rep' ? firstName(sender.label) : 'Customer Support';
     const first = no <= 1;
@@ -886,12 +900,12 @@
     const formal = tone === 'formal';
     const body = formal ? `${L.formal}\n\nKind regards,\n${me}\nATAM Workwear` : `${hi},\n\n${L[tone]}\n\nKind regards,\n${me}\nATAM Workwear`;
     const subjects = {
-      friendly: (first ? 'Your quote' : 'Following up on your quote') + ' #' + r.id + (r.job ? ' - ' + r.job : ''),
-      short: 'Quote #' + r.id + (r.job ? ' - ' + r.job : ''),
-      formal: 'Quote #' + r.id + (r.job ? ' - ' + r.job : '') + (first ? '' : ' - follow-up'),
+      friendly: (first ? 'Your quote' : 'Following up on your quote') + ' #' + r.id + (sj ? ' - ' + sj : ''),
+      short: 'Quote #' + r.id + (sj ? ' - ' + sj : ''),
+      formal: 'Quote #' + r.id + (sj ? ' - ' + sj : '') + (first ? '' : ' - follow-up'),
       gentle: (first ? 'Checking in on your quote' : 'Just checking in') + ' #' + r.id,
-      helpful: 'Your quote' + ' #' + r.id + (r.job ? ' - ' + r.job : '') + ' - happy to adjust',
-      ready: 'Ready when you are - quote #' + r.id + (r.job ? ' - ' + r.job : '')
+      helpful: 'Your quote' + ' #' + r.id + (sj ? ' - ' + sj : '') + ' - happy to adjust',
+      ready: 'Ready when you are - quote #' + r.id + (sj ? ' - ' + sj : '')
     };
     return { subject: subjects[tone], body };
   }
