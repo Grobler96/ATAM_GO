@@ -905,7 +905,33 @@
     if (part === part.toUpperCase()) part = part.toLowerCase();
     return part;
   }
-  function draftEmail(r, sender, no, tone) {
+  // The customer link to a quote ("…/user/quote/<code>?token=…") is made by DecoNetwork when a quote is sent, and we cannot build it,
+  // so the sender pastes it in. DecoNetwork's internal links (back office "/bh/", PDF downloads, anything with a private "key=")
+  // carry the system's own login key and must never go to a customer, so those are refused.
+  function checkQuoteLink(raw) {
+    const s = String(raw || '').replace(/\s+/g, '');
+    if (!s) return { empty: true };
+    let u; try { u = new URL(s); } catch (e) { return { error: 'That does not look like a web link.' }; }
+    if (u.protocol !== 'https:') return { error: 'The link must start with https://' };
+    if (/\/bh\/|download_|[?&]key=|user\[id\]/i.test(s)) return { error: 'That is an internal DecoNetwork link (it contains a private key), so it must not be sent to a customer. Copy the customer link from the quote instead.' };
+    return { url: s, warn: /\/user\/quote\//i.test(u.pathname) ? '' : 'This does not look like a DecoNetwork customer quote link (they usually contain /user/quote/). Check it opens the quote for the customer.' };
+  }
+  // Shown under the message so people can see what is added when it is sent. The real footer is built in the n8n workflow
+  // "Quote email send (Microsoft 365)", node "Build Email HTML": if you change the wording here, change it there too.
+  const FOOTER_HTML = '<div>T: 0330 159 6344</div><div>W: www.atam.co.uk</div><div class="gap">All That And More, 1 First Avenue, Sherburn Industrial Park, Sherburn, Leeds, LS25 6PD</div><div>Company Registration Number: 4242875. Registered in England</div><div class="gap small">This email and any attachments may contain confidential information. If you are not the intended recipient, please let us know and delete it. All orders are subject to our standard terms and conditions.</div>';
+  const DAN_REWRITE_URL = 'https://danbotv2.grobleroliver.workers.dev/rewrite';
+  // A rewrite must keep the quote number, every web link and the sign-off. Returns what went missing ('' when all is kept).
+  function rewriteLost(before, after) {
+    const urls = before.match(/https?:\/\/\S+/g) || [];
+    for (const u of urls) if (!after.includes(u)) return 'the quote link';
+    const nos = before.match(/\b\d{5,}\b/g) || [];
+    for (const n of nos) if (!after.includes(n)) return 'the quote number';
+    const sign = before.match(/Kind regards,\n[^\n]*\nATAM Workwear\s*$/) || before.match(/Kind regards,\n[^\n]*\nCustomer Support\s*$/);
+    if (sign && !after.includes(sign[0].trim())) return 'the sign-off';
+    return '';
+  }
+  const LINK_LINE = { friendly: 'You can view the quote here:', short: 'Quote:', formal: 'You may view the quote at the following link:', gentle: "In case it helps, here's the link to the quote:", helpful: 'You can view the quote here:', ready: 'You can review the quote here:' };
+  function draftEmail(r, sender, no, tone, link) {
     tone = TONES.some(t => t.key === tone) ? tone : 'friendly';
     const fn = firstName(r.contact);
     const hi = fn ? 'Hi ' + fn : 'Hello';
@@ -936,7 +962,8 @@
         : `Just a quick reminder about ${q}${job}. If you're happy to go ahead, reply "yes" to this email and I'll get it moving.`
     };
     const formal = tone === 'formal';
-    const body = formal ? `${L.formal}\n\nKind regards,\n${me}\nATAM Workwear` : `${hi},\n\n${L[tone]}\n\nKind regards,\n${me}\nATAM Workwear`;
+    const lk = link ? `\n\n${LINK_LINE[tone]}\n${link}` : '';
+    const body = formal ? `${L.formal}${lk}\n\nKind regards,\n${me}\nATAM Workwear` : `${hi},\n\n${L[tone]}${lk}\n\nKind regards,\n${me}\nATAM Workwear`;
     const subjects = {
       friendly: (first ? 'Your quote' : 'Following up on your quote') + ' #' + r.id + (sj ? ' - ' + sj : ''),
       short: 'Quote #' + r.id + (sj ? ' - ' + sj : ''),
@@ -962,26 +989,80 @@
     const d = draftEmail(r, def, no, 'friendly');
     box.innerHTML = `<form class="qt-compose" id="qtComposeForm" data-id="${esc(r.id)}">
       <h4>Chase #${no} by email</h4>
-      <div class="qt-tones" role="group" aria-label="Choose a tone for this email"><span class="qt-dim">Tone:</span>${TONES.map(t => `<button type="button" class="qt-tone${t.key === 'friendly' ? ' on' : ''}" data-tone="${esc(t.key)}" title="${esc(t.hint)}" aria-pressed="${t.key === 'friendly'}">${esc(t.label)}</button>`).join('')}</div>
+      <div class="qt-tones" role="group" aria-label="Choose a tone for this email"><span class="qt-dim">Tone:</span>${TONES.map(t => `<button type="button" class="qt-tone${t.key === 'friendly' ? ' on' : ''}" data-tone="${esc(t.key)}" title="${esc(t.hint)}" aria-pressed="${t.key === 'friendly'}">${esc(t.label)}</button>`).join('')}<button type="button" class="qt-tone" id="qtUndo" hidden title="Put back the wording from before the last rewrite">Undo rewrite</button></div>
       <label>From<select id="qtFrom">${list.map(s => `<option value="${esc(s.id)}" data-kind="${esc(s.kind)}" data-label="${esc(s.label)}"${s.id === def.id ? ' selected' : ''}>${esc(s.label)} (${esc(s.email)})</option>`).join('')}</select></label>
       <label>To<input id="qtTo" type="email" value="${esc(r.email)}" placeholder="customer@example.com" required></label>
       <label>Subject<input id="qtSubject" type="text" maxlength="300" value="${esc(d.subject)}" required></label>
+      <label>Quote link (optional)<input id="qtLink" type="text" inputmode="url" autocomplete="off" placeholder="Paste the customer link copied from DecoNetwork"></label>
+      <p class="qt-dim qt-linkhint" id="qtLinkHint">In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.</p>
       <label>Message<textarea id="qtMsg" rows="9" required>${esc(d.body)}</textarea></label>
+      <div class="qt-footer" aria-label="Footer added automatically when the email is sent"><span class="qt-dim">Added automatically under your message:</span>${FOOTER_HTML}</div>
       ${def.kind === 'shared' && r.rep ? `<p class="qt-dim" id="qtFromHint">${esc(r.rep)} has no mailbox set up, so this defaults to ${esc(def.label)}.</p>` : '<p class="qt-dim" id="qtFromHint"></p>'}
       <div class="qt-compose-row"><button type="submit" class="qt-btn qt-primary" id="qtSendBtn">Send email</button><button type="button" class="qt-btn" data-act="compose-cancel">Cancel</button></div>
       <p class="qt-dim">Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.</p>
     </form>`;
     const from = $('qtFrom');
     let lastGen = { subject: d.subject, body: d.body };   // what the tone buttons last wrote, so we can tell if someone has edited it
-    box.querySelector('.qt-tones').addEventListener('click', e => {
+    let tone = 'friendly', shownLink = '';                // the tone in use, and the link currently written into the message
+    const curLink = () => { const c = checkQuoteLink($('qtLink').value); return c.url || ''; };
+    const senderNow = () => { const o = from.options[from.selectedIndex]; return { kind: o.dataset.kind, label: o.dataset.label }; };
+    $('qtLink').addEventListener('input', () => {
+      const c = checkQuoteLink($('qtLink').value), hint = $('qtLinkHint');
+      hint.className = 'qt-dim qt-linkhint' + (c.error ? ' bad' : c.warn ? ' warn' : c.url ? ' ok' : '');
+      hint.textContent = c.error ? c.error : c.warn ? c.warn : c.url ? 'Link added to the message.' : 'In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.';
+      const next = c.url || '';
+      if (next === shownLink) return;
+      const msg = $('qtMsg');
+      if (msg.value === lastGen.body) {            // untouched wording: write it again with the new link
+        const nd = draftEmail(r, senderNow(), no, tone, next);
+        msg.value = nd.body; lastGen = { subject: $('qtSubject').value, body: nd.body };
+      } else if (shownLink && msg.value.includes(shownLink)) {   // edited wording: just swap or drop our link
+        msg.value = next ? msg.value.split(shownLink).join(next) : msg.value.replace(new RegExp('\\n\\n[^\\n]*\\n' + shownLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
+      } else if (next) {                           // edited wording, no link yet: put it above the sign-off
+        const blk = `\n\n${LINK_LINE[tone]}\n${next}`, at = msg.value.indexOf('\n\nKind regards,');
+        msg.value = at >= 0 ? msg.value.slice(0, at) + blk + msg.value.slice(at) : msg.value + blk;
+      }
+      shownLink = next;
+    });
+    let undo = null;   // the wording before the last AI rewrite, so it can be put back
+    const setTone = b => { tone = b.dataset.tone; box.querySelectorAll('[data-tone]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); }); };
+    const undoBtn = () => $('qtUndo');
+    box.querySelector('.qt-tones').addEventListener('click', async e => {
       const b = e.target.closest('[data-tone]'); if (!b) return;
-      const edited = $('qtMsg').value !== lastGen.body || $('qtSubject').value !== lastGen.subject;
-      if (edited && !window.confirm('Replace what you have typed with this wording?')) return;
-      const o = from.options[from.selectedIndex];
-      const sender = { kind: o.dataset.kind, label: o.dataset.label };
-      const nd = draftEmail(r, sender, no, b.dataset.tone);
-      $('qtSubject').value = nd.subject; $('qtMsg').value = nd.body; lastGen = { subject: nd.subject, body: nd.body };
-      box.querySelectorAll('[data-tone]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+      const msg = $('qtMsg');
+      const edited = msg.value !== lastGen.body;
+      if (!edited) {   // untouched template: use the fixed wording for this tone
+        setTone(b); shownLink = curLink(); undo = null; undoBtn().hidden = true;
+        const nd = draftEmail(r, senderNow(), no, tone, shownLink);
+        $('qtSubject').value = nd.subject; msg.value = nd.body; lastGen = { subject: nd.subject, body: nd.body };
+        return;
+      }
+      // edited wording: ask DAN to rewrite THEIR words in this tone
+      const before = msg.value, prevTone = tone, btns = box.querySelectorAll('[data-tone]');
+      btns.forEach(x => { x.disabled = true; }); b.textContent = 'Rewriting…';
+      const label = (TONES.find(t => t.key === b.dataset.tone) || {}).label || b.dataset.tone;
+      try {
+        const sess = await client().auth.getSession();
+        const token = sess && sess.data && sess.data.session ? sess.data.session.access_token : '';
+        const res = await fetch(DAN_REWRITE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ text: before, tone: b.dataset.tone }) });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.text) throw new Error(out.error || ('DAN said ' + res.status));
+        const missing = rewriteLost(before, out.text);
+        if (missing) throw new Error('the rewrite dropped ' + missing + ', so it was not used');
+        undo = { text: before, tone: prevTone }; msg.value = out.text; setTone(b); shownLink = curLink();
+        undoBtn().hidden = false;
+      } catch (err) {
+        console.error('rewrite failed', err);
+        toast('Could not rewrite it, your wording is unchanged: ' + ((err && err.message) || 'unknown error'), true);
+      } finally {
+        btns.forEach(x => { x.disabled = false; }); b.textContent = label;
+      }
+    });
+    $('qtUndo').addEventListener('click', () => {
+      if (!undo) return;
+      $('qtMsg').value = undo.text;
+      const pb = box.querySelector('[data-tone="' + undo.tone + '"]'); if (pb) setTone(pb);
+      shownLink = curLink(); undo = null; $('qtUndo').hidden = true;
     });
     from.addEventListener('change', () => {   // keep the sign-off name in step with the chosen sender
       const o = from.options[from.selectedIndex];
@@ -997,6 +1078,9 @@
     const btn = $('qtSendBtn');
     const from = $('qtFrom');
     const label = from.options[from.selectedIndex].textContent;
+    const lc = checkQuoteLink(($('qtLink') || {}).value);
+    if (lc.error) { toast('Not sent: ' + lc.error, true); return; }
+    if (lc.url && !$('qtMsg').value.includes(lc.url) && !window.confirm('The quote link you pasted is no longer in the message. Send without it?')) return;
     if (!window.confirm('Send this email to ' + $('qtTo').value.trim() + ' from ' + label + '?')) return;
     btn.disabled = true; btn.textContent = 'Sending…';
     try {
@@ -1216,6 +1300,8 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-compose select, .qt-drawer .qt-compose input, .qt-drawer .qt-compose textarea { padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:#0f172a; color:#e2e8f0; font:inherit; font-size:13px; width:100%; box-sizing:border-box; }
 .qt-drawer .qt-compose textarea { resize:vertical; line-height:1.5; min-height:150px; }
 .qt-drawer .qt-compose p { margin:0; }
+.qt-drawer .qt-footer { font-size:11px; line-height:1.5; color:#94a3b8; border-left:2px solid rgba(255,255,255,.15); padding:2px 0 2px 10px; } .qt-drawer .qt-footer .gap { margin-top:6px; } .qt-drawer .qt-footer .small { font-size:10px; opacity:.85; }
+.qt-drawer .qt-linkhint { margin:-4px 0 0; } .qt-drawer .qt-linkhint.bad { color:#fda4af; } .qt-drawer .qt-linkhint.warn { color:#fde68a; } .qt-drawer .qt-linkhint.ok { color:#86efac; }
 .qt-drawer .qt-tones { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .qt-drawer .qt-tone { padding:5px 11px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; color:#cbd5e1; border:1px solid rgba(255,255,255,.18); background:transparent; }
 .qt-drawer .qt-tone:hover { background:rgba(249,115,22,.12); }
