@@ -916,6 +916,17 @@
     if (/\/bh\/|download_|[?&]key=|user\[id\]/i.test(s)) return { error: 'That is an internal DecoNetwork link (it contains a private key), so it must not be sent to a customer. Copy the customer link from the quote instead.' };
     return { url: s, warn: /\/user\/quote\//i.test(u.pathname) ? '' : 'This does not look like a DecoNetwork customer quote link (they usually contain /user/quote/). Check it opens the quote for the customer.' };
   }
+  const DAN_REWRITE_URL = 'https://danbotv2.grobleroliver.workers.dev/rewrite';
+  // A rewrite must keep the quote number, every web link and the sign-off. Returns what went missing ('' when all is kept).
+  function rewriteLost(before, after) {
+    const urls = before.match(/https?:\/\/\S+/g) || [];
+    for (const u of urls) if (!after.includes(u)) return 'the quote link';
+    const nos = before.match(/\b\d{5,}\b/g) || [];
+    for (const n of nos) if (!after.includes(n)) return 'the quote number';
+    const sign = before.match(/Kind regards,\n[^\n]*\nATAM Workwear\s*$/) || before.match(/Kind regards,\n[^\n]*\nCustomer Support\s*$/);
+    if (sign && !after.includes(sign[0].trim())) return 'the sign-off';
+    return '';
+  }
   const LINK_LINE = { friendly: 'You can view the quote here:', short: 'Quote:', formal: 'You may view the quote at the following link:', gentle: "In case it helps, here's the link to the quote:", helpful: 'You can view the quote here:', ready: 'You can review the quote here:' };
   function draftEmail(r, sender, no, tone, link) {
     tone = TONES.some(t => t.key === tone) ? tone : 'friendly';
@@ -975,7 +986,7 @@
     const d = draftEmail(r, def, no, 'friendly');
     box.innerHTML = `<form class="qt-compose" id="qtComposeForm" data-id="${esc(r.id)}">
       <h4>Chase #${no} by email</h4>
-      <div class="qt-tones" role="group" aria-label="Choose a tone for this email"><span class="qt-dim">Tone:</span>${TONES.map(t => `<button type="button" class="qt-tone${t.key === 'friendly' ? ' on' : ''}" data-tone="${esc(t.key)}" title="${esc(t.hint)}" aria-pressed="${t.key === 'friendly'}">${esc(t.label)}</button>`).join('')}</div>
+      <div class="qt-tones" role="group" aria-label="Choose a tone for this email"><span class="qt-dim">Tone:</span>${TONES.map(t => `<button type="button" class="qt-tone${t.key === 'friendly' ? ' on' : ''}" data-tone="${esc(t.key)}" title="${esc(t.hint)}" aria-pressed="${t.key === 'friendly'}">${esc(t.label)}</button>`).join('')}<button type="button" class="qt-tone" id="qtUndo" hidden title="Put back the wording from before the last rewrite">Undo rewrite</button></div>
       <label>From<select id="qtFrom">${list.map(s => `<option value="${esc(s.id)}" data-kind="${esc(s.kind)}" data-label="${esc(s.label)}"${s.id === def.id ? ' selected' : ''}>${esc(s.label)} (${esc(s.email)})</option>`).join('')}</select></label>
       <label>To<input id="qtTo" type="email" value="${esc(r.email)}" placeholder="customer@example.com" required></label>
       <label>Subject<input id="qtSubject" type="text" maxlength="300" value="${esc(d.subject)}" required></label>
@@ -1009,14 +1020,45 @@
       }
       shownLink = next;
     });
-    box.querySelector('.qt-tones').addEventListener('click', e => {
+    let undo = null;   // the wording before the last AI rewrite, so it can be put back
+    const setTone = b => { tone = b.dataset.tone; box.querySelectorAll('[data-tone]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); }); };
+    const undoBtn = () => $('qtUndo');
+    box.querySelector('.qt-tones').addEventListener('click', async e => {
       const b = e.target.closest('[data-tone]'); if (!b) return;
-      const edited = $('qtMsg').value !== lastGen.body || $('qtSubject').value !== lastGen.subject;
-      if (edited && !window.confirm('Replace what you have typed with this wording?')) return;
-      tone = b.dataset.tone; shownLink = curLink();
-      const nd = draftEmail(r, senderNow(), no, tone, shownLink);
-      $('qtSubject').value = nd.subject; $('qtMsg').value = nd.body; lastGen = { subject: nd.subject, body: nd.body };
-      box.querySelectorAll('[data-tone]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+      const msg = $('qtMsg');
+      const edited = msg.value !== lastGen.body;
+      if (!edited) {   // untouched template: use the fixed wording for this tone
+        setTone(b); shownLink = curLink(); undo = null; undoBtn().hidden = true;
+        const nd = draftEmail(r, senderNow(), no, tone, shownLink);
+        $('qtSubject').value = nd.subject; msg.value = nd.body; lastGen = { subject: nd.subject, body: nd.body };
+        return;
+      }
+      // edited wording: ask DAN to rewrite THEIR words in this tone
+      const before = msg.value, prevTone = tone, btns = box.querySelectorAll('[data-tone]');
+      btns.forEach(x => { x.disabled = true; }); b.textContent = 'Rewriting…';
+      const label = (TONES.find(t => t.key === b.dataset.tone) || {}).label || b.dataset.tone;
+      try {
+        const sess = await client().auth.getSession();
+        const token = sess && sess.data && sess.data.session ? sess.data.session.access_token : '';
+        const res = await fetch(DAN_REWRITE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ text: before, tone: b.dataset.tone }) });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.text) throw new Error(out.error || ('DAN said ' + res.status));
+        const missing = rewriteLost(before, out.text);
+        if (missing) throw new Error('the rewrite dropped ' + missing + ', so it was not used');
+        undo = { text: before, tone: prevTone }; msg.value = out.text; setTone(b); shownLink = curLink();
+        undoBtn().hidden = false;
+      } catch (err) {
+        console.error('rewrite failed', err);
+        toast('Could not rewrite it, your wording is unchanged: ' + ((err && err.message) || 'unknown error'), true);
+      } finally {
+        btns.forEach(x => { x.disabled = false; }); b.textContent = label;
+      }
+    });
+    $('qtUndo').addEventListener('click', () => {
+      if (!undo) return;
+      $('qtMsg').value = undo.text;
+      const pb = box.querySelector('[data-tone="' + undo.tone + '"]'); if (pb) setTone(pb);
+      shownLink = curLink(); undo = null; $('qtUndo').hidden = true;
     });
     from.addEventListener('change', () => {   // keep the sign-off name in step with the chosen sender
       const o = from.options[from.selectedIndex];
