@@ -760,12 +760,15 @@
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Spend by month for the last 24 months">${bars}</svg>`;
   }
 
-  function histHtml(r, h) {
-    if (!h.found) return '<div class="qt-hgrid"><div class="qt-hc qt-hc-wide">No customer history to show for this quote.</div></div>';
+  // opts (used by the Win-back tab): quotes = the customer's quotes in the shape of state.rows, noOpen = do not make quote rows clickable,
+  // points = extra talking points (html) put first, top = extra card (html) put under the talking points, noun = what to call the record.
+  function histHtml(r, h, opts) {
+    opts = opts || {};
+    if (!h.found) return `<div class="qt-hgrid"><div class="qt-hc qt-hc-wide">No customer history to show for this ${esc(opts.noun || 'quote')}.</div></div>`;
     const st = h.stats || {}, mo = h.money || {};
     const orders = num(st.orders), first = toDate(st.first_shipped), last = toDate(st.last_shipped);
     const openOrders = h.open_orders || [], recent = h.recent_orders || [], people = h.people || [], log = h.contact_log || [];
-    const mine = state.rows.filter(x => custKey(x.customer) === custKey(r.customer));
+    const mine = opts.quotes || state.rows.filter(x => custKey(x.customer) === custKey(r.customer));
     const others = mine.filter(x => x.id !== r.id).sort((a, b) => b.created - a.created);
     const closed = mine.filter(x => (x.stage === 'won' && !x.instant) || x.stage === 'lost');
     const won = closed.filter(x => x.stage === 'won').length;
@@ -775,7 +778,7 @@
     const isNew = orders === 0 && num(mo.invoiced) === 0 && !openOrders.length;
 
     // talking points in plain English
-    const tp = [];
+    const tp = (opts.points || []).slice();
     if (isNew) tp.push('🆕 <b>New customer.</b> No previous orders or invoices found under this company name.' + (others.length ? ' They have ' + plural(others.length, 'other quote') + ' with us.' : ''));
     else {
       tp.push(`🤝 <b>${esc(h.customer)}</b> has ordered ${plural(orders, 'time')} since ${esc(fmtDate(first))}, worth <b>${esc(gbp(st.spend))}</b> in total. Last order ${esc(ago(last))}.`);
@@ -849,7 +852,7 @@
     const stageChip = x => `<span class="qt-chip" style="--c:${STAGES[x.stage].color}">${STAGES[x.stage].icon} ${esc(STAGES[x.stage].label)}</span>`;
     const quotesCard = `<section class="qt-hc"><h4>Quotes with us (${mine.length})</h4>
       <div class="qt-hfacts qt-hfacts-3"><div><span>Total quoted</span><b>${esc(gbp(quotedTotal))}</b></div><div><span>Won</span><b>${won} of ${closed.length}</b><i>${closed.length ? Math.round(won / closed.length * 100) + '% of decided quotes' : 'none decided yet'}</i></div><div><span>Average quote</span><b>${esc(gbp(mine.length ? quotedTotal / mine.length : 0))}</b></div></div>
-      ${others.length ? `<table class="qt-ht"><thead><tr><th>Quote</th><th>Job</th><th>Stage</th><th class="r">Value</th><th>Raised</th></tr></thead><tbody>${others.slice(0, 12).map(x => `<tr class="qt-hlink" data-hist-open="${esc(x.id)}" tabindex="0" role="button" title="Open this quote"><td>#${esc(x.id)}</td><td>${esc(x.job || '—')}</td><td>${stageChip(x)}</td><td class="r">${esc(gbp(x.value, true))}</td><td>${esc(fmtDate(x.created))}</td></tr>`).join('')}</tbody></table>${others.length > 12 ? `<p class="qt-dim">Showing the latest 12 of ${others.length}.</p>` : ''}` : '<p class="qt-dim">This is their only quote in the synced period.</p>'}</section>`;
+      ${others.length ? `<table class="qt-ht"><thead><tr><th>Quote</th><th>Job</th><th>Stage</th><th class="r">Value</th><th>Raised</th></tr></thead><tbody>${others.slice(0, 12).map(x => `<tr${opts.noOpen ? '' : ` class="qt-hlink" data-hist-open="${esc(x.id)}" tabindex="0" role="button" title="Open this quote"`}><td>#${esc(x.id)}</td><td>${esc(x.job || '—')}</td><td>${stageChip(x)}</td><td class="r">${esc(gbp(x.value, true))}</td><td>${esc(fmtDate(x.created))}</td></tr>`).join('')}</tbody></table>${others.length > 12 ? `<p class="qt-dim">Showing the latest 12 of ${others.length}.</p>` : ''}` : '<p class="qt-dim">This is their only quote in the synced period.</p>'}</section>`;
 
     // people: contacts on quotes + Win-back records
     const contactMap = new Map();
@@ -864,6 +867,7 @@
     return `<div class="qt-hgrid">
       <section class="qt-hc qt-hc-wide qt-hhead"><div><div class="qt-d-eyebrow">Customer history</div><h3>${esc(h.customer)}</h3></div>${isNew ? '<span class="qt-hpill good">New customer</span>' : `<span class="qt-hpill">${first ? 'Customer since ' + esc(fmtDate(first)) : 'Existing customer'}</span>`}</section>
       <section class="qt-hc qt-hc-wide"><h4>Talking points</h4><ul class="qt-htp">${tp.map(t => `<li>${t}</li>`).join('')}</ul></section>
+      ${opts.top || ''}
       <section class="qt-hc qt-hc-wide"><h4>Key numbers</h4><div class="qt-hkpis">${kpis}</div></section>
       <section class="qt-hc qt-hc-wide"><h4>Spend by month <span class="qt-dim">(last 24 months, ex VAT, by ship date)</span></h4>${monthChart(h.monthly)}</section>
       ${lastCard}${openCard}${recentCard}${buyCard}${quotesCard}${peopleCard}
@@ -986,44 +990,68 @@
     if (!list.length) { box.innerHTML = '<div class="qt-note">No sender mailboxes have been set up yet.</div>'; return; }
     const def = pickSender(list, r.rep);
     const no = r.emailNo + 1;
-    const d = draftEmail(r, def, no, 'friendly');
-    box.innerHTML = `<form class="qt-compose" id="qtComposeForm" data-id="${esc(r.id)}">
-      <h4>Chase #${no} by email</h4>
+    mountCompose(box, {
+      senders: list, def, to: r.email, no, kind: 'quote', linkEnabled: true, rep: r.rep,
+      heading: `Chase #${no} by email`,
+      footnote: `Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.`,
+      draft: (sender, tone, link) => draftEmail(r, sender, no, tone, link),
+      queue: p => client().rpc('queue_quote_email', { p_order_id: id, p_sender_id: p.senderId, p_to: p.to, p_subject: p.subject, p_body: p.body }),
+      toast,
+      after: async () => {
+        await load(true);
+        const r2 = state.rows.find(x => x.id === id);
+        if (state.openId === id && r2) { $('qtSheet').innerHTML = drawerHtml(r2, null); loadTimeline(id); }
+      }
+    });
+  }
+
+  // The compose box. Shared with the Win-back tab (window.ATAM_QT.mountCompose), so everything that differs is in cfg:
+  //   senders, def (default sender), to, no, rep, heading, footnote, linkEnabled, kind ('quote' | 'winback'),
+  //   draft(sender, tone, link) -> { subject, body }, queue({ senderId, to, subject, body }) -> rpc promise,
+  //   toast(msg, bad), after() -> runs once the email has been sent.
+  function mountCompose(box, cfg) {
+    const list = cfg.senders, def = cfg.def, no = cfg.no;
+    const d = cfg.draft(def, 'friendly', '');
+    const linkRow = cfg.linkEnabled ? `
+      <label>Quote link (optional)<input id="qtLink" type="text" inputmode="url" autocomplete="off" placeholder="Paste the customer link copied from DecoNetwork"></label>
+      <p class="qt-dim qt-linkhint" id="qtLinkHint">In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.</p>` : '';
+    box.innerHTML = `<form class="qt-compose" id="qtComposeForm">
+      <h4>${esc(cfg.heading)}</h4>
       <div class="qt-tones" role="group" aria-label="Choose a tone for this email"><span class="qt-dim">Tone:</span>${TONES.map(t => `<button type="button" class="qt-tone${t.key === 'friendly' ? ' on' : ''}" data-tone="${esc(t.key)}" title="${esc(t.hint)}" aria-pressed="${t.key === 'friendly'}">${esc(t.label)}</button>`).join('')}<button type="button" class="qt-tone" id="qtUndo" hidden title="Put back the wording from before the last rewrite">Undo rewrite</button></div>
       <label>From<select id="qtFrom">${list.map(s => `<option value="${esc(s.id)}" data-kind="${esc(s.kind)}" data-label="${esc(s.label)}"${s.id === def.id ? ' selected' : ''}>${esc(s.label)} (${esc(s.email)})</option>`).join('')}</select></label>
-      <label>To<input id="qtTo" type="email" value="${esc(r.email)}" placeholder="customer@example.com" required></label>
-      <label>Subject<input id="qtSubject" type="text" maxlength="300" value="${esc(d.subject)}" required></label>
-      <label>Quote link (optional)<input id="qtLink" type="text" inputmode="url" autocomplete="off" placeholder="Paste the customer link copied from DecoNetwork"></label>
-      <p class="qt-dim qt-linkhint" id="qtLinkHint">In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.</p>
+      <label>To<input id="qtTo" type="email" value="${esc(cfg.to)}" placeholder="customer@example.com" required></label>
+      <label>Subject<input id="qtSubject" type="text" maxlength="300" value="${esc(d.subject)}" required></label>${linkRow}
       <label>Message<textarea id="qtMsg" rows="9" required>${esc(d.body)}</textarea></label>
       <div class="qt-footer" aria-label="Footer added automatically when the email is sent"><span class="qt-dim">Added automatically under your message:</span>${FOOTER_HTML}</div>
-      ${def.kind === 'shared' && r.rep ? `<p class="qt-dim" id="qtFromHint">${esc(r.rep)} has no mailbox set up, so this defaults to ${esc(def.label)}.</p>` : '<p class="qt-dim" id="qtFromHint"></p>'}
-      <div class="qt-compose-row"><button type="submit" class="qt-btn qt-primary" id="qtSendBtn">Send email</button><button type="button" class="qt-btn" data-act="compose-cancel">Cancel</button></div>
-      <p class="qt-dim">Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.</p>
+      ${def.kind === 'shared' && cfg.rep ? `<p class="qt-dim" id="qtFromHint">${esc(cfg.rep)} has no mailbox set up, so this defaults to ${esc(def.label)}.</p>` : '<p class="qt-dim" id="qtFromHint"></p>'}
+      <div class="qt-compose-row"><button type="submit" class="qt-btn qt-primary" id="qtSendBtn">Send email</button><button type="button" class="qt-btn" id="qtComposeCancel">Cancel</button></div>
+      <p class="qt-dim">${esc(cfg.footnote)}</p>
     </form>`;
     const from = $('qtFrom');
     let lastGen = { subject: d.subject, body: d.body };   // what the tone buttons last wrote, so we can tell if someone has edited it
     let tone = 'friendly', shownLink = '';                // the tone in use, and the link currently written into the message
-    const curLink = () => { const c = checkQuoteLink($('qtLink').value); return c.url || ''; };
+    const curLink = () => { if (!cfg.linkEnabled) return ''; const c = checkQuoteLink($('qtLink').value); return c.url || ''; };
     const senderNow = () => { const o = from.options[from.selectedIndex]; return { kind: o.dataset.kind, label: o.dataset.label }; };
-    $('qtLink').addEventListener('input', () => {
-      const c = checkQuoteLink($('qtLink').value), hint = $('qtLinkHint');
-      hint.className = 'qt-dim qt-linkhint' + (c.error ? ' bad' : c.warn ? ' warn' : c.url ? ' ok' : '');
-      hint.textContent = c.error ? c.error : c.warn ? c.warn : c.url ? 'Link added to the message.' : 'In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.';
-      const next = c.url || '';
-      if (next === shownLink) return;
-      const msg = $('qtMsg');
-      if (msg.value === lastGen.body) {            // untouched wording: write it again with the new link
-        const nd = draftEmail(r, senderNow(), no, tone, next);
-        msg.value = nd.body; lastGen = { subject: $('qtSubject').value, body: nd.body };
-      } else if (shownLink && msg.value.includes(shownLink)) {   // edited wording: just swap or drop our link
-        msg.value = next ? msg.value.split(shownLink).join(next) : msg.value.replace(new RegExp('\\n\\n[^\\n]*\\n' + shownLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
-      } else if (next) {                           // edited wording, no link yet: put it above the sign-off
-        const blk = `\n\n${LINK_LINE[tone]}\n${next}`, at = msg.value.indexOf('\n\nKind regards,');
-        msg.value = at >= 0 ? msg.value.slice(0, at) + blk + msg.value.slice(at) : msg.value + blk;
-      }
-      shownLink = next;
-    });
+    if (cfg.linkEnabled) {
+      $('qtLink').addEventListener('input', () => {
+        const c = checkQuoteLink($('qtLink').value), hint = $('qtLinkHint');
+        hint.className = 'qt-dim qt-linkhint' + (c.error ? ' bad' : c.warn ? ' warn' : c.url ? ' ok' : '');
+        hint.textContent = c.error ? c.error : c.warn ? c.warn : c.url ? 'Link added to the message.' : 'In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.';
+        const next = c.url || '';
+        if (next === shownLink) return;
+        const msg = $('qtMsg');
+        if (msg.value === lastGen.body) {            // untouched wording: write it again with the new link
+          const nd = cfg.draft(senderNow(), tone, next);
+          msg.value = nd.body; lastGen = { subject: $('qtSubject').value, body: nd.body };
+        } else if (shownLink && msg.value.includes(shownLink)) {   // edited wording: just swap or drop our link
+          msg.value = next ? msg.value.split(shownLink).join(next) : msg.value.replace(new RegExp('\\n\\n[^\\n]*\\n' + shownLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '');
+        } else if (next) {                           // edited wording, no link yet: put it above the sign-off
+          const blk = `\n\n${LINK_LINE[tone]}\n${next}`, at = msg.value.indexOf('\n\nKind regards,');
+          msg.value = at >= 0 ? msg.value.slice(0, at) + blk + msg.value.slice(at) : msg.value + blk;
+        }
+        shownLink = next;
+      });
+    }
     let undo = null;   // the wording before the last AI rewrite, so it can be put back
     const setTone = b => { tone = b.dataset.tone; box.querySelectorAll('[data-tone]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); }); };
     const undoBtn = () => $('qtUndo');
@@ -1033,7 +1061,7 @@
       const edited = msg.value !== lastGen.body;
       if (!edited) {   // untouched template: use the fixed wording for this tone
         setTone(b); shownLink = curLink(); undo = null; undoBtn().hidden = true;
-        const nd = draftEmail(r, senderNow(), no, tone, shownLink);
+        const nd = cfg.draft(senderNow(), tone, shownLink);
         $('qtSubject').value = nd.subject; msg.value = nd.body; lastGen = { subject: nd.subject, body: nd.body };
         return;
       }
@@ -1053,7 +1081,7 @@
         undoBtn().hidden = false;
       } catch (err) {
         console.error('rewrite failed', err);
-        toast('Could not rewrite it, your wording is unchanged: ' + ((err && err.message) || 'unknown error'), true);
+        cfg.toast('Could not rewrite it, your wording is unchanged: ' + ((err && err.message) || 'unknown error'), true);
       } finally {
         btns.forEach(x => { x.disabled = false; }); b.textContent = label;
       }
@@ -1070,35 +1098,35 @@
       $('qtMsg').value = $('qtMsg').value.replace(/Kind regards,\n[^\n]*\n/, 'Kind regards,\n' + me + '\n');
       lastGen = { subject: lastGen.subject, body: lastGen.body.replace(/Kind regards,\n[^\n]*\n/, 'Kind regards,\n' + me + '\n') };   // a sender change is not an edit
     });
+    $('qtComposeCancel').addEventListener('click', () => { box.innerHTML = ''; });
+    $('qtComposeForm').addEventListener('submit', e => { e.preventDefault(); send(); });
     $('qtMsg').focus();
-  }
 
-  async function sendEmail(form) {
-    const id = form.getAttribute('data-id');
-    const btn = $('qtSendBtn');
-    const from = $('qtFrom');
-    const label = from.options[from.selectedIndex].textContent;
-    const lc = checkQuoteLink(($('qtLink') || {}).value);
-    if (lc.error) { toast('Not sent: ' + lc.error, true); return; }
-    if (lc.url && !$('qtMsg').value.includes(lc.url) && !window.confirm('The quote link you pasted is no longer in the message. Send without it?')) return;
-    if (!window.confirm('Send this email to ' + $('qtTo').value.trim() + ' from ' + label + '?')) return;
-    btn.disabled = true; btn.textContent = 'Sending…';
-    try {
-      const q = await client().rpc('queue_quote_email', { p_order_id: id, p_sender_id: Number(from.value), p_to: $('qtTo').value, p_subject: $('qtSubject').value, p_body: $('qtMsg').value });
-      if (q.error) throw q.error;
-      const sess = await client().auth.getSession();
-      const token = sess && sess.data && sess.data.session ? sess.data.session.access_token : '';
-      const res = await fetch(EMAIL_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ email_id: q.data }) });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || out.ok === false) throw new Error(out.error || ('the sending service said ' + res.status));
-      toast('Email sent. Chase logged.');
-      await load(true);
-      const r = state.rows.find(x => x.id === id);
-      if (state.openId === id && r) { $('qtSheet').innerHTML = drawerHtml(r, null); loadTimeline(id); }
-    } catch (e) {
-      console.error('email failed', e);
-      toast('Email not sent: ' + ((e && e.message) || 'unknown error'), true);
-      btn.disabled = false; btn.textContent = 'Send email';
+    async function send() {
+      const btn = $('qtSendBtn');
+      const label = from.options[from.selectedIndex].textContent;
+      if (cfg.linkEnabled) {
+        const lc = checkQuoteLink(($('qtLink') || {}).value);
+        if (lc.error) { cfg.toast('Not sent: ' + lc.error, true); return; }
+        if (lc.url && !$('qtMsg').value.includes(lc.url) && !window.confirm('The quote link you pasted is no longer in the message. Send without it?')) return;
+      }
+      if (!window.confirm('Send this email to ' + $('qtTo').value.trim() + ' from ' + label + '?')) return;
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        const q = await cfg.queue({ senderId: Number(from.value), to: $('qtTo').value, subject: $('qtSubject').value, body: $('qtMsg').value });
+        if (q.error) throw q.error;
+        const sess = await client().auth.getSession();
+        const token = sess && sess.data && sess.data.session ? sess.data.session.access_token : '';
+        const res = await fetch(EMAIL_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ email_id: q.data, kind: cfg.kind }) });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || out.ok === false) throw new Error(out.error || ('the sending service said ' + res.status));
+        cfg.toast(cfg.kind === 'winback' ? 'Email sent. Contact logged.' : 'Email sent. Chase logged.');
+        await cfg.after();
+      } catch (e) {
+        console.error('email failed', e);
+        cfg.toast('Email not sent: ' + ((e && e.message) || 'unknown error'), true);
+        btn.disabled = false; btn.textContent = 'Send email';
+      }
     }
   }
 
@@ -1361,6 +1389,9 @@ body.qt-lock { overflow:hidden; }
 @media (prefers-reduced-motion: reduce) { .qt-drawer .qt-hist { transition:none !important; } }
 @media (prefers-reduced-motion: reduce) { #quotes *, #quotes *::before, #quotes *::after, .qt-drawer .qt-sheet, .qt-drawer .qt-backdrop { animation:none !important; transition:none !important; } }
 `;
+    // The email box is also used inside the Win-back drawer (.wb-drawer), so give it the same styling there.
+    s.textContent += '\n' + s.textContent.split('\n').filter(l => /^\.qt-drawer \.qt-(compose|tone|footer|linkhint|note|btn|dim|email-wrap|mailbtn)/.test(l)).map(l => l.replace(/\.qt-drawer /g, '.wb-drawer ')).join('\n');
+    s.textContent += '\n.wb-drawer .qt-primary { background:linear-gradient(135deg,#38bdf8,#6366f1); border:none; color:#fff; }';
     document.head.appendChild(s);
   }
 
@@ -1469,7 +1500,6 @@ body.qt-lock { overflow:hidden; }
       if (e.target.closest('[data-act="close"]')) closeDrawer();
       const c = e.target.closest('[data-act="compose"]');
       if (c) openCompose(c.dataset.for);
-      if (e.target.closest('[data-act="compose-cancel"]')) { const b = $('qtCompose'); if (b) b.innerHTML = ''; }
       const ho = e.target.closest('[data-hist-open]');
       if (ho) openDrawer(ho.dataset.histOpen);
       if (e.target.closest('[data-act="hist-retry"]') && state.openId) { const rr = state.rows.find(x => x.id === state.openId); if (rr) histCache.delete(custKey(rr.customer)); loadHistory(state.openId); }
@@ -1480,7 +1510,6 @@ body.qt-lock { overflow:hidden; }
     });
     drawer.addEventListener('submit', e => {
       if (e.target.id === 'qtChaseForm') { e.preventDefault(); submitChase(e.target); }
-      if (e.target.id === 'qtComposeForm') { e.preventDefault(); sendEmail(e.target); }
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.openId) closeDrawer(); });
 
@@ -1495,4 +1524,6 @@ body.qt-lock { overflow:hidden; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
   window.QuotesPage = { reload: () => load(), state };
+  // shared with the Win-back tab
+  window.ATAM_QT = { mountCompose, loadSenders, pickSender, firstName, TONES, JOB_WORDS, histHtml, ago, emailEnabled: () => EMAIL_SENDING_ENABLED };
 })();

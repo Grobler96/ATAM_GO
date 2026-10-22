@@ -189,6 +189,9 @@
     // a quote that was sent after their last order and then went quiet = the best excuse to ring
     const coldQuote = !openQuotes.length ? qs.filter(q => !q.approved && !q.cancelled && q.idle >= QUOTE_COLD && q.idle <= 150 && (!lastOrder || q.created > lastOrder)).sort((a, b) => b.created - a.created)[0] || null : null;
 
+    const lastQuote = qs.length ? qs.reduce((a, q) => (q.created && (!a || q.created > a.created) ? q : a), null) : null;
+    const emailSentAt = toDate(r.email_sent_at), emailRepliedAt = toDate(r.email_replied_at), emailDueAt = toDate(r.email_due_at);
+    const emailCycle = !!emailSentAt && (!lastOrder || emailSentAt >= lastOrder);   // an email sent since their last order
     const cycleContact = !!(overdue && lastContact && (!lastOrder || lastContact >= lastOrder));
     const outcome = r.last_contact_outcome || '';
 
@@ -219,13 +222,16 @@
     const dormant = overdueBy != null && overdueBy > DORMANT_DAYS;
 
     return {
-      id: String(r.customer_id), label, contactName, email: r.email || '', owner: r.owner || '', notes: r.notes || '',
+      id: String(r.customer_id), label, contactName, person: r.name || '', email: r.email || '',
+      lastQuote, emailCycle, emailNo: emailCycle ? num(r.email_no) : 0, emailSentAt, emailDueAt, emailRepliedAt, emailSender: r.email_sender || '', owner: r.owner || '', notes: r.notes || '',
       totalOrders: num(r.total_orders), firstOrder: dayDate(r.first_order_date), lastOrder, lastOrderId: r.last_order_id || '', lastOrderSummary: r.last_order_summary || '',
       value, mean: r.mean_reorder_days == null ? null : num(r.mean_reorder_days), threshold, dsl, overdueBy, status, overdue, dormant,
       lastContact, contactBy: r.last_contact_by || '', contactMethod: r.last_contact_method || '', outcome, contactNote: r.last_contact_note || '',
       contactCount: num(r.contact_count), followUp, followUpDue, contactDays, cycleContact,
       parkedUntil, closedAt, lostReason, quotes: qs, openQuotes, quoteValue, awaitingUs, coldQuote, won, wonRecent, stage,
-      contactAt: won ? attributed || lastContact : (cycleContact ? lastContact : null)
+      contactAt: won ? attributed || lastContact : (cycleContact ? lastContact : null),
+      emailWaiting: emailCycle && !emailRepliedAt && ['waiting', 'todo', 'soon'].includes(stage),
+      emailDue: emailCycle && !emailRepliedAt && !!emailDueAt && now >= emailDueAt && ['waiting', 'todo', 'soon'].includes(stage)
     };
   }
 
@@ -319,7 +325,7 @@
   function updateNavBadge() {
     const btn = document.querySelector('.nav-link[data-page="' + PAGE_ID + '"]');
     if (!btn) return;
-    const n = state.rows.filter(r => r.stage === 'replied' || r.followUpDue || (r.stage === 'quote' && r.awaitingUs)).length;
+    const n = state.rows.filter(r => r.stage === 'replied' || r.followUpDue || r.emailDue || (r.stage === 'quote' && r.awaitingUs)).length;
     let b = btn.querySelector('.wb-nav-badge');
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'wb-nav-badge'; btn.appendChild(b); }
@@ -407,6 +413,10 @@
     if (r.awaitingUs) flags.push('<span class="wb-flag purple">💬 Replied to the quote</span>');
     if (r.followUpDue) flags.push('<span class="wb-flag hot">' + (r.followUp ? '⏰ Follow-up due' : '⏰ Time to nudge') + '</span>');
     else if ((r.stage === 'waiting' || r.stage === 'replied') && r.followUp) flags.push(`<span class="wb-flag cool">Follow up ${esc(fmtShort(r.followUp))}</span>`);
+    if (r.emailDue) flags.push(`<span class="wb-flag hot" title="Emailed ${esc(fmtDateTime(r.emailSentAt))} from ${esc(r.emailSender)}">✉️ No reply to email #${r.emailNo}</span>`);
+    else if (r.emailWaiting) flags.push(`<span class="wb-flag cool" title="Emailed ${esc(fmtDateTime(r.emailSentAt))} from ${esc(r.emailSender)}">✉️ Emailed ${esc(ago(Math.max(0, days(r.emailSentAt, new Date()))))}</span>`);
+    else if (r.emailRepliedAt && r.emailCycle) flags.push('<span class="wb-flag good">✉️ Replied to our email</span>');
+    if (r.stage === 'todo' || r.stage === 'soon') flags.push(`<span class="wb-flag dim" title="Quotes are only on file from mid 2026">${r.lastQuote ? 'Last quote ' + esc(fmtShort(r.lastQuote.created)) : 'No quote on file'}</span>`);
     if (r.dormant) flags.push('<span class="wb-flag dim">Dormant 12m+</span>');
     if (r.stage === 'todo' && r.contactCount) flags.push(`<span class="wb-flag dim">${plural(r.contactCount, 'earlier contact')}</span>`);
 
@@ -428,7 +438,7 @@
       foot = `<div class="wb-card-foot"><span>${esc(fmtShort(r.won.at))} · ${esc(via)}</span><span>${r.won.by ? 'after ' + esc(r.won.by.split(' ')[0]) : ''}</span></div>`;
     }
     const quick = r.stage === 'todo' || r.stage === 'soon' || r.stage === 'waiting' || r.stage === 'replied'
-      ? `<div class="wb-quickrow"><button type="button" class="wb-quick" data-log="${esc(r.id)}">📞 Log contact</button>${r.stage !== 'replied' ? `<button type="button" class="wb-quick alt" data-noanswer="${esc(r.id)}" title="Log a call with no answer and chase again in 3 days">No answer</button>` : ''}</div>` : '';
+      ? `<div class="wb-quickrow"><button type="button" class="wb-quick" data-log="${esc(r.id)}">📞 Log contact</button>${r.email && mailOn() ? `<button type="button" class="wb-quick alt" data-mail="${esc(r.id)}" title="Write and send an email">✉️ Email</button>` : ''}${r.stage !== 'replied' ? `<button type="button" class="wb-quick alt" data-noanswer="${esc(r.id)}" title="Log a call with no answer and chase again in 3 days">No answer</button>` : ''}</div>` : '';
     const worth = r.stage === 'quote' ? r.quoteValue : r.stage === 'won' ? num(r.won.value) : r.value;
     return `<article class="wb-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
       <div class="wb-card-top"><span class="wb-card-cust">${esc(r.label)}</span><span class="wb-card-val">${gbp(worth)}<small>${r.stage === 'quote' ? 'in quotes' : r.stage === 'won' ? 'won back' : 'last order'}</small></span></div>
@@ -656,17 +666,21 @@
     $('wbSheet').innerHTML = drawerHtml(r, null);
     if (focusForm && $('wbOutcome')) $('wbOutcome').focus(); else $('wbSheet').focus();
     loadTimeline(id);
+    loadHistory(id);
   }
   function closeDrawer() {
     state.openId = null;
     const d = $('wbDrawer'); if (d) d.classList.remove('open');
+    setHist('');
     document.body.classList.remove('wb-lock');
   }
   function refreshDrawer() {
     const r = state.rows.find(x => x.id === state.openId);
     if (!r) return;
     const form = { m: ($('wbMethod') || {}).value, o: ($('wbOutcome') || {}).value, n: ($('wbNote') || {}).value, f: ($('wbFollow') || {}).value, t: ($('wbFollow') || {}).dataset ? ($('wbFollow') || {}).dataset.touched : '' };
+    const mail = $('qtCompose') && $('qtCompose').firstChild ? $('qtCompose') : null;   // an email being written must survive a refresh
     $('wbSheet').innerHTML = drawerHtml(r, null);
+    if (mail && $('qtCompose')) $('qtCompose').replaceWith(mail);
     if (form.m && $('wbMethod')) $('wbMethod').value = form.m;
     if (form.o && $('wbOutcome')) $('wbOutcome').value = form.o;
     if ($('wbNote') && form.n) $('wbNote').value = form.n;
@@ -718,6 +732,7 @@
       </div>
       ${r.lastOrderSummary ? `<p class="wb-dim" style="margin:10px 0 0">${esc(r.lastOrderSummary)}</p>` : ''}
       ${banner}
+      ${canAct ? emailSectionHtml(r) : ''}
       ${canAct ? `<form class="wb-chase" id="wbLogForm" autocomplete="off"><h4>Log a contact</h4>
         <div class="wb-chase-row"><div class="wb-field"><label for="wbMethod">How</label><select id="wbMethod">${METHODS.map(m => `<option value="${m[0]}">${esc(m[1])}</option>`).join('')}</select></div>
         <div class="wb-field"><label for="wbOutcome">What happened</label><select id="wbOutcome">${OUTCOMES.map(o => `<option value="${o[0]}">${esc(o[1])}</option>`).join('')}</select></div></div>
@@ -752,6 +767,154 @@
       ev.sort((a, b) => b.at - a.at);
       el.innerHTML = ev.length ? ev.slice(0, 40).map(e => `<li class="${e.cls}"><span class="wb-tl-i">${e.icon}</span><div><div>${e.text}</div><div class="wb-dim">${esc(fmtDateTime(e.at))}</div></div></li>`).join('') : '<li class="wb-dim">Nothing yet.</li>';
     } catch (e) { if ($('wbTimeline')) $('wbTimeline').innerHTML = '<li class="wb-dim">Could not load the history.</li>'; }
+  }
+
+  // ----- email the customer (same box as the Quotes tab: window.ATAM_QT.mountCompose, sent by the same n8n workflow) -----
+  const mailOn = () => !!(window.ATAM_QT && window.ATAM_QT.emailEnabled());
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function whenText(d) {
+    if (!d) return '';
+    const n = days(d, new Date()), now = new Date();
+    if (n < 60) return ' a little while ago';
+    const y = d.getFullYear();
+    return ' back in ' + MONTH_NAMES[d.getMonth()] + (y === now.getFullYear() ? '' : y === now.getFullYear() - 1 ? ' last year' : ' ' + y);
+  }
+  // "polos" or "polos and gilets" from the last order's lines (the product word at the end of each line). Nothing if unsure.
+  function productText(summary) {
+    const A = window.ATAM_QT;
+    if (!A) return '';
+    const re = new RegExp(A.JOB_WORDS.source, 'gi'), out = [];
+    String(summary || '').split(/,\s+/).slice(0, 3).forEach(item => {
+      const name = item.replace(/^\d+\s*x\s*/i, '').replace(/\s*\+\d+ more\s*$/i, '');
+      const hits = name.match(re);
+      if (!hits) return;
+      let w = hits[hits.length - 1].toLowerCase();
+      if (!/(workwear|hi[- ]?vis|shorts|trousers|overalls|s)$/.test(w)) w += 's';
+      if (!out.includes(w)) out.push(w);
+    });
+    return out.length && out.length <= 2 ? out.join(' and ') : '';
+  }
+  // Fixed wordings (no AI) using only facts we hold. They never mention prices, dates or offers.
+  function draftReorder(r, sender, no, tone) {
+    const A = window.ATAM_QT;
+    tone = A.TONES.some(t => t.key === tone) ? tone : 'friendly';
+    let fn = A.firstName(r.person);
+    if (fn && fn === fn.toLowerCase()) fn = fn.charAt(0).toUpperCase() + fn.slice(1);
+    const hi = fn ? 'Hi ' + fn : 'Hello';
+    const me = sender && sender.kind === 'rep' ? A.firstName(sender.label) : 'Customer Support';
+    const when = whenText(r.lastOrder), prod = productText(r.lastOrderSummary);
+    const first = no <= 1;
+    const L = {
+      friendly: first
+        ? `It's been a little while since your last order${when}, so I just wanted to check in and see how everything is going. Is there anything you need, or anything coming up that we can help with?`
+        : `I'm following up on my last email to see how things are going. If you need anything${prod ? ', such as more ' + prod : ''}, just let me know.`,
+      short: first
+        ? `Quick check-in. Do you need any more ${prod || 'workwear'} at the moment? Happy to help.`
+        : `Just a quick follow-up. Is there anything you need${prod ? ' in the way of ' + prod : ''}?`,
+      formal: first
+        ? `${fn ? 'Dear ' + fn : 'Good day'},\n\nI am writing to follow up on your last order with us${when}. Please let me know if you would like to place a further order, or if there is anything we can assist with.`
+        : `${fn ? 'Dear ' + fn : 'Good day'},\n\nFurther to my previous email, I would be grateful if you could let me know whether you require anything further from us.`,
+      gentle: first
+        ? `No pressure at all. I realised it's been a while since your last order${when}, so I thought I'd say hello. If you need anything, just let me know.`
+        : `I know things get busy, so I'm just popping my last email back to the top of your inbox. If now isn't the right time, that's fine, and I'll leave it with you.`,
+      helpful: first
+        ? `It's been a while since your last order${when}. If you need more ${prod || 'of the same'}, new starters kitted out, or something different, tell me what you need and I'll put a quote together for you.`
+        : `I'm following up in case it helps. If you need more ${prod || 'of the same'} or something different, just tell me what you need and I'll sort a quote for you.`,
+      ready: first
+        ? `It's been a while since your last order${when}. If you'd like the same again, just reply with what you need and I'll get it set up.`
+        : `Just a quick reminder. If you'd like to reorder, reply with what you need and I'll get it moving.`
+    };
+    const body = tone === 'formal' ? `${L.formal}\n\nKind regards,\n${me}\nATAM Workwear` : `${hi},\n\n${L[tone]}\n\nKind regards,\n${me}\nATAM Workwear`;
+    const subjects = {
+      friendly: first ? 'Just checking in' : 'Following up',
+      short: 'Quick check-in',
+      formal: first ? 'Following up on your last order' : 'Following up on my previous email',
+      gentle: first ? 'Just saying hello' : 'Just checking in again',
+      helpful: 'Anything you need?',
+      ready: 'Ready when you are'
+    };
+    return { subject: subjects[tone], body };
+  }
+
+  function emailSectionHtml(r) {
+    if (!mailOn()) return '';
+    if (!r.email) return '<div class="qt-email-wrap"><div class="qt-note">No email address is on file for this customer, so this one needs a phone call.</div></div>';
+    let timer = '';
+    if (r.emailCycle && r.emailSentAt) {
+      const left = r.emailDueAt ? r.emailDueAt - Date.now() : 0;
+      if (r.emailRepliedAt) timer = `<div class="qt-timer qt-timer-ok">✉️ Email #${r.emailNo} sent. The customer has replied</div>`;
+      else if (r.emailDue) timer = `<div class="qt-timer qt-timer-due">⏰ No reply to email #${r.emailNo} (sent ${esc(fmtDateTime(r.emailSentAt))}). Time to follow up</div>`;
+      else timer = `<div class="qt-timer" title="Sent from ${esc(r.emailSender)}">✉️ Email #${r.emailNo} sent ${esc(fmtDateTime(r.emailSentAt))}. Waiting for a reply: ${left > DAY ? Math.ceil(left / DAY) + ' days' : Math.max(1, Math.ceil(left / 3600000)) + ' hours'} left</div>`;
+    }
+    const nextNo = r.emailCycle ? r.emailNo + 1 : 1;
+    return `<div class="qt-email-wrap">${timer}<button type="button" class="qt-btn qt-primary qt-mailbtn" data-act="mail" data-for="${esc(r.id)}">✉️ ${nextNo > 1 ? 'Email #' + nextNo : 'Email the customer'}</button><div id="qtCompose"></div></div>`;
+  }
+
+  async function openCompose(id) {
+    const r = state.rows.find(x => x.id === id);
+    const box = $('qtCompose');
+    const A = window.ATAM_QT;
+    if (!r || !box) return;
+    if (!A) { box.innerHTML = '<div class="qt-note qt-note-bad">The email box is not loaded yet. Refresh the page and try again.</div>'; return; }
+    box.innerHTML = '<div class="qt-dim">Loading…</div>';
+    let list;
+    try { list = await A.loadSenders(); } catch (e) { console.error('senders failed', e); box.innerHTML = '<div class="qt-note qt-note-bad">Couldn\'t load the sender list.</div>'; return; }
+    if (!list.length) { box.innerHTML = '<div class="qt-note">No sender mailboxes have been set up yet.</div>'; return; }
+    const def = A.pickSender(list, r.owner);
+    const no = r.emailCycle ? r.emailNo + 1 : 1;
+    A.mountCompose(box, {
+      senders: list, def, to: r.email, no, kind: 'winback', linkEnabled: false, rep: r.owner,
+      heading: no > 1 ? `Email #${no} to this customer` : 'Email this customer',
+      footnote: `Sends straight away from the mailbox above and logs it as a contact on this customer. If there is no reply in 3 days it shows as due a follow-up, and a reply in that mailbox moves the card to "Replied, your move" by itself. Nothing sends until you press Send.`,
+      draft: (sender, tone) => draftReorder(r, sender, no, tone),
+      queue: p => client().rpc('queue_winback_email', { p_customer_id: id, p_sender_id: p.senderId, p_to: p.to, p_subject: p.subject, p_body: p.body }),
+      toast,
+      after: async () => { const b = $('qtCompose'); if (b) b.innerHTML = ''; await load(true); }
+    });
+  }
+
+  // ----- customer history panel (same panel as the Quotes tab, built by window.ATAM_QT.histHtml) -----
+  const histCache = new Map();
+  const HIST_TTL = 5 * 60 * 1000;
+  const setHist = html => { const el = $('wbHist'); if (el) el.innerHTML = html; };
+  async function loadHistory(id) {
+    const hit = histCache.get(id);
+    if (hit && Date.now() - hit.at < HIST_TTL) { renderHistory(id, hit.data, hit.emails); return; }
+    setHist('<div class="qt-hgrid"><div class="qt-hc qt-hc-wide">Loading customer history…</div></div>');
+    try {
+      const [h, em] = await Promise.all([
+        client().rpc('winback_customer_history', { p_customer_id: id }),
+        client().from('winback_emails').select('chase_no,sender_email,subject,status,sent_at,replied_at,sent_by,created_at').eq('customer_id', id).order('created_at', { ascending: false }).limit(10)
+      ]);
+      if (h.error) throw h.error;
+      const emails = em.error ? [] : (em.data || []);
+      histCache.set(id, { at: Date.now(), data: h.data, emails });
+      renderHistory(id, h.data, emails);
+    } catch (e) {
+      console.error('customer history failed', e);
+      if (state.openId === id) setHist('<div class="qt-hgrid"><div class="qt-hc qt-hc-wide"><b>Couldn\'t load the customer history.</b> <button type="button" class="qt-btn" data-act="hist-retry">Try again</button></div></div>');
+    }
+  }
+  function renderHistory(id, h, emails) {
+    if (state.openId !== id) return;
+    const r = state.rows.find(x => x.id === id);
+    if (!r || !window.ATAM_QT) return;
+    // this customer's quotes, in the shape the Quotes tab history expects
+    const quotes = r.quotes.map(q => ({
+      id: q.id, customer: r.label, job: q.job, value: q.value, created: q.created, email: r.email, contact: r.contactName,
+      stage: q.approved ? 'won' : q.cancelled || q.st === 'lost' ? 'lost' : q.st === 'cold' ? 'cold' : q.st === 'chase' ? 'chase' : 'fresh', instant: false
+    }));
+    const pts = [];
+    if (r.overdueBy != null && r.mean) pts.push(`⏰ Usually reorders every <b>about ${r.mean} days</b>. It has been <b>${r.dsl != null ? r.dsl : '?'} days</b> since their last order, so they are ${r.overdueBy > 0 ? '<b>' + r.overdueBy + ' days overdue</b>' : 'due in ' + Math.abs(r.overdueBy) + ' days'}.`);
+    if (r.lastQuote) pts.push(`🧾 Last quote was ${esc(fmtDate(r.lastQuote.created))} (${esc(gbp(r.lastQuote.value))}${r.lastQuote.job ? ', ' + esc(r.lastQuote.job) : ''})${r.lastQuote.approved ? ', and they approved it' : r.lastOrder && r.lastQuote.created < r.lastOrder ? ', before their last order' : ', and it was not approved'}.`);
+    else pts.push('🧾 No quote on file for this customer (quotes are only kept from mid 2026).');
+    if (r.coldQuote) pts.push(`🧊 They were quoted ${esc(gbp(r.coldQuote.value))} and it went quiet. A good reason to get back in touch.`);
+    if (r.emailCycle && r.emailSentAt) pts.push(r.emailRepliedAt ? `✉️ They replied to our email of ${esc(fmtDate(r.emailSentAt))}.` : `✉️ We emailed them on ${esc(fmtDate(r.emailSentAt))} from ${esc(r.emailSender)} and have not had a reply yet.`);
+    const sent = (emails || []).filter(e => e.status === 'sent');
+    const top = sent.length ? `<section class="qt-hc qt-hc-wide"><h4>Emails sent from ATAM GO</h4>
+      <table class="qt-ht"><thead><tr><th>Sent</th><th>Subject</th><th>From</th><th>Sent by</th><th>Reply</th></tr></thead><tbody>
+      ${sent.map(e => `<tr><td>${esc(fmtDateTime(toDate(e.sent_at)))}</td><td>${esc(e.subject)}</td><td>${esc(e.sender_email)}</td><td>${esc(e.sent_by || '—')}</td><td>${e.replied_at ? '<span class="qt-hpill good">Replied ' + esc(fmtShort(toDate(e.replied_at))) + '</span>' : '<span class="qt-dim">none yet</span>'}</td></tr>`).join('')}</tbody></table></section>` : '';
+    setHist(window.ATAM_QT.histHtml({ id: r.id, customer: r.label }, h || { found: false }, { quotes, noOpen: true, noun: 'customer', points: pts, top }));
   }
 
   function toast(msg, bad) {
@@ -923,6 +1086,10 @@ body.wb-lock { overflow:hidden; }
 .wb-drawer .wb-chase p { margin:10px 0 0; }
 .wb-drawer .wb-timeline { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
 .wb-drawer .wb-timeline li { display:flex; gap:11px; font-size:13px; line-height:1.4; }
+.wb-drawer .wb-hist { display:none; position:absolute; top:0; bottom:0; left:0; right:calc(min(480px,100%) + 44px); padding:22px 26px 22px 22px; overflow-y:auto; pointer-events:none; opacity:0; transform:translateX(24px); transition:opacity .25s .05s, transform .25s .05s; color:#f8fafc; }
+.wb-drawer.open .wb-hist { opacity:1; transform:none; }
+@media (min-width: 1180px) { .wb-drawer .wb-hist { display:block; } }
+@media (prefers-reduced-motion: reduce) { .wb-drawer .wb-hist { transition:none !important; } }
 .wb-drawer .wb-timeline li.good { color:#86efac; } .wb-drawer .wb-timeline li.bad { color:#fca5a5; }
 .wb-drawer .wb-tl-i { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.07); display:grid; place-items:center; font-size:12px; flex:none; }
 @media (max-width: 1100px) { #winback .wb-kpis { grid-template-columns:repeat(3,1fr); } #winback .wb-kpi:nth-child(3n) { border-right:none; } #winback .wb-kpi:nth-child(-n+3) { border-bottom:1px solid rgba(255,255,255,.08); } }
@@ -1053,7 +1220,7 @@ body.wb-lock { overflow:hidden; }
     drawer.setAttribute('role', 'dialog');
     drawer.setAttribute('aria-modal', 'true');
     drawer.setAttribute('aria-label', 'Customer details');
-    drawer.innerHTML = '<div class="wb-backdrop" data-act="close"></div><div class="wb-sheet" id="wbSheet" tabindex="-1"></div>';
+    drawer.innerHTML = '<div class="wb-backdrop" data-act="close"></div><aside class="qt-hist wb-hist" id="wbHist" aria-label="Customer history"></aside><div class="wb-sheet" id="wbSheet" tabindex="-1"></div>';
     document.body.appendChild(drawer);
 
     // app.js binds its nav buttons once at startup, so it does not know about this page.
@@ -1076,6 +1243,8 @@ body.wb-lock { overflow:hidden; }
     sec.addEventListener('click', e => {
       const log = e.target.closest('[data-log]');
       if (log) { e.stopPropagation(); openDrawer(log.dataset.log, true); return; }
+      const ml = e.target.closest('[data-mail]');
+      if (ml) { e.stopPropagation(); openDrawer(ml.dataset.mail); setTimeout(() => openCompose(ml.dataset.mail), 0); return; }
       const na = e.target.closest('[data-noanswer]');
       if (na) { e.stopPropagation(); logContact(na.dataset.noanswer, 'call', 'no_answer', '', isoDay(addDays(3)), na); return; }
       const more = e.target.closest('[data-more]');
@@ -1121,6 +1290,9 @@ body.wb-lock { overflow:hidden; }
 
     drawer.addEventListener('click', e => {
       if (e.target.closest('[data-act="close"]')) { closeDrawer(); return; }
+      const mb = e.target.closest('[data-act="mail"]');
+      if (mb) { openCompose(mb.dataset.for); return; }
+      if (e.target.closest('[data-act="hist-retry"]') && state.openId) { histCache.delete(state.openId); loadHistory(state.openId); return; }
       const fu = e.target.closest('[data-fu]');
       if (fu) { const n = Number(fu.dataset.fu); const f = $('wbFollow'); f.value = n ? isoDay(addDays(n)) : ''; f.dataset.touched = '1'; return; }
       const stt = e.target.closest('[data-state]');
