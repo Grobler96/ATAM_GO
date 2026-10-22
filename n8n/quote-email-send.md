@@ -64,3 +64,4 @@ Behaviour worth knowing:
 
 ## HTML and footer (22 Oct 2026)
 The send workflow has a Code node "Build Email HTML" between "Email Found?" and "Send Email". It HTML-escapes the stored plain-text body, turns https links into links, and appends one generic footer (landline, website, address, company number, confidentiality line). Graph `sendMail` then uses `contentType: "HTML"`. The stored `quote_emails.body` stays plain text, and Sent Items matching (subject + recipient) is unchanged. The footer is previewed in `quotes.js` (`FOOTER_HTML`); keep the two in step. Not tested against a live send at the time of writing.
+The banner (`assets/email-banner.jpg`, served from `https://grobler96.github.io/ATAM_GO/assets/email-banner.jpg`) is fetched in "Build Email HTML" and attached as an inline `fileAttachment` (contentId `atambanner`). If the fetch fails the email is sent without the banner. Not tested against a live send.

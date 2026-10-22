@@ -918,7 +918,7 @@
   }
   // Shown under the message so people can see what is added when it is sent. The real footer is built in the n8n workflow
   // "Quote email send (Microsoft 365)", node "Build Email HTML": if you change the wording here, change it there too.
-  const FOOTER_HTML = '<div>T: 0330 159 6344</div><div>W: www.atam.co.uk</div><div class="gap">All That And More, 1 First Avenue, Sherburn Industrial Park, Sherburn, Leeds, LS25 6PD</div><div>Company Registration Number: 4242875. Registered in England</div><div class="gap small">This email and any attachments may contain confidential information. If you are not the intended recipient, please let us know and delete it. All orders are subject to our standard terms and conditions.</div>';
+  const FOOTER_HTML = '<div>T: 0330 159 6344</div><div>W: www.atam.co.uk</div><div class="banner"><img src="assets/email-banner.jpg" width="450" height="150" alt="atam: all that and more, a CPI company"></div><div class="gap">All That And More, 1 First Avenue, Sherburn Industrial Park, Sherburn, Leeds, LS25 6PD</div><div>Company Registration Number: 4242875. Registered in England</div><div class="gap small">This email and any attachments may contain confidential information. If you are not the intended recipient, please let us know and delete it. All orders are subject to our standard terms and conditions.</div>';
   const DAN_REWRITE_URL = 'https://danbotv2.grobleroliver.workers.dev/rewrite';
   // A rewrite must keep the quote number, every web link and the sign-off. Returns what went missing ('' when all is kept).
   function rewriteLost(before, after) {
@@ -1300,7 +1300,7 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-compose select, .qt-drawer .qt-compose input, .qt-drawer .qt-compose textarea { padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:#0f172a; color:#e2e8f0; font:inherit; font-size:13px; width:100%; box-sizing:border-box; }
 .qt-drawer .qt-compose textarea { resize:vertical; line-height:1.5; min-height:150px; }
 .qt-drawer .qt-compose p { margin:0; }
-.qt-drawer .qt-footer { font-size:11px; line-height:1.5; color:#94a3b8; border-left:2px solid rgba(255,255,255,.15); padding:2px 0 2px 10px; } .qt-drawer .qt-footer .gap { margin-top:6px; } .qt-drawer .qt-footer .small { font-size:10px; opacity:.85; }
+.qt-drawer .qt-footer { font-size:11px; line-height:1.5; color:#94a3b8; border-left:2px solid rgba(255,255,255,.15); padding:2px 0 2px 10px; } .qt-drawer .qt-footer .banner img { display:block; max-width:100%; height:auto; margin:4px 0 8px; border-radius:2px; } .qt-drawer .qt-footer .gap { margin-top:6px; } .qt-drawer .qt-footer .small { font-size:10px; opacity:.85; }
 .qt-drawer .qt-linkhint { margin:-4px 0 0; } .qt-drawer .qt-linkhint.bad { color:#fda4af; } .qt-drawer .qt-linkhint.warn { color:#fde68a; } .qt-drawer .qt-linkhint.ok { color:#86efac; }
 .qt-drawer .qt-tones { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .qt-drawer .qt-tone { padding:5px 11px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; color:#cbd5e1; border:1px solid rgba(255,255,255,.18); background:transparent; }
