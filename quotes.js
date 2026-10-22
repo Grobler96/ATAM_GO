@@ -916,6 +916,9 @@
     if (/\/bh\/|download_|[?&]key=|user\[id\]/i.test(s)) return { error: 'That is an internal DecoNetwork link (it contains a private key), so it must not be sent to a customer. Copy the customer link from the quote instead.' };
     return { url: s, warn: /\/user\/quote\//i.test(u.pathname) ? '' : 'This does not look like a DecoNetwork customer quote link (they usually contain /user/quote/). Check it opens the quote for the customer.' };
   }
+  // Shown under the message so people can see what is added when it is sent. The real footer is built in the n8n workflow
+  // "Quote email send (Microsoft 365)", node "Build Email HTML": if you change the wording here, change it there too.
+  const FOOTER_HTML = '<div>T: 0330 159 6344</div><div>W: www.atam.co.uk</div><div class="gap">All That And More, 1 First Avenue, Sherburn Industrial Park, Sherburn, Leeds, LS25 6PD</div><div>Company Registration Number: 4242875. Registered in England</div><div class="gap small">This email and any attachments may contain confidential information. If you are not the intended recipient, please let us know and delete it. All orders are subject to our standard terms and conditions.</div>';
   const DAN_REWRITE_URL = 'https://danbotv2.grobleroliver.workers.dev/rewrite';
   // A rewrite must keep the quote number, every web link and the sign-off. Returns what went missing ('' when all is kept).
   function rewriteLost(before, after) {
@@ -993,6 +996,7 @@
       <label>Quote link (optional)<input id="qtLink" type="text" inputmode="url" autocomplete="off" placeholder="Paste the customer link copied from DecoNetwork"></label>
       <p class="qt-dim qt-linkhint" id="qtLinkHint">In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.</p>
       <label>Message<textarea id="qtMsg" rows="9" required>${esc(d.body)}</textarea></label>
+      <div class="qt-footer" aria-label="Footer added automatically when the email is sent"><span class="qt-dim">Added automatically under your message:</span>${FOOTER_HTML}</div>
       ${def.kind === 'shared' && r.rep ? `<p class="qt-dim" id="qtFromHint">${esc(r.rep)} has no mailbox set up, so this defaults to ${esc(def.label)}.</p>` : '<p class="qt-dim" id="qtFromHint"></p>'}
       <div class="qt-compose-row"><button type="submit" class="qt-btn qt-primary" id="qtSendBtn">Send email</button><button type="button" class="qt-btn" data-act="compose-cancel">Cancel</button></div>
       <p class="qt-dim">Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.</p>
@@ -1296,6 +1300,7 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-compose select, .qt-drawer .qt-compose input, .qt-drawer .qt-compose textarea { padding:9px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:#0f172a; color:#e2e8f0; font:inherit; font-size:13px; width:100%; box-sizing:border-box; }
 .qt-drawer .qt-compose textarea { resize:vertical; line-height:1.5; min-height:150px; }
 .qt-drawer .qt-compose p { margin:0; }
+.qt-drawer .qt-footer { font-size:11px; line-height:1.5; color:#94a3b8; border-left:2px solid rgba(255,255,255,.15); padding:2px 0 2px 10px; } .qt-drawer .qt-footer .gap { margin-top:6px; } .qt-drawer .qt-footer .small { font-size:10px; opacity:.85; }
 .qt-drawer .qt-linkhint { margin:-4px 0 0; } .qt-drawer .qt-linkhint.bad { color:#fda4af; } .qt-drawer .qt-linkhint.warn { color:#fde68a; } .qt-drawer .qt-linkhint.ok { color:#86efac; }
 .qt-drawer .qt-tones { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .qt-drawer .qt-tone { padding:5px 11px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; color:#cbd5e1; border:1px solid rgba(255,255,255,.18); background:transparent; }

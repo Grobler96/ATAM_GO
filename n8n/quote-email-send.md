@@ -61,3 +61,6 @@ Behaviour worth knowing:
 - A real test email sent from support@atam.co.uk reached grobleroliver@gmail.com (main inbox), was found in Sent Items, and was recorded as sent with the 3-day deadline.
 - The reply query by conversationId works; the reply logic was checked with pinned data for: our own message only, a real customer reply, an old outside message.
 - Not tested: a real customer reply arriving, the website button (login token needed), phone/DAN sending.
+
+## HTML and footer (22 Oct 2026)
+The send workflow has a Code node "Build Email HTML" between "Email Found?" and "Send Email". It HTML-escapes the stored plain-text body, turns https links into links, and appends one generic footer (landline, website, address, company number, confidentiality line). Graph `sendMail` then uses `contentType: "HTML"`. The stored `quote_emails.body` stays plain text, and Sent Items matching (subject + recipient) is unchanged. The footer is previewed in `quotes.js` (`FOOTER_HTML`); keep the two in step. Not tested against a live send at the time of writing.
