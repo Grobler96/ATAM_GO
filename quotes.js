@@ -1389,9 +1389,12 @@ body.qt-lock { overflow:hidden; }
 @media (prefers-reduced-motion: reduce) { .qt-drawer .qt-hist { transition:none !important; } }
 @media (prefers-reduced-motion: reduce) { #quotes *, #quotes *::before, #quotes *::after, .qt-drawer .qt-sheet, .qt-drawer .qt-backdrop { animation:none !important; transition:none !important; } }
 `;
-    // The email box is also used inside the Win-back drawer (.wb-drawer), so give it the same styling there.
-    s.textContent += '\n' + s.textContent.split('\n').filter(l => /^\.qt-drawer \.qt-(compose|tone|footer|linkhint|note|btn|dim|email-wrap|mailbtn)/.test(l)).map(l => l.replace(/\.qt-drawer /g, '.wb-drawer ')).join('\n');
-    s.textContent += '\n.wb-drawer .qt-primary { background:linear-gradient(135deg,#38bdf8,#6366f1); border:none; color:#fff; }';
+    // The email box is also used inside the Win-back and New customers drawers (.wb-drawer, .nc-drawer), so give it the same styling there.
+    const boxRules = s.textContent.split('\n').filter(l => /^\.qt-drawer \.qt-(compose|tone|footer|linkhint|note|btn|dim|email-wrap|mailbtn)/.test(l));
+    ['.wb-drawer', '.nc-drawer'].forEach(d => {
+      s.textContent += '\n' + boxRules.map(l => l.replace(/\.qt-drawer /g, d + ' ')).join('\n');
+      s.textContent += '\n' + d + ' .qt-primary { background:linear-gradient(135deg,#38bdf8,#6366f1); border:none; color:#fff; }';
+    });
     document.head.appendChild(s);
   }
 
