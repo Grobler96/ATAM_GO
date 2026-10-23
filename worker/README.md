@@ -10,7 +10,7 @@
    - `STOCK_SUPABASE_KEY` (secret, already there; lets DAN read live stock)
    - `DAN_MODEL` (optional text; defaults to `claude-sonnet-5-5`)
    `SUPABASE_URL` and `SUPABASE_KEY` from the old version are no longer used. If `SUPABASE_KEY` is the "service role" key, delete it.
-4. Check it: open `https://danbotv2.grobleroliver.workers.dev/health` in a browser. It should show `"version":"v13"` and `anthropic_key_set: true`.
+4. Check it: open `https://danbotv2.grobleroliver.workers.dev/health` in a browser. It should show `"version":"v16"` and `anthropic_key_set: true`.
 5. Open ATAM GO, signed in, click the robot. You should get a briefing, and alerts above it.
 
 Roll back: Workers & Pages -> danbotv2 -> Deployments -> pick the previous version -> Rollback.
@@ -30,6 +30,8 @@ It sends by the same route as the Quotes tab (`queue_quote_email`, then the n8n 
 the variable `DAN_EMAIL_SENDING` = `on` (plain text, Settings -> Variables and Secrets). Add it only once Microsoft 365 sending works and
 `EMAIL_SENDING_ENABLED` is true in `quotes.js`. By phone DAN can only email the address already on the quote. Emails sent by phone show the
 "phone" user as the sender in the quote timeline.
+
+New customers and Win-back emails (v16): DAN can read the New customers pipeline (`nc_board`, `nc_activity`, and a new_customers section in the briefing, with alerts for replies, follow-ups due and people waiting for a first contact), and can write and send an email to a new customer or an overdue Win-back customer (`prepare_customer_email`, `send_customer_email`), by the same rules as chase emails: read back, a clear yes, `DAN_EMAIL_SENDING` = `on`, by phone only to the address already on file. It sends by the same route as the tabs (`queue_nc_email` / `queue_winback_email`, then the n8n workflow `quote-email-send` with kind `nc` or `winback`). Logging contacts and recording products stay in the tab.
 
 Extra variables and secrets on the worker:
 | name | what it is |
