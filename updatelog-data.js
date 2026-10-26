@@ -1,10 +1,10 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
-// HOW TO ADD AN UPDATE (Claude does this with every change, in the same pull request):
+// HOW TO ADD AN UPDATE (done with every change, in the same pull request):
 //   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v28, v29...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
-//   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m'). Claude ASKS Oliver what time to put
-//      and writes exactly what he says; no time is shown on an entry until he has given one.
+//   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m'). Oliver is asked what time to put
+//      and exactly what he says is written; no time is shown on an entry until he has given one.
 //      Never delete an entry: the point is to look back.
 //   NOTE: the site only changes when a pull request is merged, so an in_progress bar is only visible on the site if a small
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.

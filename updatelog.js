@@ -108,7 +108,7 @@
           <h5>What changed</h5><ul>${(u.changes || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
           <h5>Where it lives</h5><div class="ul-touches">${(u.touches || []).map(touchHtml).join('')}</div>
           ${u.watch ? `<h5>If something goes wrong</h5><p class="ul-watch">${esc(u.watch)}</p>` : ''}
-          <div class="ul-actions">${u.pr ? `<a class="ul-btn" href="${REPO_PR}${encodeURIComponent(u.pr)}" target="_blank" rel="noopener">View the change on GitHub ↗</a>` : ''}<button type="button" class="ul-btn" data-copy="${esc(u.v)}">Copy for Claude</button></div>
+          <div class="ul-actions">${u.pr ? `<a class="ul-btn" href="${REPO_PR}${encodeURIComponent(u.pr)}" target="_blank" rel="noopener">View the change on GitHub ↗</a>` : ''}<button type="button" class="ul-btn" data-copy="${esc(u.v)}">Copy details</button></div>
         </div>` : ''}
       </div></article>`;
   }
@@ -222,7 +222,7 @@
   function copy(v) {
     const u = updates().find(x => x.v === v); if (!u) return;
     const text = copyText(u);
-    const done = () => toast('Copied. Paste it into a chat with Claude.');
+    const done = () => toast('Copied to the clipboard.');
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy.'));
     else { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Could not copy.'); } ta.remove(); }
   }
