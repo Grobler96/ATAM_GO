@@ -698,6 +698,59 @@
     return { l: 'Hot · quiet ' + (q.idle <= 0 ? 'today' : q.idle + 'd'), c: '#f97316' };
   }
 
+  // ----- "Your move": plain steps for each stage, with buttons that fill in the log form (nothing is saved until Save contact) -----
+  const GUIDE = {
+    soon: {
+      say: 'They usually reorder around now, so get in first. A friendly check-in is enough.',
+      steps: ['Send a short email or give them a ring.', 'Say what happened below and pick a chase date.'],
+      moves: [{ t: '✉️ Email them', mail: true }, { t: '📞 Rang, left a message', m: 'call', o: 'left_message' }, { t: '📞 Spoke to them', m: 'call', o: 'spoke' }]
+    },
+    todo: {
+      say: 'They are overdue and nobody has been in touch yet. This one needs a phone call.',
+      steps: ['Ring them (the number is on their last order in DecoNetwork).', 'No answer? Leave a message or send an email.', 'Press the button for what happened, then Save contact.'],
+      moves: [{ t: '📞 Spoke to them', m: 'call', o: 'spoke' }, { t: '📞 Left a message', m: 'call', o: 'left_message' }, { t: '📞 No answer', m: 'call', o: 'no_answer' }, { t: '✉️ Email them', mail: true }]
+    },
+    waiting: {
+      say: 'We have been in touch and are waiting to hear. Nothing to do until the chase date, then try again.',
+      steps: ['If the chase date has arrived, try a different way (email if you rang, ring if you emailed).', 'Still nothing after three tries? Set them aside with “Park” or “Mark lost” further down.'],
+      moves: [{ t: '✉️ Chase by email', mail: true }, { t: '📞 Rang again, no answer', m: 'call', o: 'no_answer' }, { t: '💬 They replied', m: 'email', o: 'replied' }]
+    },
+    replied: {
+      say: 'They came back to us. It is our move, so answer them today.',
+      steps: ['Reply or ring them back.', 'If they want prices, raise the quote in DecoNetwork.', 'Log what they asked for.'],
+      moves: [{ t: '🧾 Asked for a quote', m: 'call', o: 'quote_requested' }, { t: '📞 Spoke to them', m: 'call', o: 'spoke' }, { t: '✅ They’ve ordered', m: 'call', o: 'ordered' }]
+    },
+    quote: {
+      say: 'A quote is out with them. If it has gone quiet, a short nudge usually does it.',
+      steps: ['Open the quote in DecoNetwork below to check what we sent.', 'Ring or email to ask if they have any questions.'],
+      moves: [{ t: '📞 Rang about the quote', m: 'call', o: 'spoke' }, { t: '📞 Left a message', m: 'call', o: 'left_message' }, { t: '✅ They’ve ordered', m: 'call', o: 'ordered' }]
+    },
+    won: { say: 'They ordered after we got in touch. Nothing to do, well done.', steps: [], moves: [] },
+    parked: { say: 'Set aside until the date shown. It comes back by itself.', steps: ['Want them back sooner? Use Reopen further down.'], moves: [] },
+    lost: { say: 'Marked as not coming back. If they order again, they reappear by themselves.', steps: [], moves: [] }
+  };
+  function moveHtml(r) {
+    const g = GUIDE[r.stage]; if (!g) return '';
+    const canMail = mailOn() && r.email;
+    const moves = g.moves.filter(x => !x.mail || canMail).map(x => x.mail
+      ? `<button type="button" class="wb-btn wb-primary" data-mv-mail="1">${esc(x.t)}</button>`
+      : `<button type="button" class="wb-btn" data-mv-m="${x.m}" data-mv-o="${x.o}">${esc(x.t)}</button>`).join('');
+    return `<div class="wb-move"><h4>Your move</h4><p>${esc(g.say)}</p>
+      ${g.steps.length ? '<ol>' + g.steps.map(s => `<li>${esc(s)}</li>`).join('') + '</ol>' : ''}
+      ${moves ? `<div class="wb-chase-row">${moves}</div><p class="wb-dim" style="margin:6px 0 0">The buttons fill in the form below. Nothing is saved until you press Save contact.</p>` : ''}</div>`;
+  }
+  function useMove(btn) {
+    if (btn.dataset.mvMail) { if (state.openId) openCompose(state.openId); return; }
+    const m = $('wbMethod'), o = $('wbOutcome'), f = $('wbFollow');
+    if (!m || !o) { toast('Nothing to log for this customer.', true); return; }
+    m.value = btn.dataset.mvM; o.value = btn.dataset.mvO;
+    if (f && !f.dataset.touched) { const n = FOLLOW_UP[o.value]; f.value = n ? isoDay(addDays(n)) : ''; }
+    const form = $('wbLogForm');
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if ($('wbNote')) $('wbNote').focus({ preventScroll: true });
+    toast('Filled in. Add a note if you like, then press Save contact.');
+  }
+
   // Change who owns the customer. The team list is the people who can send mail (mail_senders, kind 'rep'). "Automatic" removes the hand-picked owner.
   function ownerPickHtml(r) {
     const reps = state.reps || [];
@@ -766,6 +819,7 @@
       </div>
       ${r.lastOrderSummary ? `<p class="wb-dim" style="margin:10px 0 0">${esc(r.lastOrderSummary)}</p>` : ''}
       ${banner}
+      ${moveHtml(r)}
       ${canAct ? emailSectionHtml(r) : ''}
       ${canAct ? `<form class="wb-chase" id="wbLogForm" autocomplete="off"><h4>Log a contact</h4>
         <div class="wb-chase-row"><div class="wb-field"><label for="wbMethod">How</label><select id="wbMethod">${METHODS.map(m => `<option value="${m[0]}">${esc(m[1])}</option>`).join('')}</select></div>
@@ -967,6 +1021,17 @@
 #winback .wb-head h2 { margin:0 0 6px; font-size:28px; }
 #winback .wb-head p { margin:0; color:#94a3b8; font-size:14px; max-width:760px; line-height:1.5; }
 #winback .wb-head .eyebrow { margin-bottom:4px; }
+#winback .wb-how { margin:14px 0 0; padding:12px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:rgba(15,23,42,.6); }
+#winback .wb-how summary { cursor:pointer; font-weight:600; color:#7dd3fc; }
+#winback .wb-how p, #winback .wb-how li { color:#cbd5e1; font-size:13.5px; line-height:1.5; }
+#winback .wb-how-steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin:10px 0; }
+#winback .wb-how-steps > div { border-left:4px solid var(--c); padding:8px 10px; background:#0f172a; border-radius:8px; display:flex; flex-direction:column; gap:4px; }
+#winback .wb-how-steps span { color:#94a3b8; font-size:12.5px; }
+#winback .wb-how-steps em { font-style:normal; color:#e2e8f0; font-size:12.5px; }
+.wb-drawer .wb-move { margin:14px 0 0; padding:12px 14px; border-radius:12px; border:1px solid rgba(56,189,248,.35); background:rgba(56,189,248,.07); }
+.wb-drawer .wb-move h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#7dd3fc; }
+.wb-drawer .wb-move p { margin:0 0 6px; font-size:13.5px; line-height:1.45; }
+.wb-drawer .wb-move ol { margin:0 0 10px; padding-left:20px; color:#cbd5e1; font-size:13px; line-height:1.5; }
 #winback .wb-updated { font-size:11.5px; color:#64748b; white-space:nowrap; padding-top:6px; }
 #winback .wb-kpis { display:grid; grid-template-columns:repeat(6,1fr); margin:22px 0 14px; border:1px solid rgba(255,255,255,.1); border-radius:14px; background:rgba(15,23,42,.82); overflow:hidden; }
 #winback .wb-kpi { position:relative; padding:16px 18px; border-right:1px solid rgba(255,255,255,.08); min-width:0; animation:wbUp .5s both; animation-delay:calc(var(--i,0) * 60ms); }
@@ -1233,6 +1298,10 @@ body.wb-lock { overflow:hidden; }
         </div>
         <div class="wb-updated" id="wbUpdated" aria-live="polite"></div>
       </div>
+      <details class="wb-how" id="wbHow"><summary>New here? How Win-back works (a two-minute read)</summary>
+        <p>A customer appears here when they have gone past their usual reorder time. Each one sits in a column. <b>Open a customer, read “Your move”, do it, then log what happened.</b> The card moves along by itself.</p>
+        <div class="wb-how-steps">${BOARD.map(k => `<div style="--c:${STAGES[k].color}"><b>${STAGES[k].icon} ${esc(STAGES[k].label)}</b><span>${esc(STAGES[k].blurb)}</span><em>${esc(GUIDE[k].say)}</em></div>`).join('')}</div>
+        <ul><li><b>Always log what happened</b> (even “no answer”), so the next person knows.</li><li><b>Always pick a “chase again” date.</b> It then appears in the Calendar tab and in the morning email.</li><li>Asked to be left alone, or closed down? Use Park or Mark lost, and add the reason.</li><li>Stuck on anything? Ask DAN (the robot button).</li></ul></details>
       <p class="wb-value-line" id="wbValue"></p>
       <div class="wb-kpis" id="wbKpis"></div>
       <div class="wb-toolbar"><div class="wb-tabs" id="wbTabs" role="tablist"></div></div>
@@ -1327,6 +1396,8 @@ body.wb-lock { overflow:hidden; }
       const mb = e.target.closest('[data-act="mail"]');
       if (mb) { openCompose(mb.dataset.for); return; }
       if (e.target.closest('[data-act="hist-retry"]') && state.openId) { histCache.delete(state.openId); loadHistory(state.openId); return; }
+      const mv = e.target.closest('[data-mv-m],[data-mv-mail]');
+      if (mv) { useMove(mv); return; }
       const fu = e.target.closest('[data-fu]');
       if (fu) { const n = Number(fu.dataset.fu); const f = $('wbFollow'); f.value = n ? isoDay(addDays(n)) : ''; f.dataset.touched = '1'; return; }
       const stt = e.target.closest('[data-state]');
@@ -1373,5 +1444,5 @@ body.wb-lock { overflow:hidden; }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.WinbackPage = { reload: () => load(), state };
+  window.WinbackPage = { reload: () => load(), state, open: id => openDrawer(String(id)) };
 })();
