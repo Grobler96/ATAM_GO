@@ -40,6 +40,8 @@ Oliver is not a developer. Explain plainly, give exact click-by-click steps for 
 - **Sales invoices** and **Purchase Order Review** and **Discrepancies** each have an **Ask DAN** button.
 - The Sales Invoices card has **Rebuild from DecoNetwork** (discards edits and rebuilds the draft).
 
+- **Invoice intake from Microsoft 365** (built 26 Oct 2026, unpublished, nothing tested live): two n8n workflows read the shared mailbox `InvoicePOProcessing@atam.co.uk` (intake `wR1tq3DVJCyHFCgL`, stuck-email alert `90c4Hay5EBwxUHn4`). Gmail intake `x1CJVoFZ9cwioqIT` is still the live one; do not switch it off until Oliver says. See `n8n/invoice-inbox-m365.md`.
+
 ## DAN (Cloudflare worker v16)
 - Needs the signed-in user's token; reads and writes as that user, so row level security applies. Tool-using agent: business pulse, any whitelisted table (`TABLES` at the top of the file), customer lookup, stock, and actions that need a spoken or typed yes. v14 adds quote chase emails (`prepare_quote_email`, `send_quote_email`) and v16 emails to new / win-back customers (`prepare_customer_email`, `send_customer_email`), on only when the worker variable `DAN_EMAIL_SENDING` is `on`; phone calls may only use the address already on file.
 - Chat panel: morning briefing on first open each day, alert list, badge on the robot button, Ask DAN focus on a single invoice.
