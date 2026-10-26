@@ -149,10 +149,10 @@ window.ATAM_UPDATES = [
   },
   {
     v: 'v10', date: '2026-10-15', status: 'live', pr: 9, areas: ['Docs'],
-    title: 'Handover notes (CLAUDE.md)',
+    title: 'Handover notes',
     summary: 'Standing notes so a new chat has the background without the history. No site change.',
-    changes: ['CLAUDE.md added to the repository.'],
-    touches: [{ t: 'docs', n: 'CLAUDE.md' }],
+    changes: ['Handover notes file added to the repository.'],
+    touches: [{ t: 'docs', n: 'Handover notes (repository root)' }],
     watch: 'Nothing to break: documentation only.'
   },
   {
