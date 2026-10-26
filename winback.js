@@ -223,7 +223,7 @@
 
     return {
       id: String(r.customer_id), label, contactName, person: r.name || '', email: r.email || '',
-      lastQuote, emailCycle, emailNo: emailCycle ? num(r.email_no) : 0, emailSentAt, emailDueAt, emailRepliedAt, emailSender: r.email_sender || '', owner: r.owner || '', notes: r.notes || '',
+      lastQuote, emailCycle, emailNo: emailCycle ? num(r.email_no) : 0, emailSentAt, emailDueAt, emailRepliedAt, emailSender: r.email_sender || '', owner: r.owner || '', ownerManual: !!r.owner_manual, notes: r.notes || '',
       totalOrders: num(r.total_orders), firstOrder: dayDate(r.first_order_date), lastOrder, lastOrderId: r.last_order_id || '', lastOrderSummary: r.last_order_summary || '',
       value, mean: r.mean_reorder_days == null ? null : num(r.mean_reorder_days), threshold, dsl, overdueBy, status, overdue, dormant,
       lastContact, contactBy: r.last_contact_by || '', contactMethod: r.last_contact_method || '', outcome, contactNote: r.last_contact_note || '',
@@ -667,6 +667,7 @@
     if (focusForm && $('wbOutcome')) $('wbOutcome').focus(); else $('wbSheet').focus();
     loadTimeline(id);
     loadHistory(id);
+    loadReps();
   }
   function closeDrawer() {
     state.openId = null;
@@ -695,6 +696,39 @@
     if (q.st === 'cold') return { l: 'Going cold · quiet ' + q.idle + 'd', c: '#38bdf8' };
     if (q.st === 'chase') return { l: 'Needs chasing · quiet ' + q.idle + 'd', c: '#f59e0b' };
     return { l: 'Hot · quiet ' + (q.idle <= 0 ? 'today' : q.idle + 'd'), c: '#f97316' };
+  }
+
+  // Change who owns the customer. The team list is the people who can send mail (mail_senders, kind 'rep'). "Automatic" removes the hand-picked owner.
+  function ownerPickHtml(r) {
+    const reps = state.reps || [];
+    if (!reps.length) return '';
+    const names = reps;
+    return `<select id="wbOwnerPick" aria-label="Change owner" style="margin-top:6px;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:#0f172a;color:#e2e8f0;font-size:12px">
+      <option value="">Change owner…</option>
+      ${r.ownerManual ? '<option value="__auto">Back to automatic</option>' : ''}
+      ${names.map(n => `<option value="${esc(n)}"${n === r.owner && r.ownerManual ? ' disabled' : ''}>${esc(n)}${n === r.owner ? ' (current)' : ''}</option>`).join('')}
+    </select>${r.ownerManual ? '<div class="wb-dim">Picked by hand</div>' : '<div class="wb-dim">Worked out from the last order</div>'}`;
+  }
+  async function setOwner(id, owner, sel) {
+    if (sel) sel.disabled = true;
+    try {
+      const { error } = await client().rpc('set_winback_owner', { p_customer_id: id, p_owner: owner || null });
+      if (error) throw error;
+      toast(owner ? 'Owner changed to ' + owner + '.' : 'Owner is back to automatic.');
+      await load(true);
+    } catch (e) {
+      toast('Could not save: ' + ((e && e.message) || 'try again'), true);
+      if (sel) { sel.disabled = false; sel.value = ''; }
+    }
+  }
+  function loadReps() {
+    const A = window.ATAM_QT;
+    if (state.reps || state.repsLoading || !A || !A.loadSenders) return;
+    state.repsLoading = true;
+    A.loadSenders().then(list => {
+      state.reps = (list || []).filter(s => s.kind === 'rep' && s.rep_name).map(s => s.rep_name);
+      if (state.openId) refreshDrawer();
+    }).catch(() => { /* the owner box just stays hidden */ }).finally(() => { state.repsLoading = false; });
   }
 
   function drawerHtml(r, timelineHtml) {
@@ -727,7 +761,7 @@
         ${fact('Usually reorders every', r.mean ? '~' + r.mean + ' days' : '—')}
         ${fact('Status', r.overdueBy == null ? esc(r.status || '—') : r.overdueBy > 0 ? `<span style="color:#fb923c">Overdue by ${r.overdueBy} days</span>` : 'Due in ' + Math.abs(r.overdueBy) + ' days')}
         ${fact('Orders', r.totalOrders + (r.firstOrder ? `<div class="wb-dim">since ${esc(fmtDate(r.firstOrder))}</div>` : ''))}
-        ${fact('Owner', `<span class="wb-rep">${avatar(r.owner)}${esc(ownerName(r.owner))}</span>`)}
+        ${fact('Owner', `<span class="wb-rep">${avatar(r.owner)}${esc(ownerName(r.owner))}</span>${ownerPickHtml(r)}`)}
         ${fact('Last contact', r.lastContact ? esc(fmtShort(r.lastContact)) + `<div class="wb-dim">${esc(OUTCOME_LABEL[r.outcome] || '')}${r.contactBy ? ' · ' + esc(r.contactBy) : ''}</div>` : 'Never')}
       </div>
       ${r.lastOrderSummary ? `<p class="wb-dim" style="margin:10px 0 0">${esc(r.lastOrderSummary)}</p>` : ''}
@@ -1304,6 +1338,13 @@ body.wb-lock { overflow:hidden; }
       }
     });
     drawer.addEventListener('change', e => {
+      if (e.target.id === 'wbOwnerPick') {
+        const row = state.rows.find(x => x.id === state.openId);
+        if (!row) return;
+        if (!e.target.value) return;
+        setOwner(row.id, e.target.value === '__auto' ? '' : e.target.value, e.target);
+        return;
+      }
       if (e.target.id === 'wbOutcome') {
         const f = $('wbFollow');
         if (f && !f.dataset.touched) { const n = FOLLOW_UP[e.target.value]; f.value = n ? isoDay(addDays(n)) : ''; }
