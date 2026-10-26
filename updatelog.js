@@ -1,0 +1,290 @@
+// Update log tab: a timeline of every change made to ATAM GO (v1, v2, ...) and what is planned.
+// The content lives in updatelog-data.js (window.ATAM_UPDATES / window.ATAM_PLANNED), so there is no database and nothing to load.
+// Adds its own nav button and page (app.js binds the nav once, same as quotes.js / winback.js / calendar.js).
+(function () {
+  'use strict';
+
+  const PAGE_ID = 'updatelog';
+  const STATUS = {
+    in_progress: { label: 'In progress',             color: '#e879f9' },
+    live:        { label: 'Live',                    color: '#22c55e' },
+    partly:      { label: 'Partly live',             color: '#f59e0b' },
+    built:       { label: 'Built, waiting to go live', color: '#38bdf8' },
+    rolled_back: { label: 'Rolled back',             color: '#ef4444' },
+    planned:     { label: 'Planned',                 color: '#a78bfa' }
+  };
+  const TOUCH = { site: ['🖥', 'Site'], database: ['🗄', 'Database'], n8n: ['⚙️', 'n8n'], worker: ['🤖', 'DAN worker'], access: ['🔑', 'Access'], docs: ['📄', 'Notes'] };
+  const REPO_PR = 'https://github.com/Grobler96/ATAM_GO/pull/';
+  const SUSPECT_DAYS = 3;
+
+  const state = { q: '', status: '', area: '', newest: true, around: '', open: {} };
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = s => { const p = String(s).split('-'); return Number(p[2]) + ' ' + MONTHS[Number(p[1]) - 1] + ' ' + p[0]; };
+  const ms = s => { const p = String(s).split('-'); return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])); };
+  const updates = () => Array.isArray(window.ATAM_UPDATES) ? window.ATAM_UPDATES : [];
+  const planned = () => Array.isArray(window.ATAM_PLANNED) ? window.ATAM_PLANNED : [];
+  const vnum = u => Number(String(u.v).replace(/\D/g, '')) || 0;
+
+  function isSuspect(u) {
+    if (!state.around) return false;
+    if (u.status === 'built' || u.status === 'planned' || u.status === 'in_progress') return false;
+    const d = ms(u.date), a = ms(state.around);
+    return d <= a && a - d <= SUSPECT_DAYS * 86400000;
+  }
+  function matches(u) {
+    if (state.status && u.status !== state.status) return false;
+    if (state.area && !(u.areas || []).includes(state.area)) return false;
+    if (state.around && !isSuspect(u)) return false;
+    if (state.q) {
+      const hay = [u.v, u.title, u.summary, (u.areas || []).join(' '), (u.changes || []).join(' '), (u.touches || []).map(t => t.n).join(' '), u.date].join(' ').toLowerCase();
+      if (!hay.includes(state.q)) return false;
+    }
+    return true;
+  }
+
+  function copyText(u) {
+    return ['ATAM GO update ' + u.v + ' (' + day(u.date) + '): ' + u.title, u.summary, 'Changes: ' + (u.changes || []).join(' | '),
+      'Touched: ' + (u.touches || []).map(t => (TOUCH[t.t] || [])[1] + ': ' + t.n).join('; '), 'If it goes wrong: ' + (u.watch || ''),
+      'Something is not working and I think it may have started with this update. Please check.'].join('\n');
+  }
+
+  function statsHtml() {
+    const all = updates();
+    const n = s => all.filter(u => u.status === s).length;
+    const latest = all.slice().sort((a, b) => ms(b.date) - ms(a.date) || vnum(b) - vnum(a))[0];
+    const tile = (num, label, color) => `<div class="ul-stat" style="--c:${color}"><b>${num}</b><span>${esc(label)}</span></div>`;
+    return `<div class="ul-stats">${tile(all.length, 'Versions', '#e2e8f0')}${tile(n('in_progress'), 'In progress', STATUS.in_progress.color)}${tile(n('live'), 'Live', STATUS.live.color)}${tile(n('partly') + n('built'), 'Waiting to go live', STATUS.built.color)}${tile(planned().length, 'Planned', STATUS.planned.color)}${tile(latest ? latest.v : '–', latest ? 'Latest · ' + day(latest.date) : 'Latest', '#7dd3fc')}</div>`;
+  }
+
+  function controlsHtml() {
+    const areas = Array.from(new Set(updates().concat(planned()).flatMap(u => u.areas || []))).sort();
+    const chip = (k, v, label, on) => `<button type="button" class="ul-chip${on ? ' on' : ''}" data-${k}="${esc(v)}">${esc(label)}</button>`;
+    return `<div class="ul-controls">
+      <input type="search" id="ulSearch" value="${esc(state.q)}" placeholder="Search updates (e.g. quotes, security, n8n, v14)" aria-label="Search updates">
+      <div class="ul-chips" aria-label="Status">${chip('status', '', 'All', !state.status)}${['in_progress', 'live', 'partly', 'built'].map(s => chip('status', s, STATUS[s].label, state.status === s)).join('')}</div>
+      <div class="ul-chips" aria-label="Area">${chip('area', '', 'Every area', !state.area)}${areas.map(a => chip('area', a, a, state.area === a)).join('')}</div>
+      <div class="ul-row"><button type="button" class="ul-chip" data-sort="1">${state.newest ? '↓ Newest first' : '↑ Oldest first'}</button>
+        <label class="ul-find">🔎 Something broke? It started failing around <input type="date" id="ulAround" value="${esc(state.around)}"></label>
+        ${state.around ? '<button type="button" class="ul-chip" data-clear-around="1">Clear</button>' : ''}</div>
+      ${state.around ? '<p class="ul-note" id="ulFinder"></p>' : ''}</div>`;
+  }
+
+  function touchHtml(t) { const m = TOUCH[t.t] || ['•', t.t]; return `<span class="ul-touch"><i>${m[0]} ${esc(m[1])}</i>${esc(t.n)}</span>`; }
+
+  // Progress bar and time taken. in_progress: a bar at u.progress %. built: a full blue bar (finished, waiting to go live).
+  // live / partly: a full green "Completed" bar, with the time taken only if u.timeTaken was filled in (the figure Oliver gives).
+  function progressHtml(u) {
+    if (u.status === 'in_progress') {
+      const p = Math.max(0, Math.min(100, Number(u.progress) || 0));
+      return `<div class="ul-prog" style="--c:${STATUS.in_progress.color}"><div class="ul-bar" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100"><i class="ul-fill running" style="width:${p}%"></i></div><span>In progress · ${p}%</span></div>`;
+    }
+    if (u.status === 'built') return `<div class="ul-prog" style="--c:${STATUS.built.color}"><div class="ul-bar"><i class="ul-fill" style="width:100%"></i></div><span>Finished · waiting to go live</span></div>`;
+    if ((u.status === 'live' || u.status === 'partly') && u.timeTaken) {
+      return `<div class="ul-prog" style="--c:${STATUS.live.color}"><div class="ul-bar"><i class="ul-fill" style="width:100%"></i></div><span>${u.status === 'live' ? 'Completed' : 'Completed (part still to go live)'} · time taken <b>${esc(u.timeTaken)}</b></span></div>`;
+    }
+    return '';
+  }
+
+  function entryHtml(u, i) {
+    const st = STATUS[u.status] || STATUS.live;
+    const sus = isSuspect(u);
+    const open = state.open[u.v] != null ? state.open[u.v] : (i === 0 && !state.around && !state.q && !state.status && !state.area && state.newest);
+    return `<article class="ul-entry${sus ? ' suspect' : ''}" style="--c:${st.color};--d:${Math.min(i, 12) * 40}ms">
+      <div class="ul-node"></div>
+      <div class="ul-card">
+        <header class="ul-head" data-toggle="${esc(u.v)}" role="button" tabindex="0" aria-expanded="${open}">
+          <span class="ul-ver">${esc(u.v)}</span>
+          <div class="ul-title"><b>${esc(u.title)}</b><span>${esc(day(u.date))}${u.pr ? ' · PR ' + esc(u.pr) : ''}${sus ? ' · <em>possible cause</em>' : ''}</span></div>
+          <span class="ul-status" style="--c:${st.color}">${esc(st.label)}</span>
+          <span class="ul-caret" aria-hidden="true">${open ? '−' : '+'}</span>
+        </header>
+        <p class="ul-sum">${esc(u.summary)}</p>
+        ${progressHtml(u)}
+        <div class="ul-tags">${(u.areas || []).map(a => `<span class="ul-tag">${esc(a)}</span>`).join('')}</div>
+        ${open ? `<div class="ul-body">
+          <h5>What changed</h5><ul>${(u.changes || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
+          <h5>Where it lives</h5><div class="ul-touches">${(u.touches || []).map(touchHtml).join('')}</div>
+          ${u.watch ? `<h5>If something goes wrong</h5><p class="ul-watch">${esc(u.watch)}</p>` : ''}
+          <div class="ul-actions">${u.pr ? `<a class="ul-btn" href="${REPO_PR}${encodeURIComponent(u.pr)}" target="_blank" rel="noopener">View the change on GitHub ↗</a>` : ''}<button type="button" class="ul-btn" data-copy="${esc(u.v)}">Copy for Claude</button></div>
+        </div>` : ''}
+      </div></article>`;
+  }
+
+  function plannedHtml() {
+    const list = planned().filter(p => (!state.area || (p.areas || []).includes(state.area)) &&
+      (!state.q || (p.title + ' ' + p.detail + ' ' + (p.areas || []).join(' ')).toLowerCase().includes(state.q)));
+    if (state.status && state.status !== 'planned') return '';
+    if (state.around || !list.length) return '';
+    return `<section class="ul-planned"><h3>🛰 Coming up <span>${list.length}</span></h3><div class="ul-pgrid">${list.map(p => `<div class="ul-pitem"><b>${esc(p.title)}</b><p>${esc(p.detail)}</p><div class="ul-tags">${(p.areas || []).map(a => `<span class="ul-tag">${esc(a)}</span>`).join('')}</div></div>`).join('')}</div></section>`;
+  }
+
+  function render() {
+    const el = $('ulBody');
+    if (!el) return;
+    let list = updates().filter(matches).sort((a, b) => (ms(b.date) - ms(a.date)) || (vnum(b) - vnum(a)));
+    if (!state.newest) list = list.reverse();
+    const keepSearch = document.activeElement && document.activeElement.id === 'ulSearch';
+    el.innerHTML = statsHtml() + controlsHtml() + plannedHtml() +
+      `<h3 class="ul-h">Timeline <span>${list.length} of ${updates().length}</span></h3>` +
+      (list.length ? `<div class="ul-line">${list.map(entryHtml).join('')}</div>` : '<div class="ul-empty">No updates match. Clear a filter or the search.</div>') +
+      '<p class="ul-foot">Every change to ATAM GO is added here as part of the same update. The log tracks the site, the database, DAN and the n8n workflows we build together. Changes made directly inside n8n, Xero or DecoNetwork by someone else are not tracked here.</p>';
+    if (state.around) {
+      const f = $('ulFinder');
+      const sus = updates().filter(isSuspect).sort((a, b) => vnum(b) - vnum(a));
+      if (f) f.innerHTML = sus.length
+        ? `Updates that went live in the ${SUSPECT_DAYS} days up to ${esc(day(state.around))}: ${sus.map(u => '<b>' + esc(u.v) + '</b> ' + esc(u.title)).join(' · ')}. These are the first places to look, not proof.`
+        : `Nothing from this log went live in the ${SUSPECT_DAYS} days up to ${esc(day(state.around))}, so the cause is probably outside it (n8n, Xero, DecoNetwork or the supplier).`;
+    }
+    if (keepSearch) { const s = $('ulSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
+  }
+
+  function injectStyles() {
+    if ($('ulStyles')) return;
+    const s = document.createElement('style');
+    s.id = 'ulStyles';
+    s.textContent = `
+#updatelog { --ul-line: rgba(255,255,255,.1); color:#e2e8f0; }
+#updatelog .ul-hero { position:relative; overflow:hidden; padding:26px 26px; border-radius:18px; border:1px solid rgba(125,211,252,.25); background:radial-gradient(120% 160% at 0% 0%, rgba(56,189,248,.2), transparent 55%), radial-gradient(90% 140% at 100% 0%, rgba(167,139,250,.2), transparent 60%), rgba(8,12,24,.8); }
+#updatelog .ul-hero::after { content:""; position:absolute; inset:0; background:repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px); pointer-events:none; }
+#updatelog .ul-hero h2 { margin:0 0 6px; font-size:30px; letter-spacing:.01em; }
+#updatelog .ul-hero p { margin:0; color:#94a3b8; font-size:14px; max-width:760px; line-height:1.5; }
+#updatelog .ul-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:18px 0; }
+#updatelog .ul-stat { padding:14px 16px; border-radius:14px; border:1px solid color-mix(in srgb, var(--c) 40%, transparent); background:linear-gradient(160deg, color-mix(in srgb, var(--c) 14%, #0b1222), #0b1222); box-shadow:0 0 22px -12px var(--c); }
+#updatelog .ul-stat b { display:block; font-size:26px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--c); }
+#updatelog .ul-stat span { font-size:12px; color:#94a3b8; }
+#updatelog .ul-controls { display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+#updatelog input[type=search], #updatelog input[type=date] { padding:9px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:#0b1222; color:#e2e8f0; font-size:13.5px; }
+#updatelog .ul-chips, #updatelog .ul-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+#updatelog .ul-chip { padding:6px 12px; border-radius:20px; border:1px solid rgba(255,255,255,.14); background:#0b1222; color:#cbd5e1; font-size:12.5px; cursor:pointer; }
+#updatelog .ul-chip.on { border-color:#38bdf8; background:rgba(56,189,248,.16); color:#e0f2fe; }
+#updatelog .ul-find { display:inline-flex; gap:8px; align-items:center; color:#cbd5e1; font-size:13px; flex-wrap:wrap; }
+#updatelog .ul-note { margin:0; padding:10px 14px; border-radius:10px; border:1px solid rgba(251,146,60,.4); background:rgba(251,146,60,.08); color:#fed7aa; font-size:13px; line-height:1.5; }
+#updatelog .ul-h { margin:22px 0 12px; font-size:15px; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; }
+#updatelog .ul-h span, #updatelog .ul-planned h3 span { margin-left:8px; font-size:12px; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,.08); color:#cbd5e1; text-transform:none; letter-spacing:0; }
+#updatelog .ul-planned { margin:6px 0 10px; padding:16px; border-radius:16px; border:1px dashed rgba(167,139,250,.5); background:rgba(167,139,250,.05); }
+#updatelog .ul-planned h3 { margin:0 0 12px; font-size:15px; color:#ddd6fe; }
+#updatelog .ul-pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; }
+#updatelog .ul-pitem { padding:12px 14px; border-radius:12px; background:#0b1222; border:1px solid rgba(167,139,250,.25); }
+#updatelog .ul-pitem b { font-size:13.5px; }
+#updatelog .ul-pitem p { margin:6px 0 8px; font-size:12.5px; color:#94a3b8; line-height:1.45; }
+#updatelog .ul-line { position:relative; padding-left:34px; }
+#updatelog .ul-line::before { content:""; position:absolute; left:11px; top:6px; bottom:6px; width:2px; background:linear-gradient(180deg, #38bdf8, #a78bfa 60%, rgba(167,139,250,.1)); box-shadow:0 0 10px rgba(56,189,248,.5); }
+#updatelog .ul-entry { position:relative; margin-bottom:14px; animation:ulIn .45s both; animation-delay:var(--d,0ms); }
+@keyframes ulIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { #updatelog .ul-entry { animation:none; } #updatelog .ul-entry.suspect .ul-card { animation:none; } }
+#updatelog .ul-node { position:absolute; left:-30px; top:18px; width:14px; height:14px; border-radius:50%; background:var(--c); box-shadow:0 0 0 4px rgba(11,18,34,.9), 0 0 14px var(--c); }
+#updatelog .ul-card { padding:14px 16px; border-radius:14px; border:1px solid color-mix(in srgb, var(--c) 30%, rgba(255,255,255,.08)); background:linear-gradient(160deg, rgba(15,23,42,.92), rgba(8,12,24,.92)); }
+#updatelog .ul-entry.suspect .ul-card { border-color:#fb923c; animation:ulPulse 2s ease-in-out infinite; }
+@keyframes ulPulse { 0%,100% { box-shadow:0 0 0 0 rgba(251,146,60,.0); } 50% { box-shadow:0 0 22px 2px rgba(251,146,60,.35); } }
+#updatelog .ul-head { display:flex; align-items:center; gap:12px; cursor:pointer; flex-wrap:wrap; }
+#updatelog .ul-ver { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; font-size:15px; padding:4px 10px; border-radius:8px; background:color-mix(in srgb, var(--c) 18%, #0b1222); border:1px solid color-mix(in srgb, var(--c) 55%, transparent); color:var(--c); }
+#updatelog .ul-title { flex:1 1 220px; min-width:0; }
+#updatelog .ul-title b { display:block; font-size:15px; overflow-wrap:anywhere; }
+#updatelog .ul-title span { font-size:12px; color:#94a3b8; }
+#updatelog .ul-title em { color:#fb923c; font-style:normal; font-weight:600; }
+#updatelog .ul-status { padding:3px 10px; border-radius:12px; font-size:11.5px; color:var(--c); border:1px solid color-mix(in srgb, var(--c) 55%, transparent); background:color-mix(in srgb, var(--c) 12%, transparent); white-space:nowrap; }
+#updatelog .ul-caret { color:#64748b; font-size:18px; width:18px; text-align:center; }
+#updatelog .ul-sum { margin:10px 0 8px; color:#cbd5e1; font-size:13.5px; line-height:1.5; }
+#updatelog .ul-prog { display:flex; align-items:center; gap:12px; margin:0 0 10px; flex-wrap:wrap; }
+#updatelog .ul-prog span { font-size:12px; color:#cbd5e1; } #updatelog .ul-prog b { color:var(--c); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+#updatelog .ul-bar { flex:1 1 180px; height:8px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; }
+#updatelog .ul-fill { display:block; height:100%; border-radius:6px; background:linear-gradient(90deg, color-mix(in srgb, var(--c) 60%, #0b1222), var(--c)); box-shadow:0 0 10px var(--c); }
+#updatelog .ul-fill.running { background-size:200% 100%; animation:ulRun 1.6s linear infinite; background-image:linear-gradient(90deg, var(--c), #fff3, var(--c)); }
+@keyframes ulRun { from { background-position:200% 0; } to { background-position:0 0; } }
+@media (prefers-reduced-motion: reduce) { #updatelog .ul-fill.running { animation:none; } }
+#updatelog .ul-tags { display:flex; flex-wrap:wrap; gap:6px; }
+#updatelog .ul-tag { padding:2px 9px; border-radius:10px; font-size:11px; color:#94a3b8; border:1px solid rgba(255,255,255,.12); }
+#updatelog .ul-body { margin-top:12px; padding-top:10px; border-top:1px solid var(--ul-line); }
+#updatelog .ul-body h5 { margin:12px 0 6px; font-size:11.5px; letter-spacing:.07em; text-transform:uppercase; color:#7dd3fc; }
+#updatelog .ul-body ul { margin:0; padding-left:20px; color:#cbd5e1; font-size:13px; line-height:1.55; }
+#updatelog .ul-touches { display:flex; flex-direction:column; gap:5px; }
+#updatelog .ul-touch { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:#cbd5e1; overflow-wrap:anywhere; }
+#updatelog .ul-touch i { font-style:normal; display:inline-block; margin-right:8px; padding:1px 8px; border-radius:6px; background:rgba(125,211,252,.1); color:#7dd3fc; font-family:inherit; }
+#updatelog .ul-watch { margin:0; padding:10px 12px; border-radius:10px; background:rgba(251,146,60,.08); border-left:3px solid #fb923c; color:#fed7aa; font-size:13px; line-height:1.5; }
+#updatelog .ul-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+#updatelog .ul-btn { padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#0b1222; color:#e2e8f0; font-size:12.5px; cursor:pointer; text-decoration:none; }
+#updatelog .ul-btn:hover { border-color:#38bdf8; }
+#updatelog .ul-empty { padding:30px; text-align:center; color:#94a3b8; border:1px dashed rgba(255,255,255,.14); border-radius:12px; }
+#updatelog .ul-foot { margin-top:20px; color:#64748b; font-size:12px; max-width:760px; line-height:1.5; }
+.ul-toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:#0f172a; border:1px solid rgba(34,197,94,.5); color:#dcfce7; font-size:13px; z-index:2000; }
+@media (max-width: 640px) { #updatelog .ul-line { padding-left:28px; } #updatelog .ul-node { left:-26px; } #updatelog .ul-hero h2 { font-size:24px; } }
+`;
+    document.head.appendChild(s);
+  }
+
+  function toast(msg) {
+    const t = document.createElement('div'); t.className = 'ul-toast'; t.textContent = msg; document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+  }
+  function copy(v) {
+    const u = updates().find(x => x.v === v); if (!u) return;
+    const text = copyText(u);
+    const done = () => toast('Copied. Paste it into a chat with Claude.');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy.'));
+    else { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Could not copy.'); } ta.remove(); }
+  }
+
+  function installPage() {
+    if ($(PAGE_ID)) return true;
+    const anchorBtn = document.querySelector('.nav-link[data-page="calendar"]') || document.querySelector('.nav-link[data-page="newcustomers"]') || document.querySelector('.nav-link[data-page="winback"]');
+    const anchorPage = $('calendar') || $('newcustomers') || $('winback');
+    if (!anchorBtn || !anchorPage) return false;
+    if (!document.querySelector('.nav-link[data-page="calendar"]') && boot.tries < 30) return false;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'nav-link';
+    btn.dataset.page = PAGE_ID;
+    btn.innerHTML = '<span>🛰 Update log</span>';
+    anchorBtn.insertAdjacentElement('afterend', btn);
+
+    const sec = document.createElement('section');
+    sec.id = PAGE_ID;
+    sec.className = 'dashboard-page';
+    sec.innerHTML = `<div class="ul-hero"><p class="eyebrow">ATAM GO</p><h2>Update log</h2>
+      <p>Every change we have made, in order, and what is coming next. If something stops working, find roughly when it started and look at what changed just before.</p></div><div id="ulBody"></div>`;
+    anchorPage.parentElement.appendChild(sec);
+
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.dashboard-page').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      sec.classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      render();
+    });
+    document.addEventListener('click', e => {
+      const other = e.target.closest('.nav-link');
+      if (other && other !== btn) { btn.classList.remove('active'); sec.classList.remove('active'); }
+    }, true);
+
+    sec.addEventListener('click', e => {
+      const st = e.target.closest('[data-status]'); if (st) { state.status = st.dataset.status; render(); return; }
+      const ar = e.target.closest('[data-area]'); if (ar) { state.area = ar.dataset.area; render(); return; }
+      if (e.target.closest('[data-sort]')) { state.newest = !state.newest; render(); return; }
+      if (e.target.closest('[data-clear-around]')) { state.around = ''; render(); return; }
+      const cp = e.target.closest('[data-copy]'); if (cp) { copy(cp.dataset.copy); return; }
+      const tg = e.target.closest('[data-toggle]');
+      if (tg) { const v = tg.dataset.toggle; const cur = tg.getAttribute('aria-expanded') === 'true'; state.open[v] = !cur; render(); }
+    });
+    sec.addEventListener('keydown', e => {
+      const tg = e.target.closest && e.target.closest('[data-toggle]');
+      if (tg && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tg.click(); }
+    });
+    sec.addEventListener('input', e => { if (e.target.id === 'ulSearch') { state.q = e.target.value.trim().toLowerCase(); render(); } });
+    sec.addEventListener('change', e => { if (e.target.id === 'ulAround') { state.around = e.target.value; render(); } });
+    return true;
+  }
+
+  function boot() {
+    boot.tries = (boot.tries || 0) + 1;
+    injectStyles();
+    if (!installPage()) setTimeout(boot, 300);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+  window.UpdateLogPage = { render, state };
+})();
