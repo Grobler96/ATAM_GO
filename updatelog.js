@@ -13,7 +13,6 @@
     rolled_back: { label: 'Rolled back',             color: '#ef4444' },
     planned:     { label: 'Planned',                 color: '#a78bfa' }
   };
-  const TOUCH = { site: ['🖥', 'Site'], database: ['🗄', 'Database'], n8n: ['⚙️', 'n8n'], worker: ['🤖', 'DAN worker'], access: ['🔑', 'Access'], docs: ['📄', 'Notes'] };
   const SUSPECT_DAYS = 3;
 
   const state = { q: '', status: '', area: '', newest: true, around: '', open: {} };
@@ -38,7 +37,7 @@
     if (state.area && !(u.areas || []).includes(state.area)) return false;
     if (state.around && !isSuspect(u)) return false;
     if (state.q) {
-      const hay = [u.v, u.title, u.summary, (u.areas || []).join(' '), (u.changes || []).join(' '), (u.touches || []).map(t => t.n).join(' '), u.date].join(' ').toLowerCase();
+      const hay = [u.v, u.title, u.summary, (u.areas || []).join(' '), (u.changes || []).join(' '), u.date].join(' ').toLowerCase();
       if (!hay.includes(state.q)) return false;
     }
     return true;
@@ -46,7 +45,7 @@
 
   function copyText(u) {
     return ['ATAM GO update ' + u.v + ' (' + day(u.date) + '): ' + u.title, u.summary, 'Changes: ' + (u.changes || []).join(' | '),
-      'Touched: ' + (u.touches || []).map(t => (TOUCH[t.t] || [])[1] + ': ' + t.n).join('; '), 'If it goes wrong: ' + (u.watch || ''),
+      'If it goes wrong: ' + (u.watch || ''),
       'Something is not working and I think it may have started with this update. Please check.'].join('\n');
   }
 
@@ -62,7 +61,7 @@
     const areas = Array.from(new Set(updates().concat(planned()).flatMap(u => u.areas || []))).sort();
     const chip = (k, v, label, on) => `<button type="button" class="ul-chip${on ? ' on' : ''}" data-${k}="${esc(v)}">${esc(label)}</button>`;
     return `<div class="ul-controls">
-      <input type="search" id="ulSearch" value="${esc(state.q)}" placeholder="Search updates (e.g. quotes, security, n8n, v14)" aria-label="Search updates">
+      <input type="search" id="ulSearch" value="${esc(state.q)}" placeholder="Search updates (e.g. quotes, security, invoices, v14)" aria-label="Search updates">
       <div class="ul-chips" aria-label="Status">${chip('status', '', 'All', !state.status)}${['in_progress', 'live', 'partly', 'built'].map(s => chip('status', s, STATUS[s].label, state.status === s)).join('')}</div>
       <div class="ul-chips" aria-label="Area">${chip('area', '', 'Every area', !state.area)}${areas.map(a => chip('area', a, a, state.area === a)).join('')}</div>
       <div class="ul-row"><button type="button" class="ul-chip" data-sort="1">${state.newest ? '↓ Newest first' : '↑ Oldest first'}</button>
@@ -71,10 +70,8 @@
       ${state.around ? '<p class="ul-note" id="ulFinder"></p>' : ''}</div>`;
   }
 
-  function touchHtml(t) { const m = TOUCH[t.t] || ['•', t.t]; return `<span class="ul-touch"><i>${m[0]} ${esc(m[1])}</i>${esc(t.n)}</span>`; }
-
   // Progress bar and time taken. in_progress: a bar at u.progress %. built: a full blue bar (finished, waiting to go live).
-  // live / partly: a full green "Completed" bar, with the time taken only if u.timeTaken was filled in (the figure Oliver gives).
+  // live / partly: a full green "Completed" bar, with the time taken only if u.timeTaken was filled in.
   function progressHtml(u) {
     if (u.status === 'in_progress') {
       const p = Math.max(0, Math.min(100, Number(u.progress) || 0));
@@ -105,7 +102,6 @@
         <div class="ul-tags">${(u.areas || []).map(a => `<span class="ul-tag">${esc(a)}</span>`).join('')}</div>
         ${open ? `<div class="ul-body">
           <h5>What changed</h5><ul>${(u.changes || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
-          <h5>Where it lives</h5><div class="ul-touches">${(u.touches || []).map(touchHtml).join('')}</div>
           ${u.watch ? `<h5>If something goes wrong</h5><p class="ul-watch">${esc(u.watch)}</p>` : ''}
           <div class="ul-actions"><button type="button" class="ul-btn" data-copy="${esc(u.v)}">Copy details</button></div>
         </div>` : ''}
@@ -129,13 +125,13 @@
     el.innerHTML = statsHtml() + controlsHtml() + plannedHtml() +
       `<h3 class="ul-h">Timeline <span>${list.length} of ${updates().length}</span></h3>` +
       (list.length ? `<div class="ul-line">${list.map(entryHtml).join('')}</div>` : '<div class="ul-empty">No updates match. Clear a filter or the search.</div>') +
-      '<p class="ul-foot">Every change to ATAM GO is added here as part of the same update. The log tracks the site, the database, DAN and the n8n workflows we build together. Changes made directly inside n8n, Xero or DecoNetwork by someone else are not tracked here.</p>';
+      '<p class="ul-foot">Every change to ATAM GO is added here as part of the same update. Changes made directly inside Xero, DecoNetwork or other systems by someone else are not tracked here.</p>';
     if (state.around) {
       const f = $('ulFinder');
       const sus = updates().filter(isSuspect).sort((a, b) => vnum(b) - vnum(a));
       if (f) f.innerHTML = sus.length
         ? `Updates that went live in the ${SUSPECT_DAYS} days up to ${esc(day(state.around))}: ${sus.map(u => '<b>' + esc(u.v) + '</b> ' + esc(u.title)).join(' · ')}. These are the first places to look, not proof.`
-        : `Nothing from this log went live in the ${SUSPECT_DAYS} days up to ${esc(day(state.around))}, so the cause is probably outside it (n8n, Xero, DecoNetwork or the supplier).`;
+        : `Nothing from this log went live in the ${SUSPECT_DAYS} days up to ${esc(day(state.around))}, so the cause is probably outside it (Xero, DecoNetwork or the supplier).`;
     }
     if (keepSearch) { const s = $('ulSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
   }
@@ -199,9 +195,6 @@
 #updatelog .ul-body { margin-top:12px; padding-top:10px; border-top:1px solid var(--ul-line); }
 #updatelog .ul-body h5 { margin:12px 0 6px; font-size:11.5px; letter-spacing:.07em; text-transform:uppercase; color:#7dd3fc; }
 #updatelog .ul-body ul { margin:0; padding-left:20px; color:#cbd5e1; font-size:13px; line-height:1.55; }
-#updatelog .ul-touches { display:flex; flex-direction:column; gap:5px; }
-#updatelog .ul-touch { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:#cbd5e1; overflow-wrap:anywhere; }
-#updatelog .ul-touch i { font-style:normal; display:inline-block; margin-right:8px; padding:1px 8px; border-radius:6px; background:rgba(125,211,252,.1); color:#7dd3fc; font-family:inherit; }
 #updatelog .ul-watch { margin:0; padding:10px 12px; border-radius:10px; background:rgba(251,146,60,.08); border-left:3px solid #fb923c; color:#fed7aa; font-size:13px; line-height:1.5; }
 #updatelog .ul-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
 #updatelog .ul-btn { padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#0b1222; color:#e2e8f0; font-size:12.5px; cursor:pointer; text-decoration:none; }
