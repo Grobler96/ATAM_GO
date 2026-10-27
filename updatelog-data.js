@@ -12,9 +12,9 @@
 window.ATAM_UPDATES = [
   {
     v: 'v31', date: '2026-10-27', status: 'built', pr: null, areas: ['Stock', 'Site'],
-    title: 'New Stock tab (replaces the old stock page)',
-    summary: 'The stock figures now live inside ATAM GO, after the separate ATAM Stock page stopped working.',
-    changes: ['Stock tab with the key numbers: SKUs in stock, units on hand, critically low, products tracked, total / on-hand / working stock value and projected value next month.', 'Lists of what is critically low, what is allocated to orders not yet shipped, and what has no cost yet, then every product by category with its sizes and colours.', 'Search across product, SKU and colour. Figures refresh from DecoNetwork every 3 hours and need the normal sign-in.'],
+    title: 'New Stock tab (a copy of the old stock page, inside ATAM GO)',
+    summary: 'The stock ledger, value calendar and projections, rebuilt inside ATAM GO after the separate ATAM Stock page stopped working.',
+    changes: ['Same layout as the old page: key numbers, critically low, working stock and missing cost lists, product cards with a colour by size grid, and category tabs.', 'The Value Calendar tab shows the stock value for every day recorded, and clicking a day shows its breakdown.', 'The Projections view (Projections button, top right) has the slider, the charts and the monthly table.', 'Everything uses the normal sign-in and refreshes from DecoNetwork every 3 hours.'],
     watch: 'If the Stock tab is empty, check the DecoNetwork stock refresh is still running. The old standalone page is no longer needed.'
   },
   {
