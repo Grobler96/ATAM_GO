@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v30, v31...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v31, v32...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v30', date: '2026-10-27', status: 'built', pr: null, areas: ['Calendar'],
+    title: 'Calendar: everyone on the team in the people list',
+    summary: 'The people dropdown on the Calendar now lists the whole team, not just people with something due.',
+    changes: ['Daniel, Bethan, Emma, Julie, Christine and Francesca can all be picked, even when their day is clear.'],
+    watch: 'Only the Calendar tab changed.'
+  },
   {
     v: 'v29', date: '2026-10-27', status: 'live', pr: null, areas: ['Calendar'],
     title: 'Calendar now opens as a proper month calendar',

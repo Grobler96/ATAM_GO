@@ -19,7 +19,7 @@
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  const state = { view: 'month', sel: null, anchor: null, owner: '', items: [], loaded: false, loading: false, error: null, me: '', timer: null };
+  const state = { view: 'month', sel: null, anchor: null, owner: '', items: [], loaded: false, loading: false, error: null, me: '', team: [], timer: null };
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -71,6 +71,12 @@
           }
         } catch (e) { /* "Me" just stays unavailable */ }
       }
+      if (!state.team.length) {
+        try {
+          const t = await client().from('mail_senders').select('rep_name').eq('kind', 'rep').eq('active', true);
+          state.team = ((t && t.data) || []).map(r => r.rep_name).filter(Boolean);
+        } catch (e) { /* the list then only has people with something due */ }
+      }
       state.loaded = true; state.error = null;
     } catch (e) {
       console.error('calendar load failed', e);
@@ -106,7 +112,7 @@
     if (state.view === 'day') title = (iso(a) === todayIso() ? 'Today · ' : '') + longDay(a) + ' ' + a.getFullYear();
     else if (state.view === 'week') { const s = startOfWeek(a), e = addDays(s, 6); title = longDay(s) + ' to ' + longDay(e); }
     else title = MONTHS[a.getMonth()] + ' ' + a.getFullYear();
-    const owners = Array.from(new Set(state.items.map(i => i.owner).concat(state.me ? [state.me] : []))).sort();
+    const owners = Array.from(new Set(state.team.concat(state.items.map(i => i.owner)).concat(state.me ? [state.me] : []))).sort();
     return `<div class="cal-bar">
       <div class="cal-seg" role="group" aria-label="View">${['day', 'week', 'month'].map(v => `<button type="button" data-view="${v}" class="${state.view === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>
       <div class="cal-nav"><button type="button" class="cal-btn" data-step="-1" aria-label="Previous">‹</button><button type="button" class="cal-btn" data-today="1">Today</button><button type="button" class="cal-btn" data-step="1" aria-label="Next">›</button></div>
