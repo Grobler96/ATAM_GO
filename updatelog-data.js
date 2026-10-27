@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v28', date: '2026-10-27', status: 'built', pr: null, areas: ['Site'],
+    v: 'v28', date: '2026-10-27', status: 'live', pr: null, areas: ['Site'],
     title: 'Update log: simpler view',
     summary: 'Each update now shows just what changed and what to check if it goes wrong.',
     changes: ['Removed the technical details from each entry so the page is quicker to read.'],
