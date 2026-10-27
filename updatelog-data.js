@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v32, v33...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v34, v35...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,20 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v33', date: '2026-10-27', status: 'live', pr: null, areas: ['Stock', 'Database'],
+    title: 'Supplier costs brought up to date (stock values)',
+    summary: 'The costs behind the stock value were stuck at 3 July. They now follow the latest purchase orders and refresh every 3 hours.',
+    changes: ['About 220 items took a newer price and over 1,000 items that had no cost on file now have one.', 'Total stock value moved from about \u00a38,870 to about \u00a39,105. Items still showing no cost fell from 179 to 154; those have never been on a purchase order.', 'A copy of the old cost list was kept in case anything needs to be compared.'],
+    watch: 'If a stock value looks wrong, check the latest purchase order price for that item. If costs stop moving, check the 3-hourly cost refresh is running.'
+  },
+  {
+    v: 'v32', date: '2026-10-27', status: 'live', pr: null, areas: ['Stock', 'Database'],
+    title: 'Monthly purchasing figures repaired (Projections)',
+    summary: 'The monthly purchase spend behind the Projections page had stopped updating in July. It now updates every 3 hours again.',
+    changes: ['August, September and October added, and July completed, from the purchase orders already held. The older months were checked and are unchanged.', 'The next-month projection and the Projections page now use the latest months.', 'Daily stock value history still has a gap from 10 July to 30 August; that cannot be rebuilt because DecoNetwork only gives us current stock.'],
+    watch: 'If Projections stops moving again, check the 3-hourly purchase order refresh is running.'
+  },
   {
     v: 'v31', date: '2026-10-27', status: 'live', pr: null, areas: ['Stock', 'Site'],
     title: 'New Stock tab (a copy of the old stock page, inside ATAM GO)',
