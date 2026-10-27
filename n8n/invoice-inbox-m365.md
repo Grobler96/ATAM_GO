@@ -19,3 +19,9 @@ Replaces the Gmail intake ("Invoice Inbox → Extraction Pipeline", id `x1CJVoFZ
 
 ## Not tested (mailbox did not exist / permissions pending when built)
 Nothing has run against the real mailbox. First run checklist: publish the alert workflow second; publish the intake workflow, send one test invoice to the mailbox, confirm it appears in Pending invoices (Purchase Order Review), the email moves to Processed, and the stuck alert stays quiet.
+
+## Rebuild with the built-in Outlook node (27 Oct 2026, unpublished, untested)
+IT asked for the built-in Microsoft Outlook node instead of raw web requests. New workflow **Invoice Inbox (Microsoft 365, Outlook node) → Extraction Pipeline**, id `ANMiaueat6eA2T6k`. Same steps as above, but the mailbox calls (find/create folder, read Inbox with attachments, move email) use the Outlook node with the credential "Microsoft Outlook account" (`uOrG6HKAmniSr75R`, type Microsoft Outlook OAuth2 API, **Use Shared Mailbox** on, User Principal Name `InvoicePOProcessing@atam.co.uk`). Differences: the Outlook node cannot ask for immutable message ids, so invoice ids are built from the email's internet message id (`m365-<id>-<pdf number>`), which does not change when an email moves.
+- On 27 Oct that credential existed but had no Microsoft sign-in saved ("Unable to sign without access token"), so nothing has run against the mailbox. The older web-request workflow (`wR1tq3DVJCyHFCgL`) was refused by Microsoft (403) because the "ATAM GO Mailer" app is not allowed on this mailbox.
+- Still to rebuild the same way: the stuck-email alert (`90c4Hay5EBwxUHn4`).
+- Three invoices sent on 26/27 Oct were not in the Gmail account (`ataminvoices@gmail.com`); where they went is not yet known.
