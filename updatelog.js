@@ -14,7 +14,6 @@
     planned:     { label: 'Planned',                 color: '#a78bfa' }
   };
   const TOUCH = { site: ['🖥', 'Site'], database: ['🗄', 'Database'], n8n: ['⚙️', 'n8n'], worker: ['🤖', 'DAN worker'], access: ['🔑', 'Access'], docs: ['📄', 'Notes'] };
-  const REPO_PR = 'https://github.com/Grobler96/ATAM_GO/pull/';
   const SUSPECT_DAYS = 3;
 
   const state = { q: '', status: '', area: '', newest: true, around: '', open: {} };
@@ -97,7 +96,7 @@
       <div class="ul-card">
         <header class="ul-head" data-toggle="${esc(u.v)}" role="button" tabindex="0" aria-expanded="${open}">
           <span class="ul-ver">${esc(u.v)}</span>
-          <div class="ul-title"><b>${esc(u.title)}</b><span>${esc(day(u.date))}${u.pr ? ' · PR ' + esc(u.pr) : ''}${sus ? ' · <em>possible cause</em>' : ''}</span></div>
+          <div class="ul-title"><b>${esc(u.title)}</b><span>${esc(day(u.date))}${sus ? ' · <em>possible cause</em>' : ''}</span></div>
           <span class="ul-status" style="--c:${st.color}">${esc(st.label)}</span>
           <span class="ul-caret" aria-hidden="true">${open ? '−' : '+'}</span>
         </header>
@@ -108,7 +107,7 @@
           <h5>What changed</h5><ul>${(u.changes || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
           <h5>Where it lives</h5><div class="ul-touches">${(u.touches || []).map(touchHtml).join('')}</div>
           ${u.watch ? `<h5>If something goes wrong</h5><p class="ul-watch">${esc(u.watch)}</p>` : ''}
-          <div class="ul-actions">${u.pr ? `<a class="ul-btn" href="${REPO_PR}${encodeURIComponent(u.pr)}" target="_blank" rel="noopener">View the change on GitHub ↗</a>` : ''}<button type="button" class="ul-btn" data-copy="${esc(u.v)}">Copy details</button></div>
+          <div class="ul-actions"><button type="button" class="ul-btn" data-copy="${esc(u.v)}">Copy details</button></div>
         </div>` : ''}
       </div></article>`;
   }
