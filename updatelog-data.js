@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v29', date: '2026-10-27', status: 'built', pr: null, areas: ['Calendar'],
+    v: 'v29', date: '2026-10-27', status: 'live', pr: null, areas: ['Calendar'],
     title: 'Calendar now opens as a proper month calendar',
     summary: 'The Calendar tab opens on a full month grid, like a wall calendar, instead of a list.',
     changes: ['Month grid with the weekday headings, today circled, weekends shaded, and each day showing who or what is due in colour.', 'Click any day to see its list underneath, with an Open button for each item. Day and Week views are still there.', 'Colour key under the calendar, and small dots on phones.'],
