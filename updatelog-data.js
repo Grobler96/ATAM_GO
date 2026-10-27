@@ -12,7 +12,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v27', date: '2026-10-26', status: 'built', pr: 26, areas: ['Site'],
+    v: 'v27', date: '2026-10-26', status: 'live', pr: 26, areas: ['Site'],
     title: 'Update log tab',
     summary: 'This page. A running record of every update, with what it touched and what to check if something goes wrong.',
     changes: ['New Update log tab with a timeline of every version, search, filters and a "something broke" finder.', 'Each update can show a progress bar (in progress, finished and waiting, or completed) and the time taken, which is the figure Oliver gives for each one.', 'Every future update gets an entry here as part of the same change.'],
@@ -20,7 +20,7 @@ window.ATAM_UPDATES = [
     watch: 'If the Update log tab does not appear, or the menu looks wrong after this one: it is the only page that changed.'
   },
   {
-    v: 'v26', date: '2026-10-26', status: 'built', pr: 26, areas: ['Win-back'],
+    v: 'v26', date: '2026-10-26', status: 'live', pr: 26, areas: ['Win-back'],
     title: 'Win-back guided steps: "How it works" and "Your move"',
     summary: 'Plain step-by-step help inside Win-back, so a new starter knows what to do next.',
     changes: ['A "How Win-back works" box at the top of the page explains each stage, what it means and what to do.', 'Every customer opens with a "Your move" box for their stage, with buttons (Spoke to them, Left a message, No answer, Email them).', 'The buttons only fill in the log form. Nothing is saved until Save contact is pressed.', 'The wording is a first draft to be checked with Daniel and Steph.'],
@@ -28,10 +28,10 @@ window.ATAM_UPDATES = [
     watch: 'If the Win-back drawer looks broken or a customer will not open, check this change and v24 first (both edited the drawer).'
   },
   {
-    v: 'v25', date: '2026-10-26', status: 'partly', pr: 26, areas: ['Calendar', 'Database'],
+    v: 'v25', date: '2026-10-26', status: 'live', pr: 26, areas: ['Calendar', 'Database'],
     title: 'Calendar tab',
     summary: 'One calendar of everything the team has to chase, by day, week or month, for everyone or one person.',
-    changes: ['Shows Win-back chase dates, quote / Win-back / New customer emails still waiting for a reply after 3 days, and New customer follow-ups.', 'Late items show first on Today. Read-only: Open in... jumps to the item.', 'Database part is live now (a read-only view). The tab itself appears after the merge.'],
+    changes: ['Shows Win-back chase dates, quote / Win-back / New customer emails still waiting for a reply after 3 days, and New customer follow-ups.', 'Late items show first on Today. Read-only: Open in... jumps to the item.', 'Live: the read-only database view and the tab.'],
     touches: [{ t: 'site', n: 'calendar.js' }, { t: 'site', n: 'index.html' }, { t: 'database', n: 'view calendar_actions (sql/calendar_actions_2026-10-26.sql)' }],
     watch: 'Calendar empty or wrong: check the calendar_actions view, and that emails are being marked sent / replied (see v17 and v20).'
   },
@@ -39,7 +39,7 @@ window.ATAM_UPDATES = [
     v: 'v24', date: '2026-10-26', status: 'partly', pr: 26, areas: ['Win-back', 'Database', 'n8n'],
     title: 'Win-back: change the owner, and a morning email to each owner',
     summary: 'Owners can be changed by hand, and each owner gets a weekday 7:45 email with their own list.',
-    changes: ['Owner dropdown in the Win-back customer drawer. A hand-picked owner beats the automatic one; "Back to automatic" undoes it.', 'Weekday 7:45 (UK) email per owner: customers who just became due, and contacts whose chase date has arrived. Sent from support@. No-owner customers go to Daniel.', 'Database parts are live now. The dropdown needs the merge. The email needs the n8n workflow published.'],
+    changes: ['Owner dropdown in the Win-back customer drawer. A hand-picked owner beats the automatic one; "Back to automatic" undoes it.', 'Weekday 7:45 (UK) email per owner: customers who just became due, and contacts whose chase date has arrived. Sent from support@. No-owner customers go to Daniel.', 'Owner dropdown and database parts are live. The morning email still needs its n8n workflow published.'],
     touches: [{ t: 'site', n: 'winback.js' }, { t: 'database', n: 'winback_owner_override, winback_status_seen, set_winback_owner, winback_owner_digest, winback_board (sql/winback_owner_and_digest_2026-10-26.sql)' }, { t: 'n8n', n: 'Win-back morning email to each owner (re1LEKh6qzaxwhsy), unpublished' }],
     watch: 'Win-back board shows the wrong owner: check winback_owner_override. Emails not arriving: check the n8n workflow is published and its runs.'
   },
