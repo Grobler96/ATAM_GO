@@ -19,7 +19,7 @@
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  const state = { view: 'day', anchor: null, owner: '', items: [], loaded: false, loading: false, error: null, me: '', timer: null };
+  const state = { view: 'month', sel: null, anchor: null, owner: '', items: [], loaded: false, loading: false, error: null, me: '', timer: null };
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -150,18 +150,32 @@
         ${all.slice(0, 10).map(i => chip(i, today)).join('')}${all.length > 10 ? `<button type="button" class="cal-more" data-goday="${id}">+${all.length - 10} more</button>` : ''}</div>`;
     }).join('') + '</div>';
   }
+  function legendHtml() {
+    return '<div class="cal-legend">' + Object.keys(KINDS).filter((k, i, a) => a.findIndex(x => KINDS[x].label === KINDS[k].label) === i).map(k => `<span style="--c:${KINDS[k].color}"><i></i>${KINDS[k].icon} ${esc(KINDS[k].label)}</span>`).join('') + '<span class="cal-lg-late"><i></i>Late</span></div>';
+  }
   function monthView(list, today) {
     const a = state.anchor, first = new Date(a.getFullYear(), a.getMonth(), 1);
     const s = startOfWeek(first);
+    if (!state.sel || fromIso(state.sel).getMonth() !== a.getMonth() || fromIso(state.sel).getFullYear() !== a.getFullYear()) {
+      const t = fromIso(today);
+      state.sel = (t.getMonth() === a.getMonth() && t.getFullYear() === a.getFullYear()) ? today : iso(first);
+    }
     const cells = [];
     for (let n = 0; n < 42; n++) {
       const d = addDays(s, n), id = iso(d);
       if (n >= 35 && d.getMonth() !== a.getMonth()) break;
       const its = onDay(list, id);
-      cells.push(`<button type="button" class="cal-cell${d.getMonth() !== a.getMonth() ? ' other' : ''}${id === today ? ' today' : ''}" data-goday="${id}"><span class="cal-d">${d.getDate()}</span>
-        ${its.slice(0, 3).map(i => `<span class="cal-mini" style="--c:${KINDS[i.kind].color}${i.date < today ? ';opacity:.6' : ''}">${KINDS[i.kind].icon} ${esc(i.label)}</span>`).join('')}${its.length > 3 ? `<span class="cal-dim">+${its.length - 3} more</span>` : ''}</button>`);
+      const dow = (d.getDay() + 6) % 7;
+      const cls = 'cal-cell' + (d.getMonth() !== a.getMonth() ? ' other' : '') + (id === today ? ' today' : '') + (id === state.sel ? ' sel' : '') + (dow >= 5 ? ' wkend' : '') + (its.length ? ' has' : '');
+      cells.push(`<div class="${cls}" data-selday="${id}" role="button" tabindex="0" aria-label="${esc(longDay(d))}, ${its.length} to do">
+        <div class="cal-top"><span class="cal-d">${d.getDate()}</span>${its.length ? `<span class="cal-count">${its.length}</span>` : ''}</div>
+        <div class="cal-chips">${its.slice(0, 3).map(i => `<span class="cal-mini${i.date < today ? ' late' : ''}" style="--c:${KINDS[i.kind].color}">${KINDS[i.kind].icon} ${esc(i.label)}</span>`).join('')}${its.length > 3 ? `<span class="cal-more-n">+${its.length - 3} more</span>` : ''}</div>
+        <div class="cal-dots">${its.slice(0, 5).map(i => `<i style="background:${KINDS[i.kind].color}"></i>`).join('')}</div></div>`);
     }
-    return `<div class="cal-month"><div class="cal-dows">${DOW.map(x => `<span>${x}</span>`).join('')}</div><div class="cal-grid">${cells.join('')}</div></div>`;
+    const selDate = fromIso(state.sel), selItems = onDay(list, state.sel);
+    const panel = `<div class="cal-daypanel"><h4>${state.sel === today ? 'Today · ' : ''}${esc(longDay(selDate))} <span class="cal-dim">${selItems.length ? selItems.length + ' to do' : 'nothing due'}</span></h4>` +
+      (selItems.length ? selItems.map(i => itemHtml(i, today, !state.owner)).join('') : '<div class="cal-empty">Nothing due on this day.</div>') + '</div>';
+    return `<div class="cal-month"><div class="cal-dows">${DOW.map((x, n) => `<span class="${n >= 5 ? 'wk' : ''}">${x}</span>`).join('')}</div><div class="cal-grid">${cells.join('')}</div></div>${legendHtml()}${panel}`;
   }
 
   function render() {
@@ -179,6 +193,7 @@
   function step(n) {
     const a = state.anchor;
     state.anchor = state.view === 'day' ? addDays(a, n) : state.view === 'week' ? addDays(a, 7 * n) : new Date(a.getFullYear(), a.getMonth() + n, 1);
+    if (state.view === 'month') state.sel = null;
     render();
   }
 
@@ -239,16 +254,33 @@
 #calendar .cal-chip { margin:4px 0; padding:5px 7px; border-radius:8px; border-left:3px solid var(--c); background:#0f172a; font-size:12px; cursor:pointer; overflow-wrap:anywhere; }
 #calendar .cal-chip.late { background:rgba(251,146,60,.1); }
 #calendar .cal-more { background:transparent; border:0; color:#7dd3fc; font-size:12px; cursor:pointer; }
-#calendar .cal-dows { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; color:#64748b; font-size:12px; margin-bottom:4px; text-align:center; }
-#calendar .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
-#calendar .cal-cell { text-align:left; min-height:92px; padding:6px; border-radius:10px; border:1px solid rgba(255,255,255,.08); background:rgba(15,23,42,.55); color:#e2e8f0; cursor:pointer; display:flex; flex-direction:column; gap:3px; overflow:hidden; }
-#calendar .cal-cell.other { opacity:.45; }
-#calendar .cal-cell.today { border-color:#38bdf8; }
-#calendar .cal-d { font-weight:600; font-size:12px; }
-#calendar .cal-mini { font-size:11px; border-left:3px solid var(--c); padding-left:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#calendar .cal-month { border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden; background:rgba(8,12,24,.85); }
+#calendar .cal-dows { display:grid; grid-template-columns:repeat(7,1fr); background:rgba(255,255,255,.06); color:#94a3b8; font-size:12px; text-transform:uppercase; letter-spacing:.06em; text-align:center; }
+#calendar .cal-dows span { padding:9px 0; } #calendar .cal-dows span.wk { color:#64748b; }
+#calendar .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); }
+#calendar .cal-cell { min-height:116px; padding:6px 7px; border-top:1px solid rgba(255,255,255,.08); border-left:1px solid rgba(255,255,255,.08); background:transparent; color:#e2e8f0; cursor:pointer; display:flex; flex-direction:column; gap:4px; overflow:hidden; text-align:left; }
+#calendar .cal-cell:nth-child(7n+1) { border-left:0; }
+#calendar .cal-cell.wkend { background:rgba(255,255,255,.025); }
+#calendar .cal-cell.other { opacity:.4; }
+#calendar .cal-cell:hover { background:rgba(56,189,248,.07); }
+#calendar .cal-cell.sel { outline:2px solid #38bdf8; outline-offset:-2px; background:rgba(56,189,248,.1); }
+#calendar .cal-top { display:flex; justify-content:space-between; align-items:center; }
+#calendar .cal-d { font-size:13px; font-weight:600; width:24px; height:24px; display:inline-grid; place-items:center; border-radius:50%; }
+#calendar .cal-cell.today .cal-d { background:#2563eb; color:#fff; }
+#calendar .cal-count { font-size:11px; padding:1px 7px; border-radius:10px; background:rgba(255,255,255,.1); color:#cbd5e1; }
+#calendar .cal-chips { display:flex; flex-direction:column; gap:3px; min-width:0; }
+#calendar .cal-mini { font-size:11.5px; padding:2px 6px; border-radius:6px; border-left:3px solid var(--c); background:color-mix(in srgb, var(--c) 16%, #0b1222); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#calendar .cal-mini.late { box-shadow:inset 0 0 0 1px rgba(251,146,60,.6); }
+#calendar .cal-more-n { font-size:11px; color:#7dd3fc; }
+#calendar .cal-dots { display:none; gap:3px; flex-wrap:wrap; } #calendar .cal-dots i { width:7px; height:7px; border-radius:50%; }
+#calendar .cal-legend { display:flex; flex-wrap:wrap; gap:14px; margin:12px 2px; font-size:12px; color:#94a3b8; }
+#calendar .cal-legend span { display:inline-flex; align-items:center; gap:6px; } #calendar .cal-legend i { width:10px; height:10px; border-radius:3px; background:var(--c); }
+#calendar .cal-legend .cal-lg-late i { background:transparent; box-shadow:inset 0 0 0 2px rgba(251,146,60,.8); }
+#calendar .cal-daypanel { margin-top:6px; padding:14px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.1); background:rgba(15,23,42,.6); }
+#calendar .cal-daypanel h4 { margin:0 0 10px; font-size:15px; }
+@media (max-width: 760px) { #calendar .cal-cell { min-height:56px; padding:4px; } #calendar .cal-chips { display:none; } #calendar .cal-dots { display:flex; } #calendar .cal-count { display:none; } }
 #calendar .cal-foot { margin-top:18px; color:#64748b; font-size:12px; max-width:760px; line-height:1.5; }
-@media (max-width: 760px) { #calendar .cal-cell { min-height:62px; } #calendar .cal-mini { display:none; } #calendar .cal-item { flex-wrap:wrap; } }
-`;
+@media (max-width: 760px) { `;
     document.head.appendChild(s);
   }
 
@@ -280,7 +312,7 @@
       btn.classList.add('active');
       sec.classList.add('active');
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      state.anchor = new Date();
+      state.anchor = new Date(); state.sel = null;
       if (!state.loaded) load(); else load(true);
       clearInterval(state.timer);
       state.timer = setInterval(() => { if (sec.classList.contains('active') && !document.hidden) load(true); }, REFRESH_MS);
@@ -295,8 +327,10 @@
       if (v) { state.view = v.dataset.view; render(); return; }
       const st = e.target.closest('[data-step]');
       if (st) { step(Number(st.dataset.step)); return; }
-      if (e.target.closest('[data-today]')) { state.anchor = new Date(); render(); return; }
+      if (e.target.closest('[data-today]')) { state.anchor = new Date(); state.sel = null; render(); return; }
       if (e.target.closest('[data-reload]')) { load(); return; }
+      const sd = e.target.closest('[data-selday]');
+      if (sd) { state.sel = sd.dataset.selday; render(); return; }
       const gd = e.target.closest('[data-goday]');
       if (gd) { state.anchor = fromIso(gd.dataset.goday); state.view = 'day'; render(); return; }
       const pe = e.target.closest('[data-person]');
@@ -304,6 +338,7 @@
       const op = e.target.closest('[data-open]');
       if (op) { go(op.dataset.open, op.dataset.ref); return; }
     });
+    sec.addEventListener('keydown', e => { const c = e.target.closest && e.target.closest('[data-selday]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
     sec.addEventListener('change', e => { if (e.target.id === 'calOwner') { state.owner = e.target.value; render(); } });
     return true;
   }
