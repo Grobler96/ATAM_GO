@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v30', date: '2026-10-27', status: 'built', pr: null, areas: ['Calendar'],
+    v: 'v30', date: '2026-10-27', status: 'live', pr: null, areas: ['Calendar'],
     title: 'Calendar: everyone on the team in the people list',
     summary: 'The people dropdown on the Calendar now lists the whole team, not just people with something due.',
     changes: ['Daniel, Bethan, Emma, Julie, Christine and Francesca can all be picked, even when their day is clear.'],
