@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v33, v34...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v34, v35...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v33', date: '2026-10-27', status: 'live', pr: null, areas: ['Stock', 'Database'],
+    title: 'Supplier costs brought up to date (stock values)',
+    summary: 'The costs behind the stock value were stuck at 3 July. They now follow the latest purchase orders and refresh every 3 hours.',
+    changes: ['About 220 items took a newer price and over 1,000 items that had no cost on file now have one.', 'Total stock value moved from about \u00a38,870 to about \u00a39,105. Items still showing no cost fell from 179 to 154; those have never been on a purchase order.', 'A copy of the old cost list was kept in case anything needs to be compared.'],
+    watch: 'If a stock value looks wrong, check the latest purchase order price for that item. If costs stop moving, check the 3-hourly cost refresh is running.'
+  },
   {
     v: 'v32', date: '2026-10-27', status: 'live', pr: null, areas: ['Stock', 'Database'],
     title: 'Monthly purchasing figures repaired (Projections)',
@@ -237,7 +244,6 @@ window.ATAM_UPDATES = [
 ];
 
 window.ATAM_PLANNED = [
-  { title: 'Bring supplier costs up to date (stock values)', areas: ['Stock', 'Database'], detail: 'The newest cost on file is from 3 July. About 600 items have a newer purchase order price, and over 1,000 items on purchase orders have no cost recorded at all. This affects the stock value and the missing cost list. Needs a decision before changing, because stock values will move.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Switch supplier invoice intake from Gmail to Microsoft 365', areas: ['Invoices'], detail: 'Switch on the new automations, test with one invoice sent straight to the shared mailbox, ask IT to point the Accounts@ forwarding at it (and stop it going to Gmail), let Gmail finish, then unpublish the Gmail workflow.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The extraction webhook still checks an old shared token that both invoice intake automations send. Replace it in both places together when Gmail is retired.' },
