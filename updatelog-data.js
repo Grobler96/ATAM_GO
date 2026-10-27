@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v31, v32...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v32, v33...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v31', date: '2026-10-27', status: 'built', pr: null, areas: ['Stock', 'Site'],
+    title: 'New Stock tab (replaces the old stock page)',
+    summary: 'The stock figures now live inside ATAM GO, after the separate ATAM Stock page stopped working.',
+    changes: ['Stock tab with the key numbers: SKUs in stock, units on hand, critically low, products tracked, total / on-hand / working stock value and projected value next month.', 'Lists of what is critically low, what is allocated to orders not yet shipped, and what has no cost yet, then every product by category with its sizes and colours.', 'Search across product, SKU and colour. Figures refresh from DecoNetwork every 3 hours and need the normal sign-in.'],
+    watch: 'If the Stock tab is empty, check the DecoNetwork stock refresh is still running. The old standalone page is no longer needed.'
+  },
   {
     v: 'v30', date: '2026-10-27', status: 'live', pr: null, areas: ['Calendar'],
     title: 'Calendar: everyone on the team in the people list',
