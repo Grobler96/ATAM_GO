@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v31, v32...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v32, v33...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v31', date: '2026-10-27', status: 'live', pr: null, areas: ['Stock', 'Site'],
+    title: 'New Stock tab (a copy of the old stock page, inside ATAM GO)',
+    summary: 'The stock ledger, value calendar and projections, rebuilt inside ATAM GO after the separate ATAM Stock page stopped working.',
+    changes: ['Same layout as the old page: key numbers, critically low, working stock and missing cost lists, product cards with a colour by size grid, and category tabs.', 'The Value Calendar tab shows the stock value for every day recorded, and clicking a day shows its breakdown.', 'The Projections view (Projections button, top right) has the slider, the charts and the monthly table.', 'Everything uses the normal sign-in and refreshes from DecoNetwork every 3 hours.'],
+    watch: 'If the Stock tab is empty, check the DecoNetwork stock refresh is still running. The old standalone page is no longer needed.'
+  },
   {
     v: 'v30', date: '2026-10-27', status: 'live', pr: null, areas: ['Calendar'],
     title: 'Calendar: everyone on the team in the people list',
