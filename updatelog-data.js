@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v39', date: '2026-10-28', status: 'built', pr: null, areas: ['Update log'],
+    v: 'v39', date: '2026-10-28', status: 'live', pr: 38, areas: ['Update log'],
     title: 'Morning email with new update suggestions',
     summary: 'New suggestions from the Update log now arrive in one email each weekday morning, so nobody has to keep checking the tab.',
     changes: ['The email lists each new suggestion with who sent it, the part of ATAM GO it is about, and its current points.', 'It is only sent when there is something new, and Monday\u2019s email covers the weekend.'],
