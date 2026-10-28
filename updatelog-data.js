@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v34, v35...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v38, v39...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v37', date: '2026-10-28', status: 'live', pr: 36, areas: ['Purchase Order Review'],
+    title: 'Purchase Order Review now has tabs across the top',
+    summary: 'Purchase Order Review now works like Sales Invoices: one page with tabs across the top instead of three separate menu items.',
+    changes: ['Tabs: Needs review, In review, Approved (waiting to post) and Rejected, each with a count. Needs review lights up amber when something is waiting.', 'The separate Approved Invoices and Rejected Invoices menu items are gone; everything is on this one page.', 'Nothing about how invoices are checked, approved, rejected or posted has changed. Undo approval and undo reject work as before.'],
+    watch: 'If a tab looks empty when you expect invoices, press the browser refresh and check the number next to the tab. The Approved and Rejected lists show the 50 most recent.'
+  },
   {
     v: 'v36', date: '2026-10-28', status: 'live', pr: 34, timeTaken: '1 h', areas: ['Quotes', 'Database'],
     title: 'Remove old quotes from the Quotes tab',

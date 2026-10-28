@@ -87,6 +87,7 @@
     await loadApproved();
     await loadRejected();
     await loadInReview();
+    syncTabCounts();
 
     if (openIds.length) {
       openIds.forEach(id => {
@@ -1169,7 +1170,40 @@
     await loadPending();
   }
 
+  // Tabs across the top of the page (same look as the Sales Invoices tab): the four
+  // lists live on this one page and only one is shown at a time.
+  function syncTabCounts() {
+    const counts = { review: allRows.length, inreview: inReviewRows.length, approved: approvedRows.length, rejected: rejectedRows.length };
+    Object.keys(counts).forEach(k => {
+      const el = document.getElementById('revTabN-' + k);
+      if (el) el.textContent = counts[k];
+    });
+    const attn = document.querySelector('#revTabs .rev-tab[data-tab="review"]');
+    if (attn) attn.classList.toggle('rev-tab-attn', counts.review > 0);
+  }
+
+  function showReviewTab(key) {
+    document.querySelectorAll('#revTabs .rev-tab').forEach(b => {
+      const on = b.dataset.tab === key;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('#review .rev-pane').forEach(p => { p.hidden = p.dataset.pane !== key; });
+  }
+
+  function initTabs() {
+    const bar = document.getElementById('revTabs');
+    if (!bar || bar.dataset.bound) return;
+    bar.dataset.bound = '1';
+    bar.addEventListener('click', e => {
+      const b = e.target.closest('.rev-tab');
+      if (b) showReviewTab(b.dataset.tab);
+    });
+    showReviewTab('review');
+  }
+
   function initWhenVisible() {
+    initTabs();
     loadPending();
   }
 
