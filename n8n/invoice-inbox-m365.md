@@ -27,3 +27,5 @@ IT asked for the built-in Microsoft Outlook node instead of raw web requests. Ne
 - Three invoices sent on 26/27 Oct were not in the Gmail account (`ataminvoices@gmail.com`); where they went is not yet known.
 
 **28 Oct 2026:** the credential was recreated and signed in (new id `PkcqW0pZkUkApIpE`); the workflow was rebuilt against it as `8SP7xxQMJixzS5Ao` (the earlier copy is archived). A read-only check listed 8 unread invoice emails in the shared Inbox (27 Oct 07:48 to 28 Oct 08:25). Still unpublished; nothing has been processed from it.
+
+**28 Oct 2026, 15:45 UK:** published. First run (execution 19189) read 8 emails, created 11 invoices (8 auto-approved clean matches, 3 awaiting review: BTC 203531774 vendor mismatch, DPS 107449 and 107569 amount variance) and moved all 8 emails to a new Processed folder. Nothing was sent to Xero by this workflow.
