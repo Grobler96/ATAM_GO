@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v37', date: '2026-10-28', status: 'built', pr: null, areas: ['Purchase Order Review'],
+    v: 'v37', date: '2026-10-28', status: 'live', pr: 36, areas: ['Purchase Order Review'],
     title: 'Purchase Order Review now has tabs across the top',
     summary: 'Purchase Order Review now works like Sales Invoices: one page with tabs across the top instead of three separate menu items.',
     changes: ['Tabs: Needs review, In review, Approved (waiting to post) and Rejected, each with a count. Needs review lights up amber when something is waiting.', 'The separate Approved Invoices and Rejected Invoices menu items are gone; everything is on this one page.', 'Nothing about how invoices are checked, approved, rejected or posted has changed. Undo approval and undo reject work as before.'],
