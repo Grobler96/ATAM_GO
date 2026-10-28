@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v39, v40...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v40, v41...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v39', date: '2026-10-28', status: 'live', pr: 38, areas: ['Update log'],
+    title: 'Morning email with new update suggestions',
+    summary: 'New suggestions from the Update log now arrive in one email each weekday morning, so nobody has to keep checking the tab.',
+    changes: ['The email lists each new suggestion with who sent it, the part of ATAM GO it is about, and its current points.', 'It is only sent when there is something new, and Monday\u2019s email covers the weekend.'],
+    watch: 'If you expect a suggestion and no email came, check the Update log tab: it always shows every suggestion.'
+  },
   {
     v: 'v38', date: '2026-10-28', status: 'live', pr: 37, areas: ['Purchase Order Review'],
     title: 'Posted to Xero tab on Purchase Order Review',
