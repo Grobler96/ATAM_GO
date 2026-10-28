@@ -1,5 +1,5 @@
 -- Quotes: take an old quote off the list completely, and bring it back if needed. Re-runnable.
--- NOT YET APPLIED to the live database (28 Oct 2026); this header is changed once it is.
+-- Applied to the live database on 28 Oct 2026 and tested (remove, restore, approved quote refused, direct writes blocked).
 --
 -- The quotes table is refilled from DecoNetwork every 6 hours, so deleting a row would just bring it back.
 -- Instead the order id goes in quote_removed, and the quotes_board view (which the Quotes tab and DAN both read)
