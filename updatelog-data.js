@@ -11,7 +11,14 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v35', date: '2026-10-28', status: 'built', pr: 34, areas: ['Update log', 'Database'],
+    v: 'v36', date: '2026-10-28', status: 'built', pr: 34, areas: ['Quotes', 'Database'],
+    title: 'Remove old quotes from the Quotes tab',
+    summary: 'Old quotes that are never going to happen can now be taken off the list completely, and put back if you change your mind.',
+    changes: ['Every quote card (except approved ones) has a small Remove link, and the quote\u2019s side panel has a Remove button.', 'A removed quote disappears from the board, the counts and the Lost / Going cold numbers, and DAN stops seeing it too.', 'Nothing is deleted from DecoNetwork. Removed quotes are listed at the bottom of the Quotes tab with who removed them, and a Put back button brings one back.', 'Approved quotes cannot be removed, so the conversion rate stays honest.'],
+    watch: 'If a quote you needed has vanished, open Removed quotes at the bottom of the Quotes tab and press Put back. Quotes removed here can still show in a customer\u2019s history panel.'
+  },
+  {
+    v: 'v35', date: '2026-10-28', status: 'built', pr: 34, timeTaken: '1 h 30 m', areas: ['Update log', 'Database'],
     title: 'Suggest updates and vote on what comes next',
     summary: 'The Update log tab now has a place for the whole team to suggest new updates and rate how important each one is.',
     changes: ['Anyone signed in can add a suggestion with a title, a bit of detail, which part of ATAM GO it is about, and how important it is from 1 (nice to have) to 5 (needed now).', 'Everyone can rate every suggestion from 1 to 5. You get one rating each and can change it or take it back.', 'The list is ranked by points, which is everyone\u2019s ratings added up. Each one also shows the average and how many people rated it.', 'You can take back your own suggestion. Once something is planned, built or turned down, it moves into an Already decided list.'],
