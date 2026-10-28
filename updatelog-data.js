@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v34', date: '2026-10-28', status: 'built', pr: null, areas: ['Site'],
+    title: 'Dark glass look and smoother motion',
+    summary: 'The whole dashboard now has frosted dark glass cards over a softly moving glow, and everything moves more smoothly.',
+    changes: ['Cards, the side menu and the top bar are frosted glass, and a soft light follows your cursor across them.', 'Changing tab blurs and fades the old page out and floats the new cards up one after another.', 'A glass highlight glides between the menu tabs instead of jumping.', 'The big numbers count up to their value, and charts draw in with smoother curves.', 'The old tilting 3D cards and orange dots are switched off so they do not clash.'],
+    watch: 'If anything looks wrong or slow, tell us which tab. It can be switched off for one browser by running localStorage.setItem(\'atam-glass\',\'off\') in the console, or removed by taking out the two glass lines in index.html.'
+  },
+  {
     v: 'v33', date: '2026-10-27', status: 'live', pr: null, areas: ['Stock', 'Database'],
     title: 'Supplier costs brought up to date (stock values)',
     summary: 'The costs behind the stock value were stuck at 3 July. They now follow the latest purchase orders and refresh every 3 hours.',

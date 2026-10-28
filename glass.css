@@ -1,0 +1,275 @@
+/* ═══════════════════════════════════════════════════════════════
+   ATAM GO — glass.css
+   Dark glass look and fluid motion. Load LAST, after mobile.css.
+   Pairs with glass.js. To switch the whole thing off, remove the
+   <link> to this file and the <script> for glass.js from index.html.
+   Change the two accent colours below to re-tint everything.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --g-accent: #38bdf8;          /* main glow (matches the existing blue) */
+  --g-accent-2: #fb923c;        /* warm ember, used sparingly */
+  --g-ease: cubic-bezier(0.22, 1, 0.36, 1);        /* smooth, no bounce */
+  --g-spring: cubic-bezier(0.34, 1.3, 0.64, 1);    /* tiny overshoot */
+  --g-glass: linear-gradient(150deg, rgba(255,255,255,0.075), rgba(255,255,255,0.022) 55%, rgba(255,255,255,0.04));
+  --g-tint: rgba(10, 14, 24, 0.55);
+  --g-line: rgba(255, 255, 255, 0.085);
+}
+
+/* ── 1. Ambient backdrop: slow colour glows for the glass to blur ── */
+html.glass body {
+  background: #04060b;
+}
+
+html.glass body::before {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 34% at 18% 22%, rgba(56, 189, 248, 0.26), transparent 70%),
+    radial-gradient(34% 30% at 82% 18%, rgba(251, 146, 60, 0.17), transparent 70%),
+    radial-gradient(40% 36% at 70% 82%, rgba(34, 197, 94, 0.15), transparent 70%),
+    radial-gradient(30% 28% at 28% 80%, rgba(99, 102, 241, 0.18), transparent 70%);
+  animation: gDrift 48s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* fine grain so large blurred areas feel like frosted glass, not plastic */
+html.glass body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+@keyframes gDrift {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50%  { transform: translate3d(3%, -2%, 0) rotate(6deg) scale(1.06); }
+  100% { transform: translate3d(-3%, 3%, 0) rotate(-5deg) scale(1.02); }
+}
+
+/* the old orange particle network is replaced by the glow */
+html.glass #particles-canvas { display: none !important; }
+
+/* ── 2. Glass surfaces ──────────────────────────────────────── */
+html.glass .kpi-card,
+html.glass .panel,
+html.glass .workflow-card,
+html.glass .action-card,
+html.glass .forecast-card,
+html.glass .ov-card,
+html.glass .target-card,
+html.glass .team-card,
+html.glass .trend-card,
+html.glass .sk-kpi-card,
+html.glass [class*="rep-card"],
+html.glass .modal-card {
+  position: relative;
+  background: var(--g-glass), var(--g-tint) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(170%);
+  backdrop-filter: blur(26px) saturate(170%);
+  border: 1px solid var(--g-line) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    0 26px 60px -28px rgba(0, 0, 0, 0.75) !important;
+  transition:
+    transform 0.5s var(--g-ease),
+    border-color 0.4s ease,
+    box-shadow 0.5s var(--g-ease),
+    background-color 0.4s ease !important;
+}
+
+/* cursor light: a soft spotlight follows the pointer across the glass */
+html.glass .kpi-card::after,
+html.glass .panel::after,
+html.glass .workflow-card::after,
+html.glass .action-card::after,
+html.glass .sk-kpi-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.11), transparent 62%);
+}
+html.glass .kpi-card:hover::after,
+html.glass .panel:hover::after,
+html.glass .workflow-card:hover::after,
+html.glass .action-card:hover::after,
+html.glass .sk-kpi-card:hover::after { opacity: 1; }
+
+html.glass .kpi-card:hover,
+html.glass .panel:hover,
+html.glass .workflow-card:hover,
+html.glass .action-card:hover {
+  transform: translateY(-2px) !important;      /* replaces the old 3D lift */
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    0 30px 70px -26px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(56, 189, 248, 0.06) !important;
+}
+/* big panels with charts / tables should not bob about under the cursor */
+html.glass .panel:hover { transform: none !important; }
+
+/* sidebar and top bar */
+html.glass .sidebar {
+  background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012)), rgba(6, 9, 16, 0.62) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  backdrop-filter: blur(30px) saturate(160%);
+  border-right: 1px solid var(--g-line);
+  transform: none !important;
+}
+
+/* sticky top bar: content blurs softly as it scrolls underneath */
+html.glass .topbar {
+  background: linear-gradient(180deg, rgba(6, 9, 16, 0.72), rgba(6, 9, 16, 0.38)) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid var(--g-line) !important;
+}
+
+/* inputs and buttons */
+html.glass .topbar-controls select,
+html.glass .search-input,
+html.glass .custom-date-range input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-color: var(--g-line) !important;
+  transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.4s var(--g-ease);
+}
+html.glass .topbar-controls select:focus,
+html.glass .search-input:focus {
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+}
+html.glass .primary-btn,
+html.glass .secondary-btn,
+html.glass .range-btn,
+html.glass button.secondary-btn {
+  transition: transform 0.35s var(--g-spring), background 0.3s ease, border-color 0.3s ease, box-shadow 0.4s var(--g-ease) !important;
+}
+html.glass .primary-btn:active,
+html.glass .secondary-btn:active,
+html.glass .range-btn:active { transform: scale(0.96) !important; }
+
+/* tables: rows light up softly instead of shifting sideways */
+html.glass tbody tr { transition: background 0.3s ease !important; transform: none !important; }
+html.glass tbody tr:hover { background: rgba(255, 255, 255, 0.05) !important; }
+
+/* ── 3. Navigation: one glass pill that glides between tabs ── */
+html.glass .sidebar-nav { position: relative; }
+
+html.glass .nav-link {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+  border-color: transparent !important;
+  transition: color 0.3s ease, transform 0.35s var(--g-ease) !important;
+}
+html.glass .nav-link:hover { transform: translateX(3px) !important; color: var(--text); }
+html.glass .nav-link:active { transform: scale(0.98) !important; }
+html.glass .nav-link.active { color: #fff; }
+
+.g-nav-pill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  z-index: 0;
+  border-radius: 15px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.26), rgba(255, 255, 255, 0.07) 55%, rgba(251, 146, 60, 0.14));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 30px -10px rgba(56, 189, 248, 0.45);
+  transition:
+    transform 0.55s var(--g-spring),
+    height 0.55s var(--g-spring),
+    opacity 0.3s ease;
+  will-change: transform, height;
+}
+.g-nav-pill.ready { opacity: 1; }
+
+/* ── 4. Page change: blur out of focus, rise, settle ─────────── */
+html.glass .dashboard-page.active {
+  animation: gPage 0.6s var(--g-ease) backwards !important;
+}
+html.glass .page-exit,
+html.glass .page-enter { animation: none !important; }
+
+@keyframes gPage {
+  from { opacity: 0; filter: blur(14px); transform: translateY(18px) scale(0.992); }
+  to   { opacity: 1; filter: blur(0);    transform: none; }
+}
+
+/* each card then floats up in turn (delay set by glass.js) */
+html.glass .g-in {
+  animation: gRise 0.75s var(--g-ease) backwards;
+  animation-delay: calc(var(--gi, 0) * 55ms + 120ms);
+}
+@keyframes gRise {
+  from { opacity: 0; filter: blur(8px); transform: translateY(26px) scale(0.98); }
+  to   { opacity: 1; filter: blur(0);   transform: none; }
+}
+
+/* switch off the old 3D entrance / tilt / pop so they do not fight the new motion */
+html.glass .card-entrance,
+html.glass .card-entrance.card-visible {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+html.glass .tilt-target { transform: none !important; }
+html.glass .tilt-glare { display: none !important; }
+html.glass .kpi-pop { animation: none !important; }
+
+/* ── 5. Numbers: tabular so counting up does not jitter ──────── */
+html.glass .kpi-card strong,
+html.glass .sk-kpi-card strong {
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(24px, 2.5vw, 38px);   /* a touch smaller so 6 cards never clip a figure */
+  white-space: nowrap;
+}
+
+/* ── 6. Scrollbars, to match ─────────────────────────────────── */
+html.glass * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.16) transparent; }
+
+/* ── 7. Phones: lighter glass (blur is expensive on small GPUs) ─ */
+@media (max-width: 640px) {
+  html.glass .kpi-card,
+  html.glass .panel,
+  html.glass .workflow-card,
+  html.glass .action-card,
+  html.glass .sidebar {
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+  }
+  html.glass body::before { animation: none; }
+  .g-nav-pill { display: none; }
+  html.glass .nav-link.active {
+    background: linear-gradient(135deg, rgba(56,189,248,0.25), rgba(255,255,255,0.06)) !important;
+    border-color: rgba(255,255,255,0.14) !important;
+  }
+}
+
+/* ── 8. Respect reduced motion ───────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html.glass body::before { animation: none; }
+  html.glass .dashboard-page.active,
+  html.glass .g-in { animation: none !important; }
+  .g-nav-pill { transition: none; }
+}
