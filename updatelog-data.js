@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v35', date: '2026-10-28', status: 'built', pr: 34, areas: ['Update log', 'Database'],
+    title: 'Suggest updates and vote on what comes next',
+    summary: 'The Update log tab now has a place for the whole team to suggest new updates and rate how important each one is.',
+    changes: ['Anyone signed in can add a suggestion with a title, a bit of detail, which part of ATAM GO it is about, and how important it is from 1 (nice to have) to 5 (needed now).', 'Everyone can rate every suggestion from 1 to 5. You get one rating each and can change it or take it back.', 'The list is ranked by points, which is everyone\u2019s ratings added up. Each one also shows the average and how many people rated it.', 'You can take back your own suggestion. Once something is planned, built or turned down, it moves into an Already decided list.'],
+    watch: 'If the suggestions will not load or save, the rest of the Update log still works. Tell us what you saw. Changing a suggestion to planned, built or not doing is done by whoever builds the updates, not on the page.'
+  },
+  {
     v: 'v34', date: '2026-10-28', status: 'live', pr: 33, timeTaken: '9 h', areas: ['Site'],
     title: 'Dark glass look and smoother motion',
     summary: 'The whole dashboard now has frosted dark glass cards over a softly moving glow, and everything moves more smoothly.',

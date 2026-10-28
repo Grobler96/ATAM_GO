@@ -1,5 +1,5 @@
 -- Update log: team suggestions for new updates, ranked by importance. Re-runnable.
--- NOT CONFIRMED APPLIED: the Supabase tool timed out waiting for approval on 28 Oct 2026. Check the tables exist before relying on this.
+-- Applied to the live database on 28 Oct 2026 and tested (suggest, rate, change a rating, withdraw, blocked direct writes).
 --
 -- Anyone signed in can suggest an update and give every suggestion a rating from 1 (nice to have) to 5 (needed now).
 -- One rating per person per suggestion; changing it replaces the old one. The board ranks by points (all ratings added up).
@@ -52,7 +52,7 @@ select s.id, s.title, s.detail, s.area, s.suggested_by_name, s.status, s.created
 from public.update_suggestions s
 left join public.update_suggestion_ratings r on r.suggestion_id = s.id
 group by s.id;
-revoke all on public.update_suggestions_board from anon;
+revoke all on public.update_suggestions_board from anon, authenticated;
 grant select on public.update_suggestions_board to authenticated;
 
 -- Add a suggestion. The person's own rating goes in with it.
