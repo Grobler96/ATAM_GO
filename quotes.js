@@ -61,7 +61,8 @@
     rows: [], loaded: false, loading: false, error: null,
     tab: 'pipeline', period: '90', rep: '', store: '', q: '',
     sort: { key: 'idle', dir: -1 },
-    chart: null, timer: null, openId: null, senders: null, composeOpen: false, animate: true, updatedAt: null
+    chart: null, timer: null, openId: null, senders: null, composeOpen: false, animate: true, updatedAt: null,
+    removed: [], showRemoved: false, removing: false
   };
 
   // remember the last tab / period / salesperson / store on this device
@@ -165,6 +166,10 @@
     try {
       const now = new Date();
       state.rows = (await fetchAll()).map(r => enrich(r, now));
+      try {   // quotes taken off the list by hand (shown at the bottom so they can be brought back)
+        const rr = await client().from('quotes_removed_board').select('*').order('removed_at', { ascending: false });
+        state.removed = rr.error ? [] : (rr.data || []);
+      } catch (e) { state.removed = []; }
       state.loaded = true; state.error = null; state.updatedAt = new Date();
       if (state.rep && !state.rows.some(r => (r.rep || '__none') === state.rep)) state.rep = '';
       if (state.store && !state.rows.some(r => r.store === state.store)) state.store = '';
@@ -249,7 +254,7 @@
 
   // ───────────────────────── render ─────────────────────────
   function renderAll() {
-    renderKpis(); renderControls(); renderBody(); updateNavBadge();
+    renderKpis(); renderControls(); renderBody(); renderRemoved(); updateNavBadge();
     const u = $('qtUpdated');
     if (u && state.updatedAt) u.textContent = 'Updated ' + state.updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     state.animate = false;
@@ -349,12 +354,13 @@
       ${needsChase ? `<div class="qt-quick-row"><button type="button" class="qt-quick qt-mail" data-email="${esc(r.id)}" title="Write and send a chase email">✉️ ${r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email customer'}</button><button type="button" class="qt-quick" data-quick="${esc(r.id)}" title="Log a phone chase now">📞 Mark chased</button></div>` : ''}`;
     else if (r.stage === 'won') foot = `<div class="qt-card-foot"><span>Approved ${esc(fmtDate(r.approved))}</span><span>${r.daysToClose != null ? (r.instant ? 'same hour' : r.daysToClose < 1 ? 'same day' : Math.round(r.daysToClose) + 'd to close') : ''}</span></div>`;
     else foot = `<div class="qt-card-foot"><span>${esc(r.lostReason || 'Lost')}</span><span>${esc(fmtDate(r.closedAt))}</span></div>`;
+    const removeBtn = r.approved ? '' : `<div class="qt-remove-row"><button type="button" class="qt-remove" data-remove="${esc(r.id)}" title="Take this old quote off the list completely">🗑 Remove</button></div>`;
     return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
       <div class="qt-card-top"><span class="qt-card-cust">${esc(r.customer)}</span><span class="qt-card-val">${gbp(r.value)}</span></div>
       ${r.job ? `<div class="qt-card-job">${esc(r.job)}</div>` : ''}
       <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span></div>
       ${r.awaitingUs ? '<div class="qt-reply">💬 Customer replied, waiting on you</div>' : ''}
-      ${foot}</article>`;
+      ${foot}${removeBtn}</article>`;
   }
 
   function boardHtml() {
@@ -571,6 +577,56 @@
     }
   }
 
+  // ───────────────────────── removing old quotes ─────────────────────────
+  // A removed quote is only hidden: its order id goes in quote_removed and the quotes_board view leaves it out (so the board, the
+  // counts and DAN all stop seeing it). Nothing is deleted from DecoNetwork, and it can be brought back from the list below the board.
+  // Approved quotes cannot be removed. Database: sql/quote_remove_2026-10-28.sql.
+  async function removeQuote(id) {
+    const r = state.rows.find(x => x.id === id);
+    if (!r || state.removing) return;
+    if (!window.confirm('Remove this quote from the list?\n\n' + r.customer + (r.job ? ' · ' + r.job : '') + ' · #' + r.id + ' · ' + gbp(r.value) +
+      '\n\nIt will disappear from the board, the counts and DAN. It is not deleted from DecoNetwork, and you can bring it back from "Removed quotes" at the bottom of this page.')) return;
+    state.removing = true;
+    try {
+      const { error } = await client().rpc('remove_quote', { p_order_id: id, p_reason: '' });
+      if (error) throw error;
+      state.rows = state.rows.filter(x => x.id !== id);
+      if (state.openId === id) closeDrawer();
+      renderAll();
+      toast('Quote removed. You can bring it back from "Removed quotes" at the bottom.');
+      await load(true);
+    } catch (e) {
+      console.error('remove quote failed', e);
+      toast('Couldn\'t remove it: ' + ((e && e.message) || 'unknown error'), true);
+    }
+    state.removing = false;
+  }
+
+  async function restoreQuote(id) {
+    if (state.removing) return;
+    state.removing = true;
+    try {
+      const { error } = await client().rpc('restore_quote', { p_order_id: id });
+      if (error) throw error;
+      toast('Quote put back on the list.');
+      await load(true);
+    } catch (e) {
+      console.error('restore quote failed', e);
+      toast('Couldn\'t put it back: ' + ((e && e.message) || 'unknown error'), true);
+    }
+    state.removing = false;
+  }
+
+  function renderRemoved() {
+    const el = $('qtRemoved'); if (!el) return;
+    const list = state.removed || [];
+    if (!list.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<section class="qt-removed"><button type="button" class="qt-btn" data-act="removed-toggle" aria-expanded="${state.showRemoved}">${state.showRemoved ? '−' : '+'} Removed quotes (${list.length})</button>` +
+      (state.showRemoved ? `<div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Customer</th><th>Job</th><th>Quote</th><th class="r">Value</th><th>Raised</th><th>Removed by</th><th></th></tr></thead><tbody>${list.map(q =>
+        `<tr><td>${esc(q.customer_name || 'Unknown customer')}</td><td>${esc(q.job_name || '')}</td><td>#${esc(q.order_id)}</td><td class="r">${gbp(Number(q.quote_value) || 0)}</td><td>${esc(fmtDate(toDate(q.created_at)))}</td>` +
+        `<td>${esc(q.removed_by || '')}<div class="qt-dim">${esc(fmtDate(toDate(q.removed_at)))}</div></td><td><button type="button" class="qt-btn" data-restore="${esc(q.order_id)}">Put back</button></td></tr>`).join('')}</tbody></table></div>` : '') + '</section>';
+  }
+
   function exportCsv() {
     const rows = visible();
     const cell = v => { let t = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
@@ -646,6 +702,7 @@
         ${fact('Customer replies', String(r.fromCount))}
         ${fact('Chases logged', String(r.chases))}
       </div>
+      ${r.approved ? '' : `<div class="qt-remove-row lg"><button type="button" class="qt-btn qt-danger" data-remove="${esc(r.id)}">🗑 Remove this quote from the list</button><span class="qt-dim">For old quotes that are never going to happen. You can bring it back later.</span></div>`}
       ${open ? `<div class="qt-email-wrap">${emailTimerHtml(r)}<button type="button" class="qt-btn qt-primary qt-mailbtn" data-act="compose" data-for="${esc(r.id)}">✉️ ${r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email the customer'}</button><div id="qtCompose"></div></div>` : ''}
       ${open ? `<form class="qt-chase" id="qtChaseForm" data-id="${esc(r.id)}">
         <h4>Log a chase</h4>
@@ -1309,6 +1366,17 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-btn:disabled { opacity:.5; }
 .qt-drawer .qt-dim { color:#64748b; font-size:12px; }
 .qt-drawer .qt-chase p { margin:10px 0 0; }
+.qt-drawer .qt-remove-row.lg { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.qt-drawer .qt-danger { border-color:rgba(239,68,68,.45); color:#fecaca; }
+.qt-drawer .qt-danger:hover { background:rgba(239,68,68,.14); }
+#quotes .qt-remove-row { display:flex; justify-content:flex-end; margin-top:6px; }
+#quotes .qt-remove-row.lg { justify-content:flex-start; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0; }
+#quotes .qt-remove { background:none; border:1px solid transparent; border-radius:7px; padding:2px 7px; color:#64748b; font-size:11px; cursor:pointer; transition:color .15s, border-color .15s, background .15s; }
+#quotes .qt-remove:hover, #quotes .qt-remove:focus-visible { color:#fca5a5; border-color:rgba(239,68,68,.5); background:rgba(239,68,68,.08); }
+#quotes .qt-danger { border-color:rgba(239,68,68,.45); color:#fecaca; }
+#quotes .qt-danger:hover { background:rgba(239,68,68,.14); }
+#quotes .qt-removed { margin-top:22px; padding-top:14px; border-top:1px dashed rgba(255,255,255,.12); }
+#quotes .qt-removed .qt-tablewrap { margin-top:12px; }
 #quotes .qt-quick-row { display:flex; gap:6px; }
 #quotes .qt-quick-row .qt-quick { flex:1; width:auto; }
 #quotes .qt-quick.qt-mail { --c:#f97316; }
@@ -1434,6 +1502,7 @@ body.qt-lock { overflow:hidden; }
         <button type="button" class="qt-btn" data-act="export">⬇ Export CSV</button>
       </div>
       <div id="qtBody"><div class="qt-empty">Loading quotes…</div></div>
+      <div id="qtRemoved"></div>
       <div class="qt-toast" id="qtToast" role="status"></div>`;
     anchorPage.parentElement.appendChild(sec);
 
@@ -1465,6 +1534,11 @@ body.qt-lock { overflow:hidden; }
 
     // page events
     sec.addEventListener('click', e => {
+      const rmv = e.target.closest('[data-remove]');
+      if (rmv) { e.stopPropagation(); removeQuote(rmv.dataset.remove); return; }
+      const rst = e.target.closest('[data-restore]');
+      if (rst) { e.stopPropagation(); restoreQuote(rst.dataset.restore); return; }
+      if (e.target.closest('[data-act="removed-toggle"]')) { state.showRemoved = !state.showRemoved; renderRemoved(); return; }
       const quick = e.target.closest('[data-quick]');
       if (quick) { e.stopPropagation(); quickChase(quick.dataset.quick, quick); return; }
       const mail = e.target.closest('[data-email]');
@@ -1489,7 +1563,7 @@ body.qt-lock { overflow:hidden; }
     });
     sec.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.closest('[data-quick], [data-email]')) return;
+      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-restore]')) return;
       const item = e.target.closest('.qt-card[data-id], .qt-first-card[data-id], tr[data-id]');
       if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
       const repCard = e.target.closest('.qt-rep-card');
@@ -1500,6 +1574,8 @@ body.qt-lock { overflow:hidden; }
     $('qtSearch').addEventListener('input', e => { state.q = e.target.value.trim().toLowerCase(); renderKpis(); renderControls(); renderBody(); });
 
     drawer.addEventListener('click', e => {
+      const rmv = e.target.closest('[data-remove]');
+      if (rmv) { removeQuote(rmv.dataset.remove); return; }
       if (e.target.closest('[data-act="close"]')) closeDrawer();
       const c = e.target.closest('[data-act="compose"]');
       if (c) openCompose(c.dataset.for);

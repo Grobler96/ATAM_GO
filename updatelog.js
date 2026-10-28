@@ -136,6 +136,138 @@
     if (keepSearch) { const s = $('ulSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
   }
 
+
+  // ───────────────────────── Suggestions ─────────────────────────
+  // Anyone signed in can suggest an update and rate every suggestion from 1 (nice to have) to 5 (needed now).
+  // Ranked by points: everyone's ratings added up. Data: view update_suggestions_board; writes only through the functions
+  // suggest_update / rate_update_suggestion / withdraw_update_suggestion (sql/update_suggestions_2026-10-28.sql).
+  // Whether a suggestion is open, planned, built or declined is changed by whoever builds the updates, in the database.
+  const RATING = { 1: 'Nice to have', 2: 'Would help', 3: 'Important', 4: 'Very important', 5: 'Needed now' };
+  const SG_STATUS = { planned: { label: 'Planned', color: '#a78bfa' }, built: { label: 'Built', color: '#22c55e' }, declined: { label: 'Not doing', color: '#94a3b8' } };
+  const emptyDraft = () => ({ title: '', detail: '', area: '', importance: 0 });
+  const sug = { rows: [], loaded: false, loading: false, error: '', formOpen: false, showDecided: false, busy: false, draft: emptyDraft() };
+
+  function client() {
+    if (window._atamSb) return window._atamSb;
+    const cfg = window.ATAM_GO_CONFIG || {};
+    window._atamSb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    return window._atamSb;
+  }
+
+  async function loadSug() {
+    if (sug.loading) return;
+    sug.loading = true;
+    try {
+      const res = await client().from('update_suggestions_board').select('*');
+      if (res.error) throw res.error;
+      sug.rows = res.data || []; sug.loaded = true; sug.error = '';
+    } catch (e) {
+      console.error('suggestions load failed', e);
+      if (!sug.loaded) sug.error = 'Could not load the suggestions. Try again in a moment.';
+    }
+    sug.loading = false;
+    renderSgList();
+  }
+
+  const sgOrder = (a, b) => b.points - a.points || Number(b.avg_importance || 0) - Number(a.avg_importance || 0) || String(b.created_at).localeCompare(String(a.created_at));
+
+  function sgTopHtml() {
+    const d = sug.draft;
+    const areas = Array.from(new Set(updates().concat(planned()).flatMap(u => u.areas || []))).sort().concat(['Other']);
+    const form = sug.formOpen ? `<div class="ul-sg-form">
+        <label>What should we build or change?<input type="text" id="ulSgTitle" maxlength="120" value="${esc(d.title)}" placeholder="A short title, e.g. Show quote value on the Calendar"></label>
+        <label>More detail (optional)<textarea id="ulSgDetail" maxlength="1000" rows="3" placeholder="What is the problem, and how would it help?">${esc(d.detail)}</textarea></label>
+        <label>Which part of ATAM GO?<select id="ulSgArea"><option value="">Not sure</option>${areas.map(a => `<option value="${esc(a)}"${d.area === a ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+        <div class="ul-sg-imp"><span>How important is it?</span>
+          <div class="ul-sg-rate big" role="group" aria-label="Importance">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="ul-sg-n${d.importance === n ? ' on' : ''}" data-sgimp="${n}" aria-pressed="${d.importance === n}">${n}</button>`).join('')}</div>
+          <small>${d.importance ? esc(d.importance + ' · ' + RATING[d.importance]) : '1 is nice to have, 5 is needed now'}</small></div>
+        <div class="ul-actions"><button type="button" class="ul-btn ul-sg-go" data-sg="submit"${sug.busy ? ' disabled' : ''}>${sug.busy ? 'Saving…' : 'Add to the list'}</button><button type="button" class="ul-btn" data-sg="close">Cancel</button></div>
+      </div>` : '';
+    return `<div class="ul-sg-head"><div><h3>💡 Suggest an update <span>and vote on what comes next</span></h3>
+        <p>Add your idea, then rate every idea from 1 (nice to have) to 5 (needed now). The list is ranked by points, which is everyone's ratings added up.</p></div>
+      ${sug.formOpen ? '' : '<button type="button" class="ul-btn ul-sg-go" data-sg="open">+ Suggest an update</button>'}</div>${form}`;
+  }
+
+  function rateButtons(s) {
+    return `<div class="ul-sg-rate" role="group" aria-label="Your rating">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="ul-sg-n${s.my_rating === n ? ' on' : ''}" data-rate="${esc(s.id)}" data-n="${n}" title="${esc(RATING[n])}" aria-pressed="${s.my_rating === n}">${n}</button>`).join('')}</div>`;
+  }
+
+  function sgCardHtml(s, rank, decided) {
+    const st = SG_STATUS[s.status];
+    return `<article class="ul-sg-card${decided ? ' decided' : ''}">
+      ${decided ? '' : `<div class="ul-sg-rank">#${rank}</div>`}
+      <div class="ul-sg-main"><b>${esc(s.title)}</b>${st ? ` <span class="ul-status" style="--c:${st.color}">${esc(st.label)}</span>` : ''}
+        ${s.detail ? `<p>${esc(s.detail)}</p>` : ''}
+        <div class="ul-tags">${s.area ? `<span class="ul-tag">${esc(s.area)}</span>` : ''}<span class="ul-sg-by">Suggested by ${esc(s.suggested_by_name || 'someone')} · ${esc(day(String(s.created_at).slice(0, 10)))}</span></div></div>
+      <div class="ul-sg-score"><b>${esc(s.points)}</b><span>points</span><small>${s.votes ? 'avg ' + esc(Number(s.avg_importance).toFixed(1)) + ' · ' + esc(s.votes) + ' rated' : 'not rated yet'}</small></div>
+      ${decided ? '' : `<div class="ul-sg-vote"><span>${s.my_rating ? 'Your rating: ' + esc(RATING[s.my_rating]) : 'Your rating'}</span>${rateButtons(s)}
+        ${s.mine ? `<button type="button" class="ul-sg-link" data-withdraw="${esc(s.id)}">Take my suggestion back</button>` : ''}</div>`}
+    </article>`;
+  }
+
+  function sgListHtml() {
+    if (sug.error) return `<div class="ul-empty">${esc(sug.error)}</div>`;
+    if (!sug.loaded) return '<div class="ul-empty">Loading suggestions…</div>';
+    const open = sug.rows.filter(r => r.status === 'open').sort(sgOrder);
+    const decided = sug.rows.filter(r => r.status !== 'open').sort(sgOrder);
+    return (open.length ? open.map((r, i) => sgCardHtml(r, i + 1, false)).join('') : '<div class="ul-empty">No suggestions yet. Be the first to add one.</div>') +
+      (decided.length ? `<button type="button" class="ul-chip ul-sg-dtoggle" data-sg="decided">${sug.showDecided ? '−' : '+'} Already decided (${decided.length})</button>${sug.showDecided ? decided.map(r => sgCardHtml(r, 0, true)).join('') : ''}` : '');
+  }
+
+  const renderSgTop = () => { const el = $('ulSgTop'); if (el) el.innerHTML = sgTopHtml(); };
+  const renderSgList = () => { const el = $('ulSgList'); if (el) el.innerHTML = sgListHtml(); };
+
+  async function submitSug() {
+    const d = sug.draft, title = d.title.trim();
+    if (title.length < 3) { toast('Give the suggestion a short title first.'); return; }
+    if (!d.importance) { toast('Choose how important it is, from 1 to 5.'); return; }
+    if (sug.busy) return;
+    sug.busy = true; renderSgTop();
+    try {
+      const r = await client().rpc('suggest_update', { p_title: title, p_detail: d.detail.trim(), p_area: d.area, p_importance: d.importance });
+      if (r.error) throw r.error;
+      sug.draft = emptyDraft(); sug.formOpen = false;
+      toast('Thanks, your suggestion is on the list.');
+    } catch (e) {
+      console.error('suggest failed', e);
+      toast('Could not save that. Please try again.');
+    }
+    sug.busy = false; renderSgTop(); loadSug();
+  }
+
+  async function rateSug(id, n) {
+    const row = sug.rows.find(r => r.id === id);
+    if (!row || sug.busy) return;
+    const val = row.my_rating === n ? null : n;
+    const old = row.my_rating || 0;
+    row.points += (val || 0) - old; row.votes += (val ? 1 : 0) - (old ? 1 : 0); row.my_rating = val;
+    row.avg_importance = row.votes ? row.points / row.votes : null;
+    renderSgList();
+    sug.busy = true;
+    try {
+      const r = await client().rpc('rate_update_suggestion', { p_id: id, p_importance: val });
+      if (r.error) throw r.error;
+    } catch (e) {
+      console.error('rate failed', e);
+      toast('Could not save your rating. Please try again.');
+    }
+    sug.busy = false; loadSug();
+  }
+
+  async function withdrawSug(id) {
+    if (sug.busy || !window.confirm('Take this suggestion back? It will be removed from the list.')) return;
+    sug.busy = true;
+    try {
+      const r = await client().rpc('withdraw_update_suggestion', { p_id: id });
+      if (r.error) throw r.error;
+      toast('Your suggestion has been removed.');
+    } catch (e) {
+      console.error('withdraw failed', e);
+      toast('Could not remove it. Please try again.');
+    }
+    sug.busy = false; loadSug();
+  }
+
   function injectStyles() {
     if ($('ulStyles')) return;
     const s = document.createElement('style');
@@ -201,6 +333,39 @@
 #updatelog .ul-btn:hover { border-color:#38bdf8; }
 #updatelog .ul-empty { padding:30px; text-align:center; color:#94a3b8; border:1px dashed rgba(255,255,255,.14); border-radius:12px; }
 #updatelog .ul-foot { margin-top:20px; color:#64748b; font-size:12px; max-width:760px; line-height:1.5; }
+#updatelog .ul-sg-wrap { margin:18px 0 6px; padding:18px; border-radius:16px; border:1px solid rgba(251,146,60,.35); background:linear-gradient(160deg, rgba(251,146,60,.07), rgba(56,189,248,.05)); }
+#updatelog .ul-sg-head { display:flex; gap:14px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
+#updatelog .ul-sg-head h3 { margin:0 0 4px; font-size:16px; color:#fed7aa; }
+#updatelog .ul-sg-head h3 span { font-size:12.5px; font-weight:400; color:#94a3b8; margin-left:6px; }
+#updatelog .ul-sg-head p { margin:0; color:#94a3b8; font-size:13px; line-height:1.5; max-width:640px; }
+#updatelog .ul-sg-go { border-color:#fb923c; background:rgba(251,146,60,.14); color:#ffedd5; }
+#updatelog .ul-sg-go:disabled { opacity:.6; cursor:default; }
+#updatelog .ul-sg-form { display:grid; gap:12px; margin-top:14px; padding:16px; border-radius:12px; background:rgba(8,12,24,.7); border:1px solid rgba(255,255,255,.1); }
+#updatelog .ul-sg-form label { display:grid; gap:5px; font-size:12.5px; color:#cbd5e1; }
+#updatelog .ul-sg-form input, #updatelog .ul-sg-form textarea, #updatelog .ul-sg-form select { padding:9px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:#0b1222; color:#e2e8f0; font-size:13.5px; font-family:inherit; }
+#updatelog .ul-sg-form textarea { resize:vertical; }
+#updatelog .ul-sg-imp { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:#cbd5e1; }
+#updatelog .ul-sg-imp small, #updatelog .ul-sg-vote small { color:#94a3b8; font-size:12px; }
+#updatelog .ul-sg-rate { display:flex; gap:5px; }
+#updatelog .ul-sg-n { width:30px; height:30px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#0b1222; color:#cbd5e1; font-size:13px; cursor:pointer; transition:transform .25s cubic-bezier(.34,1.3,.64,1), background .2s, border-color .2s; }
+#updatelog .ul-sg-rate.big .ul-sg-n { width:38px; height:38px; font-size:15px; }
+#updatelog .ul-sg-n:hover { border-color:#fb923c; transform:translateY(-2px); }
+#updatelog .ul-sg-n.on { background:rgba(251,146,60,.25); border-color:#fb923c; color:#fff; font-weight:700; }
+#updatelog #ulSgList { display:grid; gap:10px; margin-top:14px; }
+#updatelog .ul-sg-card { display:grid; grid-template-columns:44px 1fr auto auto; gap:14px; align-items:center; padding:14px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.1); background:linear-gradient(160deg, rgba(15,23,42,.92), rgba(8,12,24,.92)); }
+#updatelog .ul-sg-card.decided { opacity:.75; grid-template-columns:1fr auto; }
+#updatelog .ul-sg-rank { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:18px; font-weight:700; color:#fb923c; }
+#updatelog .ul-sg-main b { font-size:14.5px; overflow-wrap:anywhere; }
+#updatelog .ul-sg-main p { margin:5px 0 8px; color:#94a3b8; font-size:13px; line-height:1.45; overflow-wrap:anywhere; white-space:pre-line; }
+#updatelog .ul-sg-by { font-size:11.5px; color:#64748b; align-self:center; }
+#updatelog .ul-sg-score { text-align:center; min-width:84px; }
+#updatelog .ul-sg-score b { display:block; font-size:24px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:#fed7aa; line-height:1.1; }
+#updatelog .ul-sg-score span { font-size:11px; color:#94a3b8; display:block; }
+#updatelog .ul-sg-score small { font-size:11px; color:#64748b; }
+#updatelog .ul-sg-vote { display:grid; gap:6px; justify-items:start; font-size:12px; color:#94a3b8; }
+#updatelog .ul-sg-link { background:none; border:none; padding:0; color:#64748b; font-size:11.5px; text-decoration:underline; cursor:pointer; }
+#updatelog .ul-sg-dtoggle { justify-self:start; }
+@media (max-width: 760px) { #updatelog .ul-sg-card { grid-template-columns:36px 1fr; } #updatelog .ul-sg-score, #updatelog .ul-sg-vote { grid-column:2; justify-items:start; text-align:left; } #updatelog .ul-sg-card.decided { grid-template-columns:1fr; } }
 .ul-toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%); padding:10px 16px; border-radius:10px; background:#0f172a; border:1px solid rgba(34,197,94,.5); color:#dcfce7; font-size:13px; z-index:2000; }
 @media (max-width: 640px) { #updatelog .ul-line { padding-left:28px; } #updatelog .ul-node { left:-26px; } #updatelog .ul-hero h2 { font-size:24px; } }
 `;
@@ -237,7 +402,8 @@
     sec.id = PAGE_ID;
     sec.className = 'dashboard-page';
     sec.innerHTML = `<div class="ul-hero"><p class="eyebrow">ATAM GO</p><h2>Update log</h2>
-      <p>Every change we have made, in order, and what is coming next. If something stops working, find roughly when it started and look at what changed just before.</p></div><div id="ulBody"></div>`;
+      <p>Every change we have made, in order, and what is coming next. If something stops working, find roughly when it started and look at what changed just before. You can also suggest what we build next and vote on it.</p></div>
+      <section class="ul-sg-wrap" aria-label="Suggestions"><div id="ulSgTop"></div><div id="ulSgList"></div></section><div id="ulBody"></div>`;
     anchorPage.parentElement.appendChild(sec);
 
     btn.addEventListener('click', () => {
@@ -247,6 +413,7 @@
       sec.classList.add('active');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       render();
+      renderSgTop(); renderSgList(); loadSug();
     });
     document.addEventListener('click', e => {
       const other = e.target.closest('.nav-link');
@@ -254,6 +421,18 @@
     }, true);
 
     sec.addEventListener('click', e => {
+      const sg = e.target.closest('[data-sg]');
+      if (sg) {
+        const a = sg.dataset.sg;
+        if (a === 'open') { sug.formOpen = true; renderSgTop(); const t = $('ulSgTitle'); if (t) t.focus(); }
+        else if (a === 'close') { sug.formOpen = false; renderSgTop(); }
+        else if (a === 'submit') submitSug();
+        else if (a === 'decided') { sug.showDecided = !sug.showDecided; renderSgList(); }
+        return;
+      }
+      const imp = e.target.closest('[data-sgimp]'); if (imp) { sug.draft.importance = Number(imp.dataset.sgimp); renderSgTop(); return; }
+      const rt = e.target.closest('[data-rate]'); if (rt) { rateSug(rt.dataset.rate, Number(rt.dataset.n)); return; }
+      const wd = e.target.closest('[data-withdraw]'); if (wd) { withdrawSug(wd.dataset.withdraw); return; }
       const st = e.target.closest('[data-status]'); if (st) { state.status = st.dataset.status; render(); return; }
       const ar = e.target.closest('[data-area]'); if (ar) { state.area = ar.dataset.area; render(); return; }
       if (e.target.closest('[data-sort]')) { state.newest = !state.newest; render(); return; }
@@ -266,8 +445,15 @@
       const tg = e.target.closest && e.target.closest('[data-toggle]');
       if (tg && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tg.click(); }
     });
-    sec.addEventListener('input', e => { if (e.target.id === 'ulSearch') { state.q = e.target.value.trim().toLowerCase(); render(); } });
-    sec.addEventListener('change', e => { if (e.target.id === 'ulAround') { state.around = e.target.value; render(); } });
+    sec.addEventListener('input', e => {
+      if (e.target.id === 'ulSearch') { state.q = e.target.value.trim().toLowerCase(); render(); }
+      else if (e.target.id === 'ulSgTitle') sug.draft.title = e.target.value;
+      else if (e.target.id === 'ulSgDetail') sug.draft.detail = e.target.value;
+    });
+    sec.addEventListener('change', e => {
+      if (e.target.id === 'ulAround') { state.around = e.target.value; render(); }
+      else if (e.target.id === 'ulSgArea') sug.draft.area = e.target.value;
+    });
     return true;
   }
 
