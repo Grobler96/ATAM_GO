@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v38', date: '2026-10-28', status: 'built', pr: null, areas: ['Purchase Order Review'],
+    v: 'v38', date: '2026-10-28', status: 'live', pr: 37, areas: ['Purchase Order Review'],
     title: 'Posted to Xero tab on Purchase Order Review',
     summary: 'Purchase Order Review now has a Posted to Xero tab, like Sales Invoices, so you can see what has already gone through.',
     changes: ['New tab at the end of the row, with a count of everything posted so far.', 'Shows the newest 50: supplier, invoice number, amount, PO number, when it was posted, and whether it was auto-approved or approved by a person.', 'It is a look-back list only. Nothing on it can be changed or undone here.'],
