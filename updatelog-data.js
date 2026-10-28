@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v38, v39...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v39, v40...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v38', date: '2026-10-28', status: 'built', pr: null, areas: ['Purchase Order Review'],
+    title: 'Posted to Xero tab on Purchase Order Review',
+    summary: 'Purchase Order Review now has a Posted to Xero tab, like Sales Invoices, so you can see what has already gone through.',
+    changes: ['New tab at the end of the row, with a count of everything posted so far.', 'Shows the newest 50: supplier, invoice number, amount, PO number, when it was posted, and whether it was auto-approved or approved by a person.', 'It is a look-back list only. Nothing on it can be changed or undone here.'],
+    watch: 'If the tab shows fewer than you expect, only the latest 50 are listed. The number on the tab is the full count.'
+  },
   {
     v: 'v37', date: '2026-10-28', status: 'live', pr: 36, areas: ['Purchase Order Review'],
     title: 'Purchase Order Review now has tabs across the top',

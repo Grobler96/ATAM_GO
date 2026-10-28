@@ -1084,6 +1084,7 @@
           <button type="button" class="rev-tab" data-tab="inreview" role="tab">In review <span class="rev-tab-n" id="revTabN-inreview">0</span></button>
           <button type="button" class="rev-tab" data-tab="approved" role="tab">Approved, waiting to post <span class="rev-tab-n" id="revTabN-approved">0</span></button>
           <button type="button" class="rev-tab" data-tab="rejected" role="tab">Rejected <span class="rev-tab-n" id="revTabN-rejected">0</span></button>
+          <button type="button" class="rev-tab" data-tab="posted" role="tab">Posted to Xero <span class="rev-tab-n" id="revTabN-posted">0</span></button>
         </div></div>
 
         <div class="rev-pane" data-pane="review">
@@ -1109,6 +1110,13 @@
             Rejected: <span id="revRejectedCount" style="color:#94a3b8;font-weight:600">0</span>. Rejected on this page. Nothing here has reached Xero. Rejected something by mistake? Undo it here, safe any time since rejected invoices never reach Xero.
           </p>
           <div id="rejectedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
+        </div>
+
+        <div class="rev-pane" data-pane="posted" hidden>
+          <p class="muted" style="margin-bottom:14px;font-size:12px">
+            Posted to Xero as draft bills: <span id="revPostedCount" style="color:#94a3b8;font-weight:600">0</span>. Newest first, the latest 50 shown. These have reached Xero as drafts and can't be changed or undone here. A person still approves each bill in Xero.
+          </p>
+          <div id="postedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
         </div>
       </section>
 
@@ -1297,14 +1305,14 @@
   <script src="weekly-targets.js"></script>
   <script src="revenue.js"></script>
   <script src="discrepancies.js"></script>
-  <script src="pending_invoices_review.js?v=20261028a"></script>
+  <script src="pending_invoices_review.js?v=20261028b"></script>
   <script src="sales_invoices_view.js?v=20261013b"></script>
     <script src="customer_spend.js?v=20261016b"></script>
   <script src="quotes.js?v=20261028"></script>
   <script src="winback.js?v=20261026"></script>
   <script src="newcustomers.js?v=20261023"></script>
   <script src="calendar.js?v=20261027b"></script>
-  <script src="updatelog-data.js?v=20261028f"></script>
+  <script src="updatelog-data.js?v=20261028g"></script>
   <script src="updatelog.js?v=20261028"></script>
   <script src="stock.js?v=20261027b"></script>
   <script src="glass.js?v=20261028"></script>

@@ -22,6 +22,8 @@
   let approvedRows = [];
   let rejectedRows = [];
   let inReviewRows = [];
+  let postedRows = [];
+  let postedTotal = 0;
 
   async function getSb() {
     if (window._atamSb) return window._atamSb;
@@ -87,6 +89,7 @@
     await loadApproved();
     await loadRejected();
     await loadInReview();
+    await loadPosted();
     syncTabCounts();
 
     if (openIds.length) {
@@ -137,6 +140,59 @@
     }
     approvedRows = data || [];
     renderApprovedList();
+  }
+
+  async function loadPosted() {
+    const container = document.getElementById('postedList');
+    if (!container) return;
+
+    const sb = await getSb();
+    const { data, error, count } = await sb
+      .from('pending_invoices')
+      .select('*', { count: 'exact' })
+      .eq('status', 'posted')
+      .order('posted_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('[Review] load posted error', error);
+      return;
+    }
+    postedRows = data || [];
+    postedTotal = (typeof count === 'number') ? count : postedRows.length;
+    renderPostedList();
+  }
+
+  function renderPostedList() {
+    const container = document.getElementById('postedList');
+    if (!container) return;
+
+    const countEl = document.getElementById('revPostedCount');
+    if (countEl) countEl.textContent = postedTotal;
+
+    if (postedRows.length === 0) {
+      container.innerHTML = '<div class="rev-empty" style="padding:24px 20px">Nothing has been posted to Xero yet.</div>';
+      return;
+    }
+
+    container.innerHTML = postedRows.map(row => {
+      const by = (row.reviewed_by && String(row.reviewed_by).startsWith('system')) ? 'Auto-approved (clean match)' : 'Approved by ' + (row.reviewed_by || 'unknown');
+      const amt = (row.final_total != null && row.final_total !== '') ? row.final_total : row.extracted_total;
+      return `
+      <div class="rev-case" id="rev-posted-${escHtml(row.id)}" style="cursor:default">
+        <div class="rev-case-head" style="cursor:default">
+          <div class="rev-stamp clean">\u2713</div>
+          <div class="rev-case-main">
+            <div class="rev-case-ref">Invoice ${escHtml(row.extracted_invoice_number || 'unknown')} \u00b7 ${escHtml(by)}</div>
+            <div class="rev-case-title">${escHtml(row.final_vendor || row.extracted_vendor || 'Unknown vendor')}</div>
+            <div class="rev-case-sub">${escHtml(row.final_po_reference ? 'PO ' + row.final_po_reference : 'No PO reference')} \u00b7 Posted to Xero as a draft bill at ${fmtDate(row.posted_at)}</div>
+          </div>
+          <div class="rev-case-meta">
+            <span class="rev-amt">${fmtMoney(amt)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   }
 
   async function loadRejected() {
@@ -1173,7 +1229,7 @@
   // Tabs across the top of the page (same look as the Sales Invoices tab): the four
   // lists live on this one page and only one is shown at a time.
   function syncTabCounts() {
-    const counts = { review: allRows.length, inreview: inReviewRows.length, approved: approvedRows.length, rejected: rejectedRows.length };
+    const counts = { review: allRows.length, inreview: inReviewRows.length, approved: approvedRows.length, rejected: rejectedRows.length, posted: postedTotal };
     Object.keys(counts).forEach(k => {
       const el = document.getElementById('revTabN-' + k);
       if (el) el.textContent = counts[k];
