@@ -19,3 +19,15 @@ Replaces the Gmail intake ("Invoice Inbox → Extraction Pipeline", id `x1CJVoFZ
 
 ## Not tested (mailbox did not exist / permissions pending when built)
 Nothing has run against the real mailbox. First run checklist: publish the alert workflow second; publish the intake workflow, send one test invoice to the mailbox, confirm it appears in Pending invoices (Purchase Order Review), the email moves to Processed, and the stuck alert stays quiet.
+
+## Rebuild with the built-in Outlook node (27 Oct 2026, unpublished, untested)
+IT asked for the built-in Microsoft Outlook node instead of raw web requests. New workflow **Invoice Inbox (Microsoft 365, Outlook node) → Extraction Pipeline**, id `8SP7xxQMJixzS5Ao`. Same steps as above, but the mailbox calls (find/create folder, read Inbox with attachments, move email) use the Outlook node with the credential "Microsoft Outlook account" (`PkcqW0pZkUkApIpE`, type Microsoft Outlook OAuth2 API, **Use Shared Mailbox** on, User Principal Name `InvoicePOProcessing@atam.co.uk`). Differences: the Outlook node cannot ask for immutable message ids, so invoice ids are built from the email's internet message id (`m365-<id>-<pdf number>`), which does not change when an email moves.
+- On 27 Oct that credential existed but had no Microsoft sign-in saved ("Unable to sign without access token"), so nothing has run against the mailbox. The older web-request workflow (`wR1tq3DVJCyHFCgL`) was refused by Microsoft (403) because the "ATAM GO Mailer" app is not allowed on this mailbox.
+- Still to rebuild the same way: the stuck-email alert (`90c4Hay5EBwxUHn4`).
+- Three invoices sent on 26/27 Oct were not in the Gmail account (`ataminvoices@gmail.com`); where they went is not yet known.
+
+**28 Oct 2026:** the credential was recreated and signed in (new id `PkcqW0pZkUkApIpE`); the workflow was rebuilt against it as `8SP7xxQMJixzS5Ao` (the earlier copy is archived). A read-only check listed 8 unread invoice emails in the shared Inbox (27 Oct 07:48 to 28 Oct 08:25). Still unpublished; nothing has been processed from it.
+
+**28 Oct 2026, 15:45 UK:** published. First run (execution 19189) read 8 emails, created 11 invoices (8 auto-approved clean matches, 3 awaiting review: BTC 203531774 vendor mismatch, DPS 107449 and 107569 amount variance) and moved all 8 emails to a new Processed folder. Nothing was sent to Xero by this workflow.
+
+**Stuck-email alert, rebuilt 28 Oct 2026:** `GpZTT3iz2lsQUqjf`, Outlook node + the Gmail send credential used by the data watchdog. One manual run read the shared Inbox fine and found nothing older than a day (no email sent). The email-sending step has not been exercised. Unpublished.
