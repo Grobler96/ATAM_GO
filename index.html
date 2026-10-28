@@ -603,8 +603,6 @@
         <button type="button" class="nav-link" data-page="revenue"><span>💰 Revenue</span></button>
         <button type="button" class="nav-link" data-page="discrepancies"><span>⚠️ Discrepancies</span></button>
         <button type="button" class="nav-link" data-page="review"><span>📥 Purchase Order Review</span></button>
-        <button type="button" class="nav-link" data-page="approvedinvoices"><span>✅ Approved Invoices</span></button>
-        <button type="button" class="nav-link" data-page="rejectedinvoices"><span>🗑️ Rejected Invoices</span></button>
         <button type="button" class="nav-link" data-page="salesinvoices"><span>💷 Sales Invoices</span></button>
         <a href="overdue.html" target="_blank" rel="noopener" class="nav-link external-link">
           <span>🚨 Overdue Orders</span>
@@ -1052,6 +1050,15 @@
         #review .rev-x-in { width:100%; padding:6px 8px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; font-size:12.5px; background:#0d1a2e; color:#e2e8f0; text-align:right; box-sizing:border-box; }
         #review .rev-x-in[readonly] { background:transparent; border-color:transparent; font-weight:700; color:#f8fafc; }
         @media (max-width:640px) { #review .rev-x-row { grid-template-columns:1fr; } }
+        #review .rev-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+        #review .rev-tabs { display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:280px; }
+        #review .rev-tab { padding:8px 14px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:transparent; color:#94a3b8; font-size:12.5px; font-weight:600; cursor:pointer; }
+        #review .rev-tab:hover { color:#e2e8f0; border-color:rgba(255,255,255,0.25); }
+        #review .rev-tab.active { background:rgba(56,189,248,0.14); border-color:rgba(56,189,248,0.5); color:#e0f2fe; }
+        #review .rev-tab .rev-tab-n { display:inline-block; min-width:18px; margin-left:4px; padding:1px 6px; border-radius:9px; background:rgba(255,255,255,0.08); font-size:11px; text-align:center; font-variant-numeric:tabular-nums; }
+        #review .rev-tab.rev-tab-attn .rev-tab-n { background:#fbbf24; color:#1e293b; }
+        #review .rev-tab:focus-visible { outline:2px solid #38bdf8; outline-offset:2px; }
+        #review .rev-pane[hidden] { display:none; }
         #review .rev-empty, #approvedinvoices .rev-empty, #rejectedinvoices .rev-empty { text-align:center; padding:60px 20px; color:#64748b; font-size:13px; }
       </style>
       
@@ -1060,7 +1067,7 @@
           <div>
             <p class="eyebrow">Invoice Intake</p>
             <h2>Purchase Order Review</h2>
-            <p class="page-subtitle">Invoices extracted and matched, waiting for approval. Nothing here has reached Xero yet.</p>
+            <p class="page-subtitle">Invoices extracted and matched, waiting for approval. Nothing here has reached Xero yet. Approved and rejected invoices are in the tabs below.</p>
             <p class="muted" style="font-size:12px;margin-top:6px">⏰ Approved invoices post to Xero in a daily batch at <b style="color:#e2e8f0">5:00 PM</b>. Approve after that and it goes out the next day.</p>
           </div>
         </div>
@@ -1071,54 +1078,38 @@
           <div class="rev-summary-card"><div class="rev-num" id="revLowConfCount">0</div><div class="rev-label">Low confidence — check</div></div>
           <div class="rev-summary-card"><div class="rev-num" id="revTotalValue">£0.00</div><div class="rev-label">Total value waiting</div></div>
         </div>
-      
-        <div id="reviewList"><div class="rev-empty">Loading…</div></div>
 
-        <div class="section-title" style="margin-top:28px">In Review <span id="revInReviewCount" style="color:#64748b;font-weight:600">0</span></div>
-        <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:12px">
-          Tagged and set aside for later - out of the main list until resumed. Nothing here has been approved, rejected, or posted.
-        </p>
-        <div id="inReviewList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
-      </section>
+        <div class="rev-toolbar"><div class="rev-tabs" id="revTabs" role="tablist">
+          <button type="button" class="rev-tab active" data-tab="review" role="tab">Needs review <span class="rev-tab-n" id="revTabN-review">0</span></button>
+          <button type="button" class="rev-tab" data-tab="inreview" role="tab">In review <span class="rev-tab-n" id="revTabN-inreview">0</span></button>
+          <button type="button" class="rev-tab" data-tab="approved" role="tab">Approved, waiting to post <span class="rev-tab-n" id="revTabN-approved">0</span></button>
+          <button type="button" class="rev-tab" data-tab="rejected" role="tab">Rejected <span class="rev-tab-n" id="revTabN-rejected">0</span></button>
+        </div></div>
 
-      <!-- APPROVED INVOICES (own tab) -->
-      <section id="approvedinvoices" class="dashboard-page">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Staged For Xero</p>
-            <h2>Approved Invoices</h2>
-            <p class="page-subtitle">Matched and approved on Purchase Order Review, waiting to post to Xero. Nothing here has reached Xero yet.</p>
-          </div>
+        <div class="rev-pane" data-pane="review">
+          <div id="reviewList"><div class="rev-empty">Loading…</div></div>
         </div>
 
-        <div class="rev-summary-row" style="grid-template-columns:1fr">
-          <div class="rev-summary-card rev-attn"><div class="rev-num" id="revApprovedCount">0</div><div class="rev-label">Approved, not yet posted</div></div>
-        </div>
-        <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:12px">
-          Made a mistake? You can undo an approval here as long as it hasn't reached Xero yet.
-        </p>
-
-        <div id="approvedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
-      </section>
-
-      <!-- REJECTED INVOICES (own tab) -->
-      <section id="rejectedinvoices" class="dashboard-page">
-        <div class="page-header">
-          <div>
-            <p class="eyebrow">Not Proceeding</p>
-            <h2>Rejected Invoices</h2>
-            <p class="page-subtitle">Rejected on Purchase Order Review. Nothing here has reached Xero.</p>
-          </div>
+        <div class="rev-pane" data-pane="inreview" hidden>
+          <p class="muted" style="margin-bottom:14px;font-size:12px">
+            In review: <span id="revInReviewCount" style="color:#94a3b8;font-weight:600">0</span>. Tagged and set aside for later - out of the main list until resumed. Nothing here has been approved, rejected, or posted.
+          </p>
+          <div id="inReviewList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
         </div>
 
-        <div class="rev-summary-row" style="grid-template-columns:1fr">
-          <div class="rev-summary-card rev-attn"><div class="rev-num" id="revRejectedCount">0</div><div class="rev-label">Rejected</div></div>
+        <div class="rev-pane" data-pane="approved" hidden>
+          <p class="muted" style="margin-bottom:14px;font-size:12px">
+            Approved, not yet posted: <span id="revApprovedCount" style="color:#94a3b8;font-weight:600">0</span>. Matched and approved, waiting to post to Xero. Nothing here has reached Xero yet. Made a mistake? You can undo an approval here as long as it hasn't reached Xero yet.
+          </p>
+          <div id="approvedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
         </div>
-        <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:12px">
-          Rejected something by mistake? Undo it here, safe any time since rejected invoices never reach Xero.
-        </p>
 
-        <div id="rejectedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
+        <div class="rev-pane" data-pane="rejected" hidden>
+          <p class="muted" style="margin-bottom:14px;font-size:12px">
+            Rejected: <span id="revRejectedCount" style="color:#94a3b8;font-weight:600">0</span>. Rejected on this page. Nothing here has reached Xero. Rejected something by mistake? Undo it here, safe any time since rejected invoices never reach Xero.
+          </p>
+          <div id="rejectedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
+        </div>
       </section>
 
       <!-- SALES INVOICES (review queue, rebuilt 30 Sept 2026) -->
@@ -1306,14 +1297,14 @@
   <script src="weekly-targets.js"></script>
   <script src="revenue.js"></script>
   <script src="discrepancies.js"></script>
-  <script src="pending_invoices_review.js"></script>
+  <script src="pending_invoices_review.js?v=20261028a"></script>
   <script src="sales_invoices_view.js?v=20261013b"></script>
     <script src="customer_spend.js?v=20261016b"></script>
   <script src="quotes.js?v=20261028"></script>
   <script src="winback.js?v=20261026"></script>
   <script src="newcustomers.js?v=20261023"></script>
   <script src="calendar.js?v=20261027b"></script>
-  <script src="updatelog-data.js?v=20261028d"></script>
+  <script src="updatelog-data.js?v=20261028e"></script>
   <script src="updatelog.js?v=20261028"></script>
   <script src="stock.js?v=20261027b"></script>
   <script src="glass.js?v=20261028"></script>
