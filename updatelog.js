@@ -43,12 +43,6 @@
     return true;
   }
 
-  function copyText(u) {
-    return ['ATAM GO update ' + u.v + ' (' + day(u.date) + '): ' + u.title, u.summary, 'Changes: ' + (u.changes || []).join(' | '),
-      'If it goes wrong: ' + (u.watch || ''),
-      'Something is not working and I think it may have started with this update. Please check.'].join('\n');
-  }
-
   function statsHtml() {
     const all = updates();
     const n = s => all.filter(u => u.status === s).length;
@@ -103,7 +97,6 @@
         ${open ? `<div class="ul-body">
           <h5>What changed</h5><ul>${(u.changes || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
           ${u.watch ? `<h5>If something goes wrong</h5><p class="ul-watch">${esc(u.watch)}</p>` : ''}
-          <div class="ul-actions"><button type="button" class="ul-btn" data-copy="${esc(u.v)}">Copy details</button></div>
         </div>` : ''}
       </div></article>`;
   }
@@ -464,14 +457,6 @@
     const t = document.createElement('div'); t.className = 'ul-toast'; t.textContent = msg; document.body.appendChild(t);
     setTimeout(() => t.remove(), 2500);
   }
-  function copy(v) {
-    const u = updates().find(x => x.v === v); if (!u) return;
-    const text = copyText(u);
-    const done = () => toast('Copied to the clipboard.');
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy.'));
-    else { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Could not copy.'); } ta.remove(); }
-  }
-
   function installPage() {
     if ($(PAGE_ID)) return true;
     const anchorBtn = document.querySelector('.nav-link[data-page="calendar"]') || document.querySelector('.nav-link[data-page="newcustomers"]') || document.querySelector('.nav-link[data-page="winback"]');
@@ -529,7 +514,6 @@
       const ar = e.target.closest('[data-area]'); if (ar) { state.area = ar.dataset.area; render(); return; }
       if (e.target.closest('[data-sort]')) { state.newest = !state.newest; render(); return; }
       if (e.target.closest('[data-clear-around]')) { state.around = ''; render(); return; }
-      const cp = e.target.closest('[data-copy]'); if (cp) { copy(cp.dataset.copy); return; }
       const tg = e.target.closest('[data-toggle]');
       if (tg) { const v = tg.dataset.toggle; const cur = tg.getAttribute('aria-expanded') === 'true'; state.open[v] = !cur; render(); }
     });

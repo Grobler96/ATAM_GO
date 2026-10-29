@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v45', date: '2026-10-29', status: 'built', pr: null, areas: ['Update log'],
+    title: 'Copy details button removed from the Update log',
+    summary: 'The Copy details button on each update card has been taken away.',
+    changes: ['Opening an update still shows what changed and what to check if something goes wrong. Only the button that copied that text to the clipboard is gone.'],
+    watch: 'Nothing else should be affected. If you miss it, say and it can come back.'
+  },
+  {
     v: 'v44', date: '2026-10-29', status: 'live', pr: 41, areas: ['Invoices'],
     title: 'Stopped an edited order being invoiced twice',
     summary: 'Order 636616 was invoiced twice for the same 10 vests. The cause is fixed so it cannot happen again this way.',
