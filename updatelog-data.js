@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v40', date: '2026-10-28', status: 'live', pr: null, areas: ['Invoices'],
+    v: 'v40', date: '2026-10-28', status: 'live', pr: 39, areas: ['Invoices'],
     title: 'Supplier invoices now arrive through the shared Microsoft 365 mailbox',
     summary: 'Supplier invoices are now picked up from the shared invoice mailbox instead of the old Gmail inbox, and appear in Purchase Order Review within minutes.',
     changes: ['Every 5 minutes the invoice mailbox is checked. Each PDF goes through the same checking and matching as before, and the email is then moved to a Processed folder so the Inbox stays clear.', 'If an email is still sitting in the Inbox after a day, an email goes to Daniel and Oliver listing it.', 'The old Gmail pick-up is switched off, so forwarding an invoice to Gmail by hand no longer does anything.'],
