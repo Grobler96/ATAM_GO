@@ -11,14 +11,14 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v43', date: '2026-10-29', status: 'built', pr: null, areas: ['Invoices'],
+    v: 'v43', date: '2026-10-29', status: 'live', pr: null, areas: ['Invoices'],
     title: 'Stopped an edited order being invoiced twice',
     summary: 'Order 636616 was invoiced twice for the same 10 vests. The cause is fixed so it cannot happen again this way.',
     changes: ['When an order is edited in DecoNetwork after it has been invoiced, an item can come back with a new internal number. The system then thought it had not been invoiced and billed it again. It now remembers what was invoiced for the same product, size and colour even when that number changes.', 'Every posted and approved sales invoice was checked for the same problem. Only order 636616 was affected: invoice 636616-2 (\u00a390.72) repeats the 10 Large already on 636616. The extra draft needs deleting in Xero by hand.', 'Nothing else changed: the list of orders waiting to be invoiced is identical before and after.'],
     watch: 'If a genuine second delivery of the same size on an order is not offered for invoicing, tell Oliver. Edited orders are the thing to check first.'
   },
   {
-    v: 'v42', date: '2026-10-29', status: 'built', pr: null, areas: ['Actions', 'Update log'], timeTaken: '7 h',
+    v: 'v42', date: '2026-10-29', status: 'live', pr: null, areas: ['Actions', 'Update log'], timeTaken: '7 h',
     title: 'Actions tab buttons connected, and an automation health check',
     summary: 'Every button on the Actions tab now does something, there are four new ones, and the Update log has a health check that shows whether the automations are running properly, with a Report to Oliver button.',
     changes: [
