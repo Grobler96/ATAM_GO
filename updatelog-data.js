@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v41', date: '2026-10-29', status: 'built', pr: null, areas: ['Site'],
+    v: 'v41', date: '2026-10-29', status: 'live', pr: 40, areas: ['Site'],
     title: 'Refreshing the dashboard keeps you on the same page',
     summary: 'When you refresh the dashboard you now stay on the page you were on, instead of going back to the Overview.',
     changes: ['It remembers the last menu page you opened, including the newer ones like Quotes, Win-back and Calendar.', 'On Purchase Order Review it also remembers which tab you were on.', 'It only remembers while that browser tab is open. Opening the dashboard fresh still starts on the Overview.'],
