@@ -11,11 +11,18 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v42', date: '2026-10-29', status: 'live', pr: null, areas: ['Actions'],
-    title: 'Daily production report and the Send Daily Summary button repaired',
-    summary: 'The nightly production report email had quietly stopped in mid October, and the Send Daily Summary button on the Actions tab never ran it. Both work again.',
-    changes: ['The 11pm email to Daniel with the day\u2019s embroidery and print totals reads the day\u2019s real figures again. It stopped on 13 October when the data was locked down to signed-in users.', 'The report now says it is for today, with today\u2019s date, instead of yesterday.', 'The Send Daily Summary button on the Actions tab now sends the same report to Daniel. Refresh Deco Data was already working.', 'Recount Selected Range and Send Manager Alert are still not connected.'],
-    watch: 'If the 11pm email does not arrive on a day with production, check the Actions tab button first. No email is sent on a day with nothing produced.'
+    v: 'v42', date: '2026-10-29', status: 'built', pr: null, areas: ['Actions', 'Update log'], timeTaken: '7 h',
+    title: 'Actions tab buttons connected, and an automation health check',
+    summary: 'Every button on the Actions tab now does something, there are four new ones, and the Update log has a health check that shows whether the automations are running properly, with a Report to Oliver button.',
+    changes: [
+      'Send Daily Summary now emails the production summary to whoever pressed it. The nightly 11pm email to Daniel had quietly stopped on 13 October when data was locked down; it is switched off on purpose and is not sent to Daniel.',
+      'Recount Selected Range now picks up any production records missed in the dates chosen on the dashboard (up to 31 days back). It only adds missing records and runs in the background.',
+      'Send Manager Alert emails each account manager their own urgent orders: due today, due tomorrow and overdue by up to a week, plus orders ready to ship. Older overdue orders are left out because many of them look stale.',
+      'The Ready to ship and At risk buttons on the Orders page now send the same style of email.',
+      'New buttons: Send Me My Win-back List, Refresh Quotes Now, Refresh Xero Sales Now and Check Invoice Mailbox Now.',
+      'New Automation health box at the top of the Update log: a score out of 100, which automations have failed in the last day, data that has stopped updating, and the latest failures. A Report to Oliver button emails Oliver the same picture and who pressed it.'
+    ],
+    watch: 'If a button says it worked but no email arrives, check the spam folder first. The health check only counts failures from 29 October onwards, so a quiet score on the first day does not yet prove everything is fine. Push-style buttons were not tested from a real signed-in session before release.'
   },
   {
     v: 'v41', date: '2026-10-29', status: 'live', pr: 40, areas: ['Site'],

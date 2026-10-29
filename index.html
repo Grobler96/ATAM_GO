@@ -771,9 +771,13 @@
         <div class="page-header"><div><p class="eyebrow">Actions</p><h2>Workflow Triggers</h2><p class="page-subtitle">Trigger n8n workflow automations.</p></div></div>
         <div class="action-grid">
           <button type="button" class="action-card" data-action="refreshDecoData"><strong>Refresh Deco Data</strong><span>Trigger a data refresh workflow.</span></button>
-          <button type="button" class="action-card" data-action="recountToday"><strong>Recount Selected Range</strong><span>Ask n8n to recount production records.</span></button>
-          <button type="button" class="action-card" data-action="sendDailySummary"><strong>Send Daily Summary</strong><span>Push a summary to email, Slack or GHL.</span></button>
+          <button type="button" class="action-card" data-action="recountToday"><strong>Recount Selected Range</strong><span>Pick up any production records missed in the selected dates.</span></button>
+          <button type="button" class="action-card" data-action="sendDailySummary"><strong>Send Daily Summary</strong><span>Email yourself today's production summary.</span></button>
           <button type="button" class="action-card" data-action="sendManagerAlert"><strong>Send Manager Alert</strong><span>Notify account managers about urgent work.</span></button>
+          <button type="button" class="action-card" data-action="sendWinbackMine"><strong>Send Me My Win-back List</strong><span>Email yourself the customers due to reorder and chases that have arrived.</span></button>
+          <button type="button" class="action-card" data-action="refreshQuotes"><strong>Refresh Quotes Now</strong><span>Pull the latest quotes from DecoNetwork.</span></button>
+          <button type="button" class="action-card" data-action="refreshXero"><strong>Refresh Xero Sales Now</strong><span>Pull the latest sales and customer accounts from Xero.</span></button>
+          <button type="button" class="action-card" data-action="checkInvoiceMailbox"><strong>Check Invoice Mailbox Now</strong><span>Look for new supplier invoices straight away.</span></button>
         </div>
       </section>
 
@@ -1296,7 +1300,7 @@
 
   <!-- SCRIPTS -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
-  <script src="config.js"></script>
+  <script src="config.js?v=20261029f"></script>
   <script src="atamgo-auth.js"></script>
   <script src="app.js"></script>
   <script src="enhancements.js"></script>
@@ -1312,8 +1316,8 @@
   <script src="winback.js?v=20261026"></script>
   <script src="newcustomers.js?v=20261023"></script>
   <script src="calendar.js?v=20261027b"></script>
-  <script src="updatelog-data.js?v=20261029e"></script>
-  <script src="updatelog.js?v=20261028"></script>
+  <script src="updatelog-data.js?v=20261029f"></script>
+  <script src="updatelog.js?v=20261029f"></script>
   <script src="stock.js?v=20261027b"></script>
   <script src="glass.js?v=20261028"></script>
   <script src="keepplace.js?v=20261029"></script>

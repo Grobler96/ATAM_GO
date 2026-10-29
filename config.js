@@ -6,11 +6,16 @@ window.ATAM_GO_CONFIG = {
 
   WEBHOOKS: {
     refreshDecoData: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
-    recountToday: "",
+    recountToday: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
     sendDailySummary: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
-    sendManagerAlert: "",
-    readyShipAlert: "",
-    sendRiskAlert: "",
+    sendManagerAlert: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
+    readyShipAlert: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
+    sendRiskAlert: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
+    sendWinbackMine: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
+    refreshQuotes: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
+    refreshXero: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
+    checkInvoiceMailbox: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
+    reportHealth: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
     pushToGHL: ""
   }
 };

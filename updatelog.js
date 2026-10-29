@@ -137,6 +137,78 @@
   }
 
 
+
+  // ───────────────────────── Automation health ─────────────────────────
+  // Reads n8n_health_report() (sql/n8n_health_2026-10-29.sql) with the signed-in user's login. Failures come from the shared error
+  // workflow (table n8n_failure_log); data freshness from data_freshness_report(). "Report to Oliver" posts to the Actions router
+  // (action reportHealth), which emails Oliver the same picture and who pressed it.
+  const hl = { data: null, loading: false, error: '', open: false, sending: false, sentAt: 0 };
+  const hlWhen = d => { try { return new Date(d).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+  const hlClean = s => String(s == null ? '' : s).replace(/\s*\([^)]*(WF\d|sync|poster)[^)]*\)/g, '');
+
+  async function loadHealth() {
+    if (hl.loading) return;
+    hl.loading = true;
+    try {
+      const r = await client().rpc('n8n_health_report');
+      if (r.error) throw r.error;
+      hl.data = r.data; hl.error = '';
+    } catch (e) {
+      console.error('health load failed', e);
+      if (!hl.data) hl.error = 'Could not load the health check. Try again in a moment.';
+    }
+    hl.loading = false;
+    renderHealth();
+  }
+
+  function healthHtml() {
+    if (hl.error) return `<div class="ul-empty">${esc(hl.error)} <button type="button" class="ul-chip" data-hl="refresh">Try again</button></div>`;
+    const d = hl.data;
+    if (!d) return '<div class="ul-empty">Checking the automations…</div>';
+    const score = Number(d.score) || 0;
+    const tone = score >= 90 ? 'ok' : score >= 70 ? 'warn' : 'bad';
+    const wfs = Array.isArray(d.workflows) ? d.workflows : [];
+    const bad = wfs.filter(w => w.status !== 'ok');
+    const probs = (d.freshness && Array.isArray(d.freshness.problems)) ? d.freshness.problems : [];
+    const recent = Array.isArray(d.recent_failures) ? d.recent_failures : [];
+    const needs = score < 90 || bad.length || probs.length;
+    const cool = Date.now() - hl.sentAt < 60000;
+    const pill = w => `<li class="ul-hl-row ul-hl-${w.status}"><span class="ul-hl-dot"></span><div><b>${esc(w.name)}</b> <small>${esc(w.how_often || '')}</small><div class="ul-hl-what">${esc(w.what || '')}</div>${w.status !== 'ok' ? `<div class="ul-hl-err">${esc(w.failures_24h)} failure${Number(w.failures_24h) === 1 ? '' : 's'} in the last 24 hours. Last: ${esc(hlWhen(w.last_failure_at))}${w.failed_at_step ? ' at "' + esc(w.failed_at_step) + '"' : ''}. ${esc(w.last_error || '')}</div>` : ''}</div></li>`;
+    return `<div class="ul-hl-top">
+        <div class="ul-hl-score ul-hl-${tone}"><b>${score}</b><span>/100</span></div>
+        <div class="ul-hl-sum"><h3>${esc(d.label || '')}</h3>
+          <p>${bad.length ? esc(bad.length) + ' of ' + wfs.length + ' automations had a failure in the last 24 hours. ' : 'No automation has failed in the last 24 hours. '}${probs.length ? esc(probs.length) + ' data set' + (probs.length === 1 ? ' is' : 's are') + ' not updating when it should.' : 'All data sets are updating on time.'}</p>
+          <p class="ul-hl-note">Checked ${esc(hlWhen(d.checked_at))}. Failures are counted from 29 Oct 2026, when this check started.</p></div>
+        <div class="ul-hl-act">
+          <button type="button" class="ul-chip" data-hl="refresh">Check again</button>
+          <button type="button" class="ul-hl-report ${needs ? 'ul-hl-needs' : ''}" data-hl="report" ${hl.sending || cool ? 'disabled' : ''}>${hl.sending ? 'Sending…' : cool ? 'Sent to Oliver' : 'Report to Oliver'}</button>
+        </div></div>
+      ${probs.length ? `<div class="ul-hl-block"><h4>Data not updating</h4><ul class="ul-hl-list">${probs.map(p => `<li><b>${esc(p.what)}</b><div class="ul-hl-err">${esc(hlClean(p.detail))}</div></li>`).join('')}</ul></div>` : ''}
+      ${recent.length ? `<div class="ul-hl-block"><h4>Latest failures</h4><ul class="ul-hl-list">${recent.map(f => `<li><b>${esc(f.workflow)}</b> <small>${esc(hlWhen(f.at))}</small><div class="ul-hl-err">${esc(f.step ? f.step + ': ' : '')}${esc(f.message)}</div></li>`).join('')}</ul></div>` : ''}
+      <button type="button" class="ul-chip" data-hl="toggle">${hl.open ? '−' : '+'} All ${wfs.length} automations</button>
+      ${hl.open ? `<ul class="ul-hl-list ul-hl-all">${wfs.slice().sort((a, b) => (a.status === 'ok') - (b.status === 'ok')).map(pill).join('')}</ul>` : ''}`;
+  }
+
+  const renderHealth = () => { const el = $('ulHealth'); if (el) el.innerHTML = healthHtml(); };
+
+  async function reportHealth() {
+    if (hl.sending) return;
+    hl.sending = true; renderHealth();
+    try {
+      const url = (window.ATAM_GO_CONFIG && window.ATAM_GO_CONFIG.WEBHOOKS || {}).reportHealth;
+      if (!url) throw new Error('not set up');
+      const res = await fetch(url, { method: 'POST', headers: await window.atamGoWebhookHeaders(), body: JSON.stringify({ action: 'reportHealth', source: 'ATAM GO' }) });
+      if (!res.ok) throw new Error('failed ' + res.status);
+      hl.sentAt = Date.now();
+      toast('Sent to Oliver.');
+      setTimeout(renderHealth, 61000);
+    } catch (e) {
+      console.error('report failed', e);
+      toast('Could not send that. Please try again, or tell Oliver directly.');
+    }
+    hl.sending = false; renderHealth();
+  }
+
   // ───────────────────────── Suggestions ─────────────────────────
   // Anyone signed in can suggest an update and rate every suggestion from 1 (nice to have) to 5 (needed now).
   // Ranked by points: everyone's ratings added up. Data: view update_suggestions_board; writes only through the functions
@@ -333,6 +405,22 @@
 #updatelog .ul-btn:hover { border-color:#38bdf8; }
 #updatelog .ul-empty { padding:30px; text-align:center; color:#94a3b8; border:1px dashed rgba(255,255,255,.14); border-radius:12px; }
 #updatelog .ul-foot { margin-top:20px; color:#64748b; font-size:12px; max-width:760px; line-height:1.5; }
+#updatelog .ul-hl-wrap { margin:18px 0 6px; padding:18px; border-radius:16px; border:1px solid rgba(56,189,248,.3); background:rgba(8,12,24,.6); }
+#updatelog .ul-hl-wrap > h3 { margin:0 0 10px; font-size:16px; }
+#updatelog .ul-hl-top { display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+#updatelog .ul-hl-score { min-width:96px; text-align:center; padding:10px 12px; border-radius:14px; border:2px solid; }
+#updatelog .ul-hl-score b { font-size:34px; line-height:1; } #updatelog .ul-hl-score span { color:#94a3b8; font-size:13px; }
+#updatelog .ul-hl-score.ul-hl-ok { border-color:#22c55e; color:#22c55e; } #updatelog .ul-hl-score.ul-hl-warn { border-color:#f59e0b; color:#f59e0b; } #updatelog .ul-hl-score.ul-hl-bad { border-color:#ef4444; color:#ef4444; }
+#updatelog .ul-hl-sum { flex:1 1 260px; } #updatelog .ul-hl-sum h3 { margin:0 0 4px; } #updatelog .ul-hl-sum p { margin:0 0 4px; color:#cbd5e1; font-size:13.5px; } #updatelog .ul-hl-sum .ul-hl-note { color:#94a3b8; font-size:12px; }
+#updatelog .ul-hl-act { display:flex; gap:8px; flex-wrap:wrap; }
+#updatelog .ul-hl-report { padding:9px 16px; border-radius:10px; border:1px solid rgba(148,163,184,.4); background:rgba(148,163,184,.12); color:#e2e8f0; font-weight:600; cursor:pointer; }
+#updatelog .ul-hl-report.ul-hl-needs { background:#ef4444; border-color:#ef4444; color:#fff; }
+#updatelog .ul-hl-report:disabled { opacity:.6; cursor:default; }
+#updatelog .ul-hl-block h4 { margin:10px 0 4px; font-size:13px; color:#fbbf24; }
+#updatelog .ul-hl-list { list-style:none; margin:6px 0; padding:0; display:grid; gap:6px; font-size:13px; }
+#updatelog .ul-hl-list small { color:#94a3b8; } #updatelog .ul-hl-err { color:#fca5a5; font-size:12.5px; margin-top:2px; word-break:break-word; } #updatelog .ul-hl-what { color:#94a3b8; font-size:12.5px; }
+#updatelog .ul-hl-row { display:flex; gap:10px; align-items:flex-start; } #updatelog .ul-hl-dot { width:10px; height:10px; border-radius:50%; margin-top:5px; background:#22c55e; flex:none; }
+#updatelog .ul-hl-row.ul-hl-warning .ul-hl-dot { background:#f59e0b; } #updatelog .ul-hl-row.ul-hl-failing .ul-hl-dot { background:#ef4444; }
 #updatelog .ul-sg-wrap { margin:18px 0 6px; padding:18px; border-radius:16px; border:1px solid rgba(251,146,60,.35); background:linear-gradient(160deg, rgba(251,146,60,.07), rgba(56,189,248,.05)); }
 #updatelog .ul-sg-head { display:flex; gap:14px; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; }
 #updatelog .ul-sg-head h3 { margin:0 0 4px; font-size:16px; color:#fed7aa; }
@@ -403,6 +491,7 @@
     sec.className = 'dashboard-page';
     sec.innerHTML = `<div class="ul-hero"><p class="eyebrow">ATAM GO</p><h2>Update log</h2>
       <p>Every change we have made, in order, and what is coming next. If something stops working, find roughly when it started and look at what changed just before. You can also suggest what we build next and vote on it.</p></div>
+      <section class="ul-hl-wrap" aria-label="Automation health"><h3>🩺 Automation health</h3><div id="ulHealth"></div></section>
       <section class="ul-sg-wrap" aria-label="Suggestions"><div id="ulSgTop"></div><div id="ulSgList"></div></section><div id="ulBody"></div>`;
     anchorPage.parentElement.appendChild(sec);
 
@@ -414,6 +503,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       render();
       renderSgTop(); renderSgList(); loadSug();
+      renderHealth(); loadHealth();
     });
     document.addEventListener('click', e => {
       const other = e.target.closest('.nav-link');
@@ -421,6 +511,8 @@
     }, true);
 
     sec.addEventListener('click', e => {
+      const hb = e.target.closest('[data-hl]');
+      if (hb) { const a = hb.dataset.hl; if (a === 'refresh') { hl.error = ''; loadHealth(); } else if (a === 'report') reportHealth(); else if (a === 'toggle') { hl.open = !hl.open; renderHealth(); } return; }
       const sg = e.target.closest('[data-sg]');
       if (sg) {
         const a = sg.dataset.sg;
