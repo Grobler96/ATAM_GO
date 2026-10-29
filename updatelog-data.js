@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v42, v43...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v43, v44...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v42', date: '2026-10-29', status: 'live', pr: null, areas: ['Actions'],
+    title: 'Daily production report and the Send Daily Summary button repaired',
+    summary: 'The nightly production report email had quietly stopped in mid October, and the Send Daily Summary button on the Actions tab never ran it. Both work again.',
+    changes: ['The 11pm email to Daniel with the day\u2019s embroidery and print totals reads the day\u2019s real figures again. It stopped on 13 October when the data was locked down to signed-in users.', 'The report now says it is for today, with today\u2019s date, instead of yesterday.', 'The Send Daily Summary button on the Actions tab now sends the same report to Daniel. Refresh Deco Data was already working.', 'Recount Selected Range and Send Manager Alert are still not connected.'],
+    watch: 'If the 11pm email does not arrive on a day with production, check the Actions tab button first. No email is sent on a day with nothing produced.'
+  },
   {
     v: 'v41', date: '2026-10-29', status: 'live', pr: 40, areas: ['Site'],
     title: 'Refreshing the dashboard keeps you on the same page',
