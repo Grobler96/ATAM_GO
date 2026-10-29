@@ -240,15 +240,34 @@
       </dl></button>`;
   }
 
-  function overview(P) {
+  function orderedManagers(P) {
     const ordered = Object.values(P.managers).filter(m => m.name !== NONE).sort((a, b) => (b.accounts.length ? 1 : 0) - (a.accounts.length ? 1 : 0) || b.rev - a.rev || a.name.localeCompare(b.name));
     const none = P.managers[NONE];
     if (none.accounts.length) ordered.push(none);
+    return ordered;
+  }
+
+  // The 3D office above the cards (amoffice.js). The cards stay as the plain, keyboard-friendly way in.
+  function officeSlot() { return window.ATAM_OFFICE && window.ATAM_OFFICE.available() ? '<div id="amOfficeSlot" class="am-office"></div>' : ''; }
+  function drawOffice(P) {
+    const O = window.ATAM_OFFICE, slot = $('amOfficeSlot');
+    if (!O) return;
+    if (!slot || state.view !== 'overview') { O.detach(); return; }
+    const items = orderedManagers(P).map(m => ({ name: m.name, label: mgrLabel(m.name), hue: hue(m.name), rev: m.rev, accounts: m.accounts.length, auto: m.auto,
+      openValue: m.qs.openValue, rate: m.qs.rate, you: !!(state.me && m.name === state.me), none: m.name === NONE }));
+    O.setData(items, { total: P.total.rev, periodLabel: PERIODS[state.period].label.toLowerCase(), fmt: gbp }, goManager);
+    O.attach(slot);
+  }
+
+  function overview(P) {
+    const ordered = orderedManagers(P);
+    const none = P.managers[NONE];
     const counts = { all: P.accounts.length, auto: P.accounts.filter(a => a.isAuto && a.owner !== NONE).length, none: none.accounts.length };
     let list = P.accounts;
     if (state.filter === 'auto') list = list.filter(a => a.isAuto && a.owner !== NONE);
     if (state.filter === 'none') list = list.filter(a => a.owner === NONE);
     return `${periodBar()}${summaryTiles(P)}
+      ${officeSlot()}
       <div class="am-cards">${ordered.map(m => managerCard(m, P)).join('')}</div>
       <h3 class="am-h">Find an account</h3>
       <p class="am-note">Every account is listed here, so you can open any of them and choose who owns it. Tick several to move them in one go.</p>
@@ -439,6 +458,7 @@
     const keepScroll = window.scrollY;
     const P = prepare();
     el.innerHTML = (state.view === 'manager' ? managerView(P) : overview(P)) + footnote() + `<div id="amDrawerHost">${drawer(P)}</div>`;
+    drawOffice(P);
     const dr = el.querySelector('.am-drawer');
     if (dr && !dr.dataset.focused) { dr.dataset.focused = '1'; const x = dr.querySelector('.am-x'); if (x && !state.saving) x.focus({ preventScroll: true }); }
     if (Math.abs(window.scrollY - keepScroll) > 4) window.scrollTo(0, keepScroll);
@@ -529,6 +549,13 @@
 #accountmanagers .am-headbox { padding:22px 24px; border-radius:18px; border:1px solid rgba(255,255,255,.08); background:radial-gradient(120% 140% at 0% 0%, rgba(56,189,248,.14), transparent 55%), radial-gradient(90% 120% at 100% 0%, rgba(168,85,247,.14), transparent 60%), rgba(15,23,42,.55); }
 #accountmanagers .am-headbox h2 { margin:0 0 6px; font-size:28px; }
 #accountmanagers .am-headbox p { margin:0; color:#94a3b8; font-size:14px; max-width:780px; line-height:1.5; }
+#accountmanagers .am-office { margin:0 0 16px; }
+#accountmanagers .amo { position:relative; height:500px; border-radius:18px; overflow:hidden; border:1px solid rgba(56,189,248,.28); background:radial-gradient(120% 120% at 50% 0%, rgba(56,189,248,.16), transparent 60%), radial-gradient(90% 90% at 100% 100%, rgba(168,85,247,.14), transparent 60%), #050a1a; }
+#accountmanagers .amo-tip { position:absolute; z-index:3; width:200px; padding:9px 11px; border-radius:10px; background:rgba(2,6,23,.92); border:1px solid rgba(56,189,248,.4); color:#e2e8f0; font-size:12px; line-height:1.45; pointer-events:none; }
+#accountmanagers .amo-tip b { display:block; font-size:13.5px; color:#fff; }
+#accountmanagers .amo-tip span { display:block; color:#cbd5e1; }
+#accountmanagers .amo-hint { position:absolute; left:12px; bottom:10px; z-index:2; font-size:11.5px; color:#94a3b8; pointer-events:none; }
+@media (max-width:700px) { #accountmanagers .amo { height:340px; } }
 #accountmanagers .am-dim { color:#94a3b8; font-size:12.5px; }
 #accountmanagers .am-grow { flex:1 1 160px; }
 #accountmanagers .am-warn { color:#fbbf24; }
