@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v42, v43...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v43, v44...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,27 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v44', date: '2026-10-29', status: 'live', pr: 41, areas: ['Invoices'],
+    title: 'Stopped an edited order being invoiced twice',
+    summary: 'Order 636616 was invoiced twice for the same 10 vests. The cause is fixed so it cannot happen again this way.',
+    changes: ['When an order is edited in DecoNetwork after it has been invoiced, an item can come back with a new internal number. The system then thought it had not been invoiced and billed it again. It now remembers what was invoiced for the same product, size and colour even when that number changes.', 'Every posted and approved sales invoice was checked for the same problem. Only order 636616 was affected: invoice 636616-2 (\u00a390.72) repeats the 10 Large already on 636616. The extra draft needs deleting in Xero by hand.', 'Nothing else changed: the list of orders waiting to be invoiced is identical before and after.'],
+    watch: 'If a genuine second delivery of the same size on an order is not offered for invoicing, tell Oliver. Edited orders are the thing to check first.'
+  },
+  {
+    v: 'v43', date: '2026-10-29', status: 'live', pr: 41, areas: ['Actions', 'Update log'], timeTaken: '7 h',
+    title: 'Actions tab buttons connected, and an automation health check',
+    summary: 'Every button on the Actions tab now does something, there are four new ones, and the Update log has a health check that shows whether the automations are running properly, with a Report to Oliver button.',
+    changes: [
+      'Send Daily Summary now emails the production summary to whoever pressed it. The nightly 11pm email to Daniel had quietly stopped on 13 October when data was locked down; it is switched off on purpose and is not sent to Daniel.',
+      'Recount Selected Range now picks up any production records missed in the dates chosen on the dashboard (up to 31 days back). It only adds missing records and runs in the background.',
+      'Send Manager Alert emails each account manager their own urgent orders: due today, due tomorrow and overdue by up to a week, plus orders ready to ship. Older overdue orders are left out because many of them look stale.',
+      'The Ready to ship and At risk buttons on the Orders page now send the same style of email.',
+      'New buttons: Send Me My Win-back List, Refresh Quotes Now, Refresh Xero Sales Now and Check Invoice Mailbox Now.',
+      'New Automation health box at the top of the Update log: a score out of 100, which automations have failed in the last day, data that has stopped updating, and the latest failures. A Report to Oliver button emails Oliver the same picture and who pressed it.'
+    ],
+    watch: 'If a button says it worked but no email arrives, check the spam folder first. The health check only counts failures from 29 October onwards, so a quiet score on the first day does not yet prove everything is fine. Push-style buttons were not tested from a real signed-in session before release.'
+  },
   {
     v: 'v42', date: '2026-10-29', status: 'live', pr: 42, timeTaken: '3 h 30 m', areas: ['Account managers', 'Database'],
     title: 'New Account managers tab',
