@@ -1604,5 +1604,6 @@ body.qt-lock { overflow:hidden; }
 
   window.QuotesPage = { reload: () => load(), state };
   // shared with the Win-back tab
-  window.ATAM_QT = { mountCompose, loadSenders, pickSender, firstName, TONES, JOB_WORDS, histHtml, ago, emailEnabled: () => EMAIL_SENDING_ENABLED };
+  // (enrich + STAGES are also used by the Account managers tab so quote stages are worked out in one place)
+  window.ATAM_QT = { mountCompose, loadSenders, pickSender, firstName, TONES, JOB_WORDS, histHtml, ago, enrich, STAGES, DECO_ORDER_URL, emailEnabled: () => EMAIL_SENDING_ENABLED };
 })();

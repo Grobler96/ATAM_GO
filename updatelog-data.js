@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v42', date: '2026-10-29', status: 'built', areas: ['Account managers', 'Database'],
+    title: 'New Account managers tab',
+    summary: 'A new tab shows each account manager as a card. Open one to see their accounts, revenue, open quotes and an indicative margin, and open any account to choose who owns it.',
+    changes: ['Every customer account has one owner. Whoever owns it gets all of its revenue and all of its quotes, even if someone else keyed the quotes in. Daniel can own an account that Bethan quotes for.', 'Revenue uses the same figures and account groupings as the Customers tab (before VAT, credit notes taken off), for the last 12 months or this financial year, against the period before.', 'Quotes show on each account and on each person, with the same stages as the Quotes tab, who keyed each one in, and the win rate.', 'Owners can be set one account at a time, or several at once by ticking them. Each change is recorded with who made it and when, and an account can be put back to automatic.', 'Until someone confirms an account, it shows an automatic suggestion (who handled most of its invoiced orders, else who made most of its quotes), clearly marked Automatic.', 'Margin is only an indicative garment margin on the invoice lines we have supplier costs for, and the page shows how much of the sales it rests on. It leaves out embroidery and print costs.'],
+    watch: 'Nobody is confirmed yet, so every account starts on Automatic and the first job is to confirm or change them (use the Automatic, to confirm filter). If the margin looks too high, that is expected: it is before decoration costs and only covers a small share of sales. If a quote sits under the wrong account, its customer name did not match an invoiced account; it shows as its own quotes only account.'
+  },
+  {
     v: 'v41', date: '2026-10-29', status: 'live', pr: 40, areas: ['Site'],
     title: 'Refreshing the dashboard keeps you on the same page',
     summary: 'When you refresh the dashboard you now stay on the page you were on, instead of going back to the Overview.',
