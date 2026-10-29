@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v40, v41...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v41, v42...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v40', date: '2026-10-28', status: 'live', pr: null, areas: ['Invoices'],
+    title: 'Supplier invoices now arrive through the shared Microsoft 365 mailbox',
+    summary: 'Supplier invoices are now picked up from the shared invoice mailbox instead of the old Gmail inbox, and appear in Purchase Order Review within minutes.',
+    changes: ['Every 5 minutes the invoice mailbox is checked. Each PDF goes through the same checking and matching as before, and the email is then moved to a Processed folder so the Inbox stays clear.', 'If an email is still sitting in the Inbox after a day, an email goes to Daniel and Oliver listing it.', 'The old Gmail pick-up is switched off, so forwarding an invoice to Gmail by hand no longer does anything.'],
+    watch: 'If invoices stop appearing, check the shared invoice mailbox first: emails still in its Inbox have not been picked up. Emails with no PDF stay there on purpose.'
+  },
   {
     v: 'v39', date: '2026-10-28', status: 'live', pr: 38, areas: ['Update log'],
     title: 'Morning email with new update suggestions',
@@ -287,14 +294,12 @@ window.ATAM_UPDATES = [
 
 window.ATAM_PLANNED = [
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
-  { title: 'Switch supplier invoice intake from Gmail to Microsoft 365', areas: ['Invoices'], detail: 'Switch on the new automations, test with one invoice sent straight to the shared mailbox, ask IT to point the Accounts@ forwarding at it (and stop it going to Gmail), let Gmail finish, then unpublish the Gmail workflow.' },
-  { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The extraction webhook still checks an old shared token that both invoice intake automations send. Replace it in both places together when Gmail is retired.' },
+  { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
   { title: 'Guided steps for Quotes and New customers', areas: ['Quotes', 'New customers'], detail: 'The same "Your move" help that Win-back now has, with wording agreed with Daniel and Steph.' },
   { title: 'Outlook diary entries for chase dates', areas: ['Calendar'], detail: 'Needs calendar permission from IT for the ATAM GO Mailer app. Not started.' },
   { title: 'Move stored secrets out of the automations', areas: ['Security'], detail: 'The DecoNetwork password and the Xero client secret are stored in plain text in several automations. Create proper credentials, rewire the automations, then rotate the secrets.' },
   { title: 'Supabase sign-in hardening', areas: ['Security', 'Access'], detail: 'Turn on leaked-password protection and change Daniel Spooner\'s password.' },
-  { title: 'Tidy-ups', areas: ['Database', 'DAN'], detail: 'Run sql/cleanup_old_quote_tracking.sql; check and delete the old "danbot" Cloudflare worker; add retries to the other automations.' },
-  { title: 'Reword the "other invoices in the same email" box', areas: ['Invoices'], detail: 'Steph read it as "1 invoice with attachments" when there were three separate invoices. Reword it to say each is its own invoice.' },
-  { title: 'Rejected quotes', areas: ['Quotes'], detail: 'DecoNetwork has a Rejected status but its API data does not show it, so a rejected quote currently just ages to Lost after 30 days.' },
+  { title: 'Tidy-ups', areas: ['Database', 'DAN'], detail: 'Run sql/cleanup_old_quote_tracking.sql and check and delete the old "danbot" Cloudflare worker. Retries were looked at and the main automations already have them.' },
+  { title: 'Rejected quotes', areas: ['Quotes'], detail: 'DecoNetwork has a Rejected status but its API data does not show it, so a rejected quote still ages to Lost after 30 days on its own. Quotes you know are dead can be removed by hand with the Remove button.' },
   { title: 'Terms and conditions link in the quote email footer', areas: ['Quotes'], detail: 'Waiting for the standard terms link to be supplied.' }
 ];
