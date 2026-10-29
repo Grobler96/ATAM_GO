@@ -1,6 +1,6 @@
 // The Update log: every change made to ATAM GO, and what is planned. Shown on the Update log tab (updatelog.js).
 // HOW TO ADD AN UPDATE (done with every change, in the same pull request):
-//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v41, v42...).
+//   1. Add a new entry at the TOP of ATAM_UPDATES with the next version number (v42, v43...).
 //   2. status: 'in_progress' (being worked on; add progress: 0-100 for the bar), 'built' (finished, waiting to go live),
 //      'partly' (some parts are live, some wait for a merge or publish), 'live' (working now), 'rolled_back' (undone).
 //   3. When something goes live, change its status and add timeTaken (e.g. '2 h 30 m').
@@ -10,6 +10,13 @@
 //   "started" update was merged first. Otherwise an update appears as built / live when its own pull request is merged.
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
+  {
+    v: 'v41', date: '2026-10-29', status: 'built', pr: null, areas: ['Site'],
+    title: 'Refreshing the dashboard keeps you on the same page',
+    summary: 'When you refresh the dashboard you now stay on the page you were on, instead of going back to the Overview.',
+    changes: ['It remembers the last menu page you opened, including the newer ones like Quotes, Win-back and Calendar.', 'On Purchase Order Review it also remembers which tab you were on.', 'It only remembers while that browser tab is open. Opening the dashboard fresh still starts on the Overview.'],
+    watch: 'If a refresh still lands on the Overview, do a hard refresh once (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) so the browser picks up the update. It does not remember how far down the page you had scrolled.'
+  },
   {
     v: 'v40', date: '2026-10-28', status: 'live', pr: 39, areas: ['Invoices'],
     title: 'Supplier invoices now arrive through the shared Microsoft 365 mailbox',

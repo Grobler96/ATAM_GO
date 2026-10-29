@@ -1245,6 +1245,7 @@
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     document.querySelectorAll('#review .rev-pane').forEach(p => { p.hidden = p.dataset.pane !== key; });
+    try { sessionStorage.setItem('atamgo_review_tab', key); } catch (e) { /* not remembered */ }
   }
 
   function initTabs() {
@@ -1255,7 +1256,12 @@
       const b = e.target.closest('.rev-tab');
       if (b) showReviewTab(b.dataset.tab);
     });
-    showReviewTab('review');
+    let first = 'review';
+    try {
+      const saved = sessionStorage.getItem('atamgo_review_tab');
+      if (saved && document.querySelector('#revTabs .rev-tab[data-tab="' + saved + '"]')) first = saved;
+    } catch (e) { /* use the default */ }
+    showReviewTab(first);
   }
 
   function initWhenVisible() {
