@@ -11,14 +11,14 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v46', date: '2026-10-29', status: 'built', pr: null, areas: ['Account managers'],
+    v: 'v46', date: '2026-10-29', status: 'live', pr: null, areas: ['Account managers'],
     title: '3D office on the Account managers tab',
     summary: 'The Account managers tab now opens on a little 3D office with one person at a desk for each account manager.',
     changes: ['Click a person to open them, the same as clicking their card. Hover over one to see their revenue, accounts and open quotes. Drag to turn the office around.', 'The meeting table in the middle has a glowing bar for each person showing their revenue, and the screen on the wall shows the total for the period you have chosen.', 'Accounts with no owner sit at an empty desk called Unassigned.', 'The cards and the account table are unchanged underneath, and still work if the 3D view cannot load on someone\u2019s device.'],
     watch: 'If the office is blank or the tab feels slow on an older phone or computer, tell Oliver which device. The cards below it keep working either way.'
   },
   {
-    v: 'v45', date: '2026-10-29', status: 'built', pr: null, areas: ['Update log'],
+    v: 'v45', date: '2026-10-29', status: 'live', pr: null, areas: ['Update log'],
     title: 'Copy details button removed from the Update log',
     summary: 'The Copy details button on each update card has been taken away.',
     changes: ['Opening an update still shows what changed and what to check if something goes wrong. Only the button that copied that text to the clipboard is gone.'],
