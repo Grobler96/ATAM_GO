@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v49', date: '2026-10-30', status: 'built', areas: ['Account managers'],
+    v: 'v49', date: '2026-10-30', status: 'live', pr: 46, timeTaken: '30 m', areas: ['Account managers'],
     title: 'Account managers tab put back to how it was before the 3D office',
     summary: 'The 3D office has been taken off the Account managers tab because the page was not loading properly and was buggy. The tab is back to the cards and the account list.',
     changes: ['Everything else on the tab is the same as before: the manager cards, the account drawers, changing who owns an account, and the revenue, quote and margin figures.', 'Nothing about who owns which account has changed or been lost.'],
