@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v50', date: '2026-10-30', status: 'built', areas: ['Site'],
+    title: 'Tidier header across the top of the dashboard',
+    summary: 'The strips across the top of every page have been tidied into one clean header that matches the rest of the dashboard, and the animated heartbeat line has been removed.',
+    changes: ['The four live numbers (Decorated Today, Due Today, Late / At Risk, Ready to Ship) are now larger tiles instead of a thin strip of tiny text.', 'The heartbeat line is gone. A small Live chip with the time sits at the right of the tiles instead.', 'Today, Yesterday, This Week, This Month and Custom are now one neat control rather than five separate buttons, lined up with the filters and Refresh.', 'Works on phones too: the tiles go two across and the date control scrolls sideways.'],
+    watch: 'If the top of the page looks unchanged or odd, do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac). Nothing about the numbers or the filters has changed, only how they look.'
+  },
+  {
     v: 'v49', date: '2026-10-30', status: 'live', pr: 46, timeTaken: '30 m', areas: ['Account managers'],
     title: 'Account managers tab put back to how it was before the 3D office',
     summary: 'The 3D office has been taken off the Account managers tab because the page was not loading properly and was buggy. The tab is back to the cards and the account list.',

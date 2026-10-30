@@ -38,104 +38,7 @@
   }
 
   /* ══════════════════════════════════════════════════════════════
-     1. HEARTBEAT STRIP
-     Injected directly after <main class="main-content"> opens,
-     before the topbar. Animated EKG driven by a real clock.
-     ══════════════════════════════════════════════════════════════ */
-  function initHeartbeat() {
-    const main = qs('.main-content');
-    if (!main) return;
-
-    const strip = document.createElement('div');
-    strip.id = 'atam-heartbeat';
-    strip.innerHTML = `
-      <span class="hb-label">PRODUCTION PULSE</span>
-      <canvas id="atam-hb-canvas"></canvas>
-      <span class="hb-clock" id="atam-hb-clock">--:--:--</span>
-    `;
-
-    // Insert before topbar
-    const topbar = qs('.topbar', main);
-    main.insertBefore(strip, topbar);
-
-    // Wire canvas after DOM insertion
-    requestAnimationFrame(() => drawHeartbeat());
-  }
-
-  let _hbOffset = 0;
-  let _hbLastTs = 0;
-
-  function ekgY(t) {
-    // A natural-looking EKG shape via piecewise function
-    const x = ((t % 1) + 1) % 1;
-    if (x < 0.04) return 0;
-    if (x < 0.06) return ((x - 0.04) / 0.02) * 0.28;
-    if (x < 0.08) return 0.28 - ((x - 0.06) / 0.02) * 0.58;
-    if (x < 0.09) return -0.30 + ((x - 0.08) / 0.01) * 1.55;
-    if (x < 0.11) return 1.25 - ((x - 0.09) / 0.02) * 1.95;
-    if (x < 0.14) return -0.70 + ((x - 0.11) / 0.03) * 0.85;
-    if (x < 0.19) return 0.15 - ((x - 0.14) / 0.05) * 0.15;
-    return Math.sin(x * 55) * 0.012; // Flat with micro-noise
-  }
-
-  function drawHeartbeat(ts = 0) {
-    const canvas = $('atam-hb-canvas');
-    if (!canvas) return;
-
-    const parent = canvas.parentElement;
-    const W = parent.offsetWidth;
-    const H = parent.offsetHeight;
-
-    if (canvas.width !== W || canvas.height !== H) {
-      canvas.width = W;
-      canvas.height = H;
-    }
-
-    const dt = ts - _hbLastTs;
-    _hbLastTs = ts;
-    _hbOffset += (dt / 1000) * 0.055; // speed
-
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, W, H);
-
-    // Fading trail gradient (right side brighter)
-    const grad = ctx.createLinearGradient(0, 0, W, 0);
-    grad.addColorStop(0,   'transparent');
-    grad.addColorStop(0.55, 'transparent');
-    grad.addColorStop(1,   'rgba(56,189,248,0.12)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-
-    const mid = H / 2;
-    const amp = H * 0.36;
-    const segs = 600;
-
-    ctx.beginPath();
-    for (let i = 0; i <= segs; i++) {
-      const t = _hbOffset + i / segs;
-      const x = (i / segs) * W;
-      const y = mid - ekgY(t) * amp;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-
-    ctx.strokeStyle = 'rgba(56,189,248,0.85)';
-    ctx.lineWidth = 1.4;
-    ctx.shadowColor = 'rgba(56,189,248,0.6)';
-    ctx.shadowBlur = 6;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Clock
-    const clock = $('atam-hb-clock');
-    if (clock) {
-      clock.textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
-    }
-
-    requestAnimationFrame(drawHeartbeat);
-  }
-
-  /* ══════════════════════════════════════════════════════════════
-     2. STATUS BAR — always-visible traffic lights
+     1. STATUS BAR — always-visible traffic lights, with a small live clock
      Injected as the very first child of .main-content
      ══════════════════════════════════════════════════════════════ */
   function initStatusBar() {
@@ -165,10 +68,16 @@
         <span class="atam-stat-count" id="atam-s-ship">—</span>
         <span class="atam-stat-label">Ready to Ship</span>
       </div>
+      <div class="atam-live" title="The dashboard is connected and refreshing"><i></i><span>Live</span><time id="atam-live-clock">--:--</time></div>
     `;
 
-    // Insert as the absolute first thing in main-content (before heartbeat even)
+    // Insert as the absolute first thing in main-content
     main.insertBefore(bar, main.firstChild);
+
+    // a tiny clock instead of the old animated heartbeat line (which redrew a canvas 60 times a second, all day)
+    const tick = () => { const c = $('atam-live-clock'); if (c) c.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
+    tick();
+    setInterval(tick, 15000);
   }
 
   function updateStatusBar() {
@@ -580,7 +489,6 @@
      ══════════════════════════════════════════════════════════════ */
   function boot() {
     initStatusBar();
-    initHeartbeat();
     initNavEnhancements();
     initKpiCards();
     initTableAnimations();
