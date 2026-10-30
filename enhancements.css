@@ -393,7 +393,7 @@ tbody tr {
   color: #aab6c8;
 }
 .range-btn:hover { background: rgba(255, 255, 255, 0.07); transform: none; color: #fff; }
-.range-btn.active { color: #fff; box-shadow: 0 6px 18px rgba(56, 189, 248, 0.25); }
+.range-btn.active, .range-btn.active:hover { color: #fff; background: linear-gradient(135deg, #38bdf8, #6366f1); box-shadow: 0 6px 18px rgba(56, 189, 248, 0.25); }
 .topbar-controls select, .topbar-controls .primary-btn { height: 46px; border-radius: 12px; }
 
 @media (max-width: 760px) {

@@ -32,8 +32,17 @@
   const qs = (sel, ctx = document) => ctx.querySelector(sel);
   const qsa = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
+  // app.js declares `const state = {...}`: a global variable, but NOT a property of window, so window.state is always empty.
+  // The status bar reads it this way. (The other functions below still use getState() and so stay switched off, see the note
+  // on getState.)
+  function appState() {
+    return (typeof state !== 'undefined' && state) ? state : (window.state || null);
+  }
+
   function getState() {
-    // Safe accessor — falls back gracefully if app.js hasn't loaded yet
+    // NOTE: this is always null (see appState above), so the KPI sparklines / deltas, sidebar count badges and the DAN
+    // notification dot that use it have never run. They are left off on purpose: the deltas compare one refresh with the
+    // previous one (so they would be nonsense after changing the date range) and the card order does not match.
     return window.state || null;
   }
 
@@ -51,7 +60,7 @@
       <div class="atam-stat-pill">
         <div class="atam-stat-dot green" id="atam-dot-prod"></div>
         <span class="atam-stat-count" id="atam-s-total">—</span>
-        <span class="atam-stat-label">Decorated Today</span>
+        <span class="atam-stat-label" id="atam-s-total-label">Decorated</span>
       </div>
       <div class="atam-stat-pill">
         <div class="atam-stat-dot amber" id="atam-dot-due"></div>
@@ -80,25 +89,30 @@
     setInterval(tick, 15000);
   }
 
+  const RANGE_WORDS = { today: 'Today', yesterday: 'Yesterday', week: 'This Week', month: 'This Month', custom: 'Selected Dates' };
+  // The page only loads the 50 most urgent late / ready orders, so a count of 50 really means "50 or more"
+  const capped = n => (n >= 50 ? '50+' : fmtNum(n));
+
   function updateStatusBar() {
-    const s = getState();
+    const s = appState();
     if (!s) return;
 
-    const overview = s.data?.overview?.[0] || {};
-    const total    = overview.total_decorations || 0;
-    const due      = parseInt($('dueTodayCount')?.textContent?.replace(/,/g,'')) || 0;
+    const overview = s.data?.overview?.[0];
+    const due      = parseInt($('dueTodayCount')?.textContent?.replace(/,/g,''));
     const late     = s.data?.risk?.length || 0;
     const ship     = s.data?.ready?.length || 0;
 
-    setText('atam-s-total', fmtNum(total));
-    setText('atam-s-due',   fmtNum(due));
-    setText('atam-s-late',  fmtNum(late));
-    setText('atam-s-ship',  fmtNum(ship));
+    // "Decorated" follows the date buttons: it is the total for the dates chosen, not always today
+    setText('atam-s-total-label', 'Decorated ' + (RANGE_WORDS[s.range] || 'Selected Dates'));
+    setText('atam-s-total', overview ? fmtNum(overview.total_decorations) : '—');
+    setText('atam-s-due',   isNaN(due) ? '—' : fmtNum(due));
+    setText('atam-s-late',  capped(late));
+    setText('atam-s-ship',  capped(ship));
 
     // Ambient glow state
     document.body.classList.remove('state-warning', 'state-critical');
     if (late >= 1) document.body.classList.add('state-critical');
-    else if (due >= 3) document.body.classList.add('state-warning');
+    else if ((due || 0) >= 3) document.body.classList.add('state-warning');
   }
 
   /* ══════════════════════════════════════════════════════════════
