@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v52', date: '2026-10-30', status: 'built', areas: ['DAN'],
+    v: 'v52', date: '2026-10-30', status: 'live', pr: 49, timeTaken: '45 m', areas: ['DAN'],
     title: 'DAN chat panel tidied up: no more overlaps',
     summary: 'The DAN panel is now shorter and neater. The alerts no longer cover the chat, and the floating robot button no longer sits on top of the mic and send buttons.',
     changes: ['Alerts are now short one-line rows, most urgent first. The top three show, with a \u201cShow all\u201d link for the rest. Hover over a row to read the whole alert, and tap it to ask DAN about it as before.', 'The alert area can never take more than a third of the panel, so there is always room for the conversation (before, six alerts could take most of it and push the first message under them).', 'The floating robot button now hides while the panel is open, because it was sitting on top of the mic and send buttons. Use the \u2715 at the top of the panel to close it; the button comes back when it is closed.', 'The quick-question buttons under a message now sit on one line that you can swipe sideways, instead of taking up three lines.', 'Also fixed: the backup alerts DAN shows when the server list is unavailable were always empty because of the same data fault as the header tiles.'],
