@@ -949,50 +949,10 @@ function renderCustomerAlerts() {
           }
         </td>
         <td>${money(row.last_order_value || 0)}</td>
-        <td>
-          <button
-            type="button"
-            class="customer-action-btn"
-            data-ghl-customer-id="${esc(row.customer_id || '')}"
-          >
-            Push to GHL
-          </button>
-        </td>
       </tr>
     `,
-    8
+    7
   );
-
-  bindCustomerActionButtons();
-}
-
-function bindCustomerActionButtons() {
-  document.querySelectorAll('[data-ghl-customer-id]').forEach(button => {
-    button.onclick = function() {
-      const customerId = button.dataset.ghlCustomerId;
-      const customer = (state.data.customerAlerts || []).find(
-        row => String(row.customer_id) === String(customerId)
-      );
-
-      if (!customer) {
-        toast('Customer not found.');
-        return;
-      }
-
-      hook('pushToGHL', {
-        action: 'pushToGHL',
-        customer_id: customer.customer_id,
-        name: customer.name,
-        company: customer.company,
-        email: customer.email,
-        reorder_status: customer.reorder_status,
-        last_order_date: customer.last_order_date,
-        days_since_last_order: customer.days_since_last_order,
-        last_order_value: customer.last_order_value,
-        source: 'ATAM GO'
-      }, this);
-    };
-  });
 }
 
 function statusClass(status = '') {

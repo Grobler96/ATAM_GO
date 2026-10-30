@@ -52,6 +52,7 @@
   const TABS = [
     { key: 'pipeline', label: 'Pipeline' },
     { key: 'expired', label: 'Expired' },
+    { key: 'parked', label: 'Parked' },
     { key: 'team', label: 'Sales team' },
     { key: 'won', label: 'Converted' },
     { key: 'lost', label: 'Lost' },
@@ -63,7 +64,7 @@
     tab: 'pipeline', period: '90', rep: '', store: '', q: '',
     sort: { key: 'idle', dir: -1 },
     chart: null, timer: null, openId: null, senders: null, composeOpen: false, animate: true, updatedAt: null,
-    removed: [], showRemoved: false, removing: false, reigniting: false
+    removed: [], showRemoved: false, removing: false, reigniting: false, parked: [], parking: false
   };
 
   // remember the last tab / period / salesperson / store on this device
@@ -124,9 +125,10 @@
     const lastTo = toDate(r.last_to_customer_at);
     const lastFrom = toDate(r.last_from_customer_at);
     const lastChase = toDate(r.last_chase_at);
+    const parkReturnAt = toDate(r.park_returned_at);   // the day a parked quote came back: counts as a touch, so it returns as Hot
     const revivedAt = toDate(r.revived_at);   // someone pressed Re-ignite: counts as a touch, so the quote is Hot again and the 30 day clock restarts
     let lastTouch = created;
-    [modified, lastTo, lastFrom, lastChase, revivedAt].forEach(d => { if (d && d > lastTouch) lastTouch = d; });
+    [modified, lastTo, lastFrom, lastChase, revivedAt, parkReturnAt].forEach(d => { if (d && d > lastTouch) lastTouch = d; });
     const idle = Math.max(0, days(lastTouch, now));
     const status = r.order_status == null ? null : Number(r.order_status);
     let stage, closedAt = null, lostReason = null;
@@ -158,6 +160,7 @@
       lastTo, lastFrom, toCount: num(r.to_customer_count), fromCount: num(r.from_customer_count), notes: num(r.notes_count),
       lastTouch, idle, status, stage, closedAt, lostReason, awaitingUs, expired, customerLastWord,
       revivedAt, revivedBy: r.revived_by || '', revivedTimes: num(r.revived_times),
+      parkReturnAt, parkReason: r.park_reason || '', parkedBy: r.parked_by || '',
       chases: num(r.chase_count), lastChaseAt: lastChase, lastChaseBy: r.last_chase_by, lastChaseNote: r.last_chase_note,
       daysToClose: toClose == null ? null : Math.max(0, toClose / DAY),
       instant: toClose != null && toClose < HOUR,
@@ -176,6 +179,10 @@
         const rr = await client().from('quotes_removed_board').select('*').order('removed_at', { ascending: false });
         state.removed = rr.error ? [] : (rr.data || []);
       } catch (e) { state.removed = []; }
+      try {   // quotes parked until a later date (hidden from the board until then)
+        const pp = await client().from('quotes_parked_board').select('*').order('parked_until', { ascending: true });
+        state.parked = pp.error ? [] : (pp.data || []);
+      } catch (e) { state.parked = []; }
       state.loaded = true; state.error = null; state.updatedAt = new Date();
       if (state.rep && !state.rows.some(r => (r.rep || '__none') === state.rep)) state.rep = '';
       if (state.store && !state.rows.some(r => r.store === state.store)) state.store = '';
@@ -194,6 +201,10 @@
     if (!d) return false;
     const n = periodDays();
     return n == null || d >= new Date(Date.now() - n * DAY);
+  }
+  function visibleParked() {
+    return (state.parked || []).filter(p => (!state.rep || (p.assigned_to || '__none') === state.rep) && (!state.store || (p.store_name || '') === state.store)
+      && (!state.q || [p.customer_name, p.order_id, p.assigned_to, p.job_name, p.contact_name, p.store_name, p.parked_by, p.reason].join(' ').toLowerCase().includes(state.q)));
   }
   function visible() {
     return state.rows.filter(r => (!state.rep || (r.rep || '__none') === state.rep) && (!state.store || r.store === state.store) && (!state.q || r.search.includes(state.q)));
@@ -316,6 +327,7 @@
         : k === 'won' ? rows.filter(r => r.stage === 'won' && inPeriod(r.approved)).length
         : k === 'lost' ? rows.filter(r => r.stage === 'lost' && inPeriod(r.closedAt)).length
         : k === 'expired' ? rows.filter(r => r.expired && inPeriod(r.closedAt)).length
+        : k === 'parked' ? visibleParked().length
         : k === 'all' ? rows.length : null;
       tabs.innerHTML = TABS.map(t => `<button type="button" role="tab" data-tab="${t.key}" class="qt-tab${t.key === state.tab ? ' active' : ''}">${esc(t.label)}${count(t.key) != null ? `<span class="qt-tab-n">${count(t.key)}</span>` : ''}</button>`).join('');
     }
@@ -329,9 +341,10 @@
       return;
     }
     destroyChart();
-    if (!state.rows.length) { el.innerHTML = '<div class="qt-empty">No quotes have been synced yet. The sync runs every 6 hours.</div>'; return; }
+    if (!state.rows.length && !(state.parked || []).length) { el.innerHTML = '<div class="qt-empty">No quotes have been synced yet. The sync runs every 6 hours.</div>'; return; }
     if (state.tab === 'pipeline') el.innerHTML = boardHtml();
     else if (state.tab === 'team') { el.innerHTML = teamHtml(); drawChart(); }
+    else if (state.tab === 'parked') el.innerHTML = parkedHtml();
     else el.innerHTML = tableHtml(state.tab);
   }
 
@@ -361,12 +374,14 @@
       ${needsChase ? `<div class="qt-quick-row"><button type="button" class="qt-quick qt-mail" data-email="${esc(r.id)}" title="Write and send a chase email">✉️ ${r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email customer'}</button><button type="button" class="qt-quick" data-quick="${esc(r.id)}" title="Log a phone chase now">📞 Mark chased</button></div>` : ''}`;
     else if (r.stage === 'won') foot = `<div class="qt-card-foot"><span>Approved ${esc(fmtDate(r.approved))}</span><span>${r.daysToClose != null ? (r.instant ? 'same hour' : r.daysToClose < 1 ? 'same day' : Math.round(r.daysToClose) + 'd to close') : ''}</span></div>`;
     else foot = `<div class="qt-card-foot"><span>${esc(r.lostReason || 'Lost')}</span><span>${esc(fmtDate(r.closedAt))}</span></div>`;
-    const removeBtn = r.approved ? '' : `<div class="qt-remove-row"><button type="button" class="qt-remove" data-remove="${esc(r.id)}" title="Take this old quote off the list completely">🗑 Remove</button></div>`;
+    const parkable = !r.approved && r.status !== 4;
+    const removeBtn = r.approved ? '' : `<div class="qt-remove-row">${parkable ? `<button type="button" class="qt-remove qt-parkbtn" data-park="${esc(r.id)}" title="Customer wants to wait? Hide this quote until a date you choose">💤 Park</button>` : ''}<button type="button" class="qt-remove" data-remove="${esc(r.id)}" title="Take this old quote off the list completely">🗑 Remove</button></div>`;
     return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
       <div class="qt-card-top"><span class="qt-card-cust">${esc(r.customer)}</span><span class="qt-card-val">${gbp(r.value)}</span></div>
       ${r.job ? `<div class="qt-card-job">${esc(r.job)}</div>` : ''}
       <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span></div>
       ${r.awaitingUs ? '<div class="qt-reply">💬 Customer replied, waiting on you</div>' : ''}
+      ${backFromParking(r) ? `<div class="qt-revived-tag" title="${esc(r.parkReason || 'Came back from parking')}">💤 Back from parking${r.parkReason ? ': ' + esc(r.parkReason.length > 40 ? r.parkReason.slice(0, 40) + '…' : r.parkReason) : ''}</div>` : ''}
       ${r.revivedAt && open ? `<div class="qt-revived-tag" title="Re-ignited from Expired">🔥 Re-ignited ${esc(fmtDate(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}</div>` : ''}
       ${foot}${removeBtn}</article>`;
   }
@@ -653,6 +668,97 @@
     state.reigniting = false;
   }
 
+  // ───────────────────────── parking quotes ─────────────────────────
+  // "Park until a date" is for a customer who says "not yet". The quote leaves the Pipeline, the chase lists, the counts, the win rate and
+  // DAN until that date, is listed on the Parked tab and on the Calendar, and comes back by itself on the day as Hot, with the reason.
+  // A quote approved in DecoNetwork while parked is never hidden. Database: sql/quote_park_2026-10-30.sql.
+  function backFromParking(r, days) {
+    return !!r.parkReturnAt && ['fresh', 'chase', 'cold'].includes(r.stage) && (Date.now() - r.parkReturnAt.getTime()) < (days || 21) * DAY;
+  }
+  const ymdLocal = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const addDaysLocal = n => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n); return d; };
+  const fmtYmd = t => { const p = String(t).slice(0, 10).split('-'); return fmtDate(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12)); };
+  const daysUntil = t => { const p = String(t).slice(0, 10).split('-'); const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12); const n = new Date(); n.setHours(12, 0, 0, 0); return Math.round((d - n) / DAY); };
+  function nextJan5() { const n = new Date(); const y = (n.getMonth() === 0 && n.getDate() < 5) ? n.getFullYear() : n.getFullYear() + 1; return new Date(y, 0, 5, 12); }
+
+  function parkFormHtml(r) {
+    const tomorrow = ymdLocal(addDaysLocal(1)), max = ymdLocal(addDaysLocal(400));
+    const jan = nextJan5();
+    const chip = (label, d) => `<button type="button" class="qt-tone" data-park-in="${ymdLocal(d)}">${esc(label)}</button>`;
+    return `<div class="qt-park-box">
+      <button type="button" class="qt-btn" data-act="park-toggle" aria-expanded="false" title="Customer wants to wait? Hide this quote until a date you choose">💤 Park until a date…</button>
+      <form id="qtParkForm" data-id="${esc(r.id)}" hidden>
+        <p class="qt-dim">For a customer who says <b>not yet</b>. The quote leaves the Pipeline, the chase lists and the win rate, and comes back as Hot on the day you choose (it also shows on the Calendar).</p>
+        <div class="qt-tones" role="group" aria-label="Quick dates"><span class="qt-dim">Bring it back in:</span>${chip('1 week', addDaysLocal(7))}${chip('2 weeks', addDaysLocal(14))}${chip('1 month', addDaysLocal(30))}${chip('3 months', addDaysLocal(91))}${chip(fmtDate(jan), jan)}</div>
+        <label>Bring it back on<input id="qtParkDate" type="date" min="${tomorrow}" max="${max}" required></label>
+        <label>Why? (so whoever sees it later knows)<input id="qtParkNote" type="text" maxlength="300" placeholder="e.g. Customer wants to wait until January"></label>
+        <div class="qt-compose-row"><button type="submit" class="qt-btn qt-primary" id="qtParkBtn">Park this quote</button><button type="button" class="qt-btn" data-act="park-toggle">Cancel</button></div>
+      </form></div>`;
+  }
+
+  async function parkQuote(form) {
+    if (state.parking) return;
+    const id = form.getAttribute('data-id'), until = $('qtParkDate').value, note = ($('qtParkNote').value || '').trim();
+    if (!until) { toast('Choose the date to bring it back.', true); return; }
+    state.parking = true;
+    const btn = $('qtParkBtn'); btn.disabled = true; btn.textContent = 'Parking…';
+    try {
+      const { error } = await client().rpc('park_quote', { p_order_id: id, p_until: until, p_reason: note || null });
+      if (error) throw error;
+      toast('💤 Parked until ' + fmtYmd(until) + '. It comes back by itself that day.', false, 5000);
+      closeDrawer();
+      await load(true);
+    } catch (e) {
+      console.error('park failed', e);
+      toast('Couldn\'t park it: ' + ((e && e.message) || 'unknown error'), true);
+      btn.disabled = false; btn.textContent = 'Park this quote';
+    }
+    state.parking = false;
+  }
+  async function moveParked(id, until) {
+    const p = (state.parked || []).find(x => x.order_id === id);
+    if (!p || state.parking) return;
+    if (!until) { toast('Choose a date first.', true); return; }
+    state.parking = true;
+    try {
+      const { error } = await client().rpc('park_quote', { p_order_id: id, p_until: until, p_reason: p.reason || null });
+      if (error) throw error;
+      toast('Moved. It now comes back on ' + fmtYmd(until) + '.');
+      await load(true);
+    } catch (e) { console.error('move parked failed', e); toast('Couldn\'t change the date: ' + ((e && e.message) || 'unknown error'), true); }
+    state.parking = false;
+  }
+  async function unparkQuote(id) {
+    if (state.parking) return;
+    state.parking = true;
+    try {
+      const { error } = await client().rpc('unpark_quote', { p_order_id: id });
+      if (error) throw error;
+      toast('Brought back. It is in the Pipeline again as Hot.');
+      await load(true);
+    } catch (e) { console.error('unpark failed', e); toast('Couldn\'t bring it back: ' + ((e && e.message) || 'unknown error'), true); }
+    state.parking = false;
+  }
+
+  function parkedHtml() {
+    const rows = visibleParked();
+    const intro = `<div class="qt-note qt-expired-intro"><b>Parked quotes.</b> Customers who said <b>not yet</b>. They are out of the Pipeline, the chase lists, the win rate and DAN until the date shown, then they come back by themselves as Hot. To park one, open the quote and press <b>💤 Park until a date…</b>.</div>`;
+    if (!rows.length) return intro + '<div class="qt-empty">Nothing is parked.</div>';
+    const tomorrow = ymdLocal(addDaysLocal(1)), max = ymdLocal(addDaysLocal(400));
+    const total = rows.reduce((t, p) => t + num(p.quote_value), 0);
+    return `${intro}<div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Customer</th><th>Order</th><th>Salesperson</th><th class="r">Quoted</th><th>Parked</th><th>Comes back</th><th>Why</th><th></th></tr></thead><tbody>${rows.map(p => {
+      const n = daysUntil(p.parked_until);
+      return `<tr><td><b>${esc(p.customer_name || 'Unknown customer')}</b>${p.job_name ? `<div class="qt-dim">${esc(p.job_name)}</div>` : ''}</td>
+        <td>#${esc(p.order_id)}</td>
+        <td><span class="qt-rep">${avatar(p.assigned_to)}${esc(repName(p.assigned_to))}</span></td>
+        <td class="r">${gbp(num(p.quote_value), true)}</td>
+        <td>${esc(fmtDate(toDate(p.parked_at)))}<div class="qt-dim">${esc(p.parked_by || '')}</div></td>
+        <td><b>${esc(fmtYmd(p.parked_until))}</b><div class="qt-dim">${n <= 0 ? 'today' : n === 1 ? 'tomorrow' : 'in ' + n + ' days'}</div></td>
+        <td>${p.reason ? esc(p.reason) : '<span class="qt-dim">—</span>'}</td>
+        <td><span class="qt-acts qt-acts-park"><input type="date" class="qt-park-date" min="${tomorrow}" max="${max}" value="${esc(String(p.parked_until).slice(0, 10))}" aria-label="New date" data-date-for="${esc(p.order_id)}"><button type="button" class="qt-quick" data-park-move="${esc(p.order_id)}">Change date</button><button type="button" class="qt-quick qt-fire" data-unpark="${esc(p.order_id)}" title="Put it back in the Pipeline now">Bring back now</button></span></td></tr>`;
+    }).join('')}</tbody></table></div><div class="qt-tfoot">${plural(rows.length, 'parked quote')} · ${gbp(total)} quoted</div>`;
+  }
+
   async function restoreQuote(id) {
     if (state.removing) return;
     state.removing = true;
@@ -742,6 +848,7 @@
         <p>It went quiet ${esc(quiet(r.idle))} ago${r.closedAt ? ' (expired ' + esc(fmtDate(r.closedAt)) + ')' : ''}. If the customer wants to go ahead, re-ignite it: it goes back into the Pipeline as Hot, and the quote opens in DecoNetwork where it still has to be reopened.</p>
         ${r.customerLastWord ? '<p class="qt-signal">💬 The customer wrote last and nobody answered before it expired. Worth a call.</p>' : r.emailReplied ? '<p class="qt-signal">💬 They replied to an email sent from ATAM GO.</p>' : ''}
         <button type="button" class="qt-btn qt-primary qt-fire-btn" data-reignite="${esc(r.id)}">🔥 Re-ignite and open in DecoNetwork</button></div>` : ''}
+      ${backFromParking(r, 60) ? `<div class="qt-revived-box">💤 Back from parking on ${esc(fmtDate(r.parkReturnAt))}${r.parkedBy ? ' (parked by ' + esc(r.parkedBy) + ')' : ''}.${r.parkReason ? ' Reason: “' + esc(r.parkReason) + '”.' : ''} It was parked for a while, so check in DecoNetwork that the quote has not expired.</div>` : ''}
       ${r.revivedAt && open ? `<div class="qt-revived-box">🔥 Re-ignited ${esc(fmtDateTime(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}${r.revivedTimes > 1 ? ' (' + r.revivedTimes + ' times)' : ''}. Make sure it has been reopened in DecoNetwork so the customer's link works.
         <button type="button" class="qt-btn" data-undo-reignite="${esc(r.id)}" title="Put it back to Expired">Undo</button></div>` : ''}
       <div class="qt-facts">
@@ -759,6 +866,7 @@
         ${fact('Customer replies', String(r.fromCount))}
         ${fact('Chases logged', String(r.chases))}
       </div>
+      ${(open || r.expired) ? parkFormHtml(r) : ''}
       ${r.approved ? '' : `<div class="qt-remove-row lg"><button type="button" class="qt-btn qt-danger" data-remove="${esc(r.id)}">🗑 Remove this quote from the list</button><span class="qt-dim">For old quotes that are never going to happen. You can bring it back later.</span></div>`}
       ${open || r.expired ? `<div class="qt-email-wrap">${emailTimerHtml(r)}<button type="button" class="qt-btn ${r.expired ? '' : 'qt-primary '}qt-mailbtn" data-act="compose" data-for="${esc(r.id)}">✉️ ${r.expired ? 'Email the customer about this expired quote' : r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email the customer'}</button><div id="qtCompose"></div></div>` : ''}
       ${open ? `<form class="qt-chase" id="qtChaseForm" data-id="${esc(r.id)}">
@@ -788,6 +896,7 @@
         if (r.modified && !r.approved) items.push({ when: r.modified, icon: '✏️', text: 'Quote last edited', cls: '' });
         if (r.approved) items.push({ when: r.approved, icon: '✅', text: 'Approved and converted into an order', cls: 'good' });
         if (r.stage === 'lost' && r.closedAt) items.push({ when: r.closedAt, icon: r.expired ? '⌛' : '✖', text: r.expired ? 'Expired (quiet for ' + LOST_DAYS + ' days)' : (r.lostReason || 'Lost'), cls: 'bad' });
+        if (r.parkReturnAt) items.push({ when: r.parkReturnAt, icon: '💤', text: 'Came back from parking' + (r.parkedBy ? ' (parked by ' + r.parkedBy + ')' : '') + (r.parkReason ? ': \u201c' + r.parkReason + '\u201d' : ''), cls: 'good' });
         if (r.revivedAt) items.push({ when: r.revivedAt, icon: '🔥', text: 'Re-ignited' + (r.revivedBy ? ' by ' + r.revivedBy : ''), cls: 'good' });
       }
       ((em && em.data) || []).forEach(m => {
@@ -1454,6 +1563,16 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-danger { border-color:rgba(239,68,68,.45); color:#fecaca; }
 .qt-drawer .qt-danger:hover { background:rgba(239,68,68,.14); }
 #quotes .qt-expired-intro { margin:0 0 12px; }
+#quotes .qt-remove-row { gap:6px; }
+#quotes .qt-acts-park { flex-wrap:wrap; white-space:normal; max-width:250px; justify-content:flex-end; }
+#quotes .qt-parkbtn:hover, #quotes .qt-parkbtn:focus-visible { color:#c4b5fd; border-color:rgba(167,139,250,.5); background:rgba(167,139,250,.08); }
+#quotes .qt-park-date, .qt-drawer #qtParkDate { padding:5px 8px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#0f172a; color:#e2e8f0; font-size:12.5px; }
+.qt-drawer .qt-park-box { margin:0 0 14px; }
+.qt-drawer #qtParkForm { margin-top:10px; padding:12px 14px; border-radius:12px; border:1px solid rgba(167,139,250,.4); background:rgba(167,139,250,.07); display:grid; gap:10px; }
+.qt-drawer #qtParkForm label { display:grid; gap:4px; font-size:12.5px; color:#cbd5e1; }
+.qt-drawer #qtParkForm input[type=text], .qt-drawer #qtParkForm input[type=date] { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#0f172a; color:#e2e8f0; font-size:13px; }
+.qt-drawer #qtParkForm p { margin:0; }
+.qt-drawer #qtParkForm[hidden] { display:none; }
 #quotes .qt-acts { display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
 #quotes .qt-acts .qt-quick { text-decoration:none; }
 #quotes .qt-fire { border-color:rgba(249,115,22,.6); color:#fdba74; }
@@ -1632,6 +1751,13 @@ body.qt-lock { overflow:hidden; }
     sec.addEventListener('click', e => {
       const fire = e.target.closest('[data-reignite]');
       if (fire) { e.stopPropagation(); reigniteQuote(fire.dataset.reignite); return; }
+      const prk = e.target.closest('[data-park]');
+      if (prk) { e.stopPropagation(); openDrawer(prk.dataset.park); setTimeout(() => { const t = document.querySelector('#qtSheet [data-act="park-toggle"]'); if (t) t.click(); }, 0); return; }
+      const unp = e.target.closest('[data-unpark]');
+      if (unp) { e.stopPropagation(); unparkQuote(unp.dataset.unpark); return; }
+      const mvp = e.target.closest('[data-park-move]');
+      if (mvp) { e.stopPropagation(); const inp = mvp.parentElement.querySelector('.qt-park-date'); moveParked(mvp.dataset.parkMove, inp && inp.value); return; }
+      if (e.target.closest('input.qt-park-date')) { e.stopPropagation(); return; }
       if (e.target.closest('a.qt-quick')) { e.stopPropagation(); return; }
       const rmv = e.target.closest('[data-remove]');
       if (rmv) { e.stopPropagation(); removeQuote(rmv.dataset.remove); return; }
@@ -1662,7 +1788,7 @@ body.qt-lock { overflow:hidden; }
     });
     sec.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-restore], [data-reignite]')) return;
+      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-restore], [data-reignite], [data-park], [data-unpark], [data-park-move], input')) return;
       const item = e.target.closest('.qt-card[data-id], .qt-first-card[data-id], tr[data-id]');
       if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
       const repCard = e.target.closest('.qt-rep-card');
@@ -1677,6 +1803,16 @@ body.qt-lock { overflow:hidden; }
       if (fire) { reigniteQuote(fire.dataset.reignite); return; }
       const und = e.target.closest('[data-undo-reignite]');
       if (und) { undoReignite(und.dataset.undoReignite); return; }
+      const ptg = e.target.closest('[data-act="park-toggle"]');
+      if (ptg) {
+        const f = $('qtParkForm'); if (!f) return;
+        f.hidden = !f.hidden;
+        const tb = document.querySelector('#qtSheet .qt-park-box > [data-act="park-toggle"]'); if (tb) tb.setAttribute('aria-expanded', String(!f.hidden));
+        if (!f.hidden) { f.scrollIntoView({ block: 'nearest' }); const d = $('qtParkDate'); if (d) d.focus(); }
+        return;
+      }
+      const pin = e.target.closest('[data-park-in]');
+      if (pin) { const d = $('qtParkDate'); if (d) { d.value = pin.dataset.parkIn; d.focus(); } return; }
       const rmv = e.target.closest('[data-remove]');
       if (rmv) { removeQuote(rmv.dataset.remove); return; }
       if (e.target.closest('[data-act="close"]')) closeDrawer();
@@ -1692,6 +1828,7 @@ body.qt-lock { overflow:hidden; }
     });
     drawer.addEventListener('submit', e => {
       if (e.target.id === 'qtChaseForm') { e.preventDefault(); submitChase(e.target); }
+      if (e.target.id === 'qtParkForm') { e.preventDefault(); parkQuote(e.target); }
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.openId) closeDrawer(); });
 

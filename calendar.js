@@ -12,6 +12,7 @@
     winback_followup: { icon: '📞', label: 'Chase again', color: '#f97316', page: 'winback', where: 'Win-back' },
     winback_reply:    { icon: '✉️', label: 'Email: no reply yet', color: '#f59e0b', page: 'winback', where: 'Win-back' },
     quote_reply:      { icon: '🧾', label: 'Quote email: no reply yet', color: '#38bdf8', page: 'quotes', where: 'Quotes' },
+    quote_return:     { icon: '💤', label: 'Parked quote comes back', color: '#a78bfa', page: 'quotes', where: 'Quotes' },
     nc_followup:      { icon: '🌱', label: 'New customer: follow up', color: '#22c55e', page: 'newcustomers', where: 'New customers' },
     nc_reply:         { icon: '✉️', label: 'New customer email: no reply yet', color: '#a78bfa', page: 'newcustomers', where: 'New customers' }
   };
@@ -208,6 +209,10 @@
     const btn = document.querySelector('.nav-link[data-page="' + k.page + '"]');
     if (!btn) return;
     btn.click();
+    if (kind === 'quote_return') {   // open the Quotes tab on its Parked list
+      let n = 0;
+      const t = setInterval(() => { n++; const tab = document.querySelector('#quotes [data-tab="parked"]'); if (tab) { clearInterval(t); tab.click(); } else if (n > 40) clearInterval(t); }, 150);
+    }
     if (k.page === 'winback') {
       let tries = 0;
       const t = setInterval(() => {
