@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v53', date: '2026-10-30', status: 'built', areas: ['Customers'],
+    title: 'Push to GHL button removed',
+    summary: 'The Push to GHL button on the Customer Watchlist has been removed, along with the empty Action column it sat in.',
+    changes: ['The button never did anything, because nothing was ever connected to it.', 'The Customer Watchlist now ends at the Last Value column. Nothing else about it has changed.'],
+    watch: 'If you still see the button after this goes live, do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac).'
+  },
+  {
     v: 'v52', date: '2026-10-30', status: 'live', pr: 49, timeTaken: '45 m', areas: ['DAN'],
     title: 'DAN chat panel tidied up: no more overlaps',
     summary: 'The DAN panel is now shorter and neater. The alerts no longer cover the chat, and the floating robot button no longer sits on top of the mic and send buttons.',

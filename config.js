@@ -15,7 +15,6 @@ window.ATAM_GO_CONFIG = {
     refreshQuotes: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
     refreshXero: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
     checkInvoiceMailbox: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
-    reportHealth: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action",
-    pushToGHL: ""
+    reportHealth: "https://atamcpi.app.n8n.cloud/webhook/atam-go-action"
   }
 };
