@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v51', date: '2026-10-30', status: 'live', pr: 48, timeTaken: '1 h', areas: ['Site'],
+    title: 'Overview numbers fixed, plus graphs, change figures and a late-orders badge',
+    summary: 'The Overview totals are now complete for busy months, the six Overview cards show a graph and how they compare with last week or last month, and the Dispatch button shows how many orders are late.',
+    changes: ['Fixed: the database only hands back 1,000 records at a time, and this month already has more than that, so the Overview totals could stop counting part-way. It now reads all of them (and reads them once instead of five times, so it should also load a little quicker).', 'Fixed: after switching dates (for example Month to Today) a card could stay stuck on the old number. The cards now always end on the right figure.', 'The six Overview cards now show a small graph of the figure day by day for the dates you picked, and a change figure such as \u201c\u2193 3% vs last week\u201d. This week is compared with the same days last week, this month with the same days of last month, and a single day with the same day last week. The graph needs at least two days, and the change figure is left out if there is nothing to compare with.', 'Other pages no longer show an empty dash under their cards.', 'The Dispatch button now has a red number for late or at-risk orders (it shows 50+ at 50 or more, since the page loads the 50 most urgent).', 'Removed the extra red dot on the DAN button. It was always there, and DAN already has its own badge for real alerts.', 'Left out on purpose: a red count on the Customers button (it would permanently say 99+) and the pulsing border on the At Risk card (it would pulse all the time).'],
+    watch: 'If a total on the Overview looks different from before, that is the fix: it was previously missing records on busy months. If a change figure looks odd, hover over it to see the two numbers it compares. If a card still shows the wrong number after changing dates, do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) and tell Oliver.'
+  },
+  {
     v: 'v50', date: '2026-10-30', status: 'live', pr: 47, timeTaken: '45 m', areas: ['Site'],
     title: 'Tidier header across the top of the dashboard',
     summary: 'The strips across the top of every page have been tidied into one clean header that matches the rest of the dashboard, and the animated heartbeat line has been removed.',
