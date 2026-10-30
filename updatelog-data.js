@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v48', date: '2026-10-30', status: 'live', pr: 45, timeTaken: '1 h', areas: ['Quotes', 'Win-back'],
+    title: 'Customer history chart shows the two years in different colours',
+    summary: 'The Spend by month chart in the customer history panel (Quotes and Win-back) now shows the last 12 months in bright blue and the 12 before in grey, so you can tell the years apart.',
+    changes: ['Same two colours as the Account managers chart, with a small key under it.', 'The first month and each January now show the year.'],
+    watch: 'If the chart is still all one colour, do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac).'
+  },
+  {
     v: 'v47', date: '2026-10-30', status: 'live', pr: 44, timeTaken: '4 h 30 m', areas: ['Quotes', 'Database'],
     title: 'Expired quotes tab and Re-ignite button',
     summary: 'The Quotes tab now has an Expired tab listing quotes that went quiet for 30 days, with a Re-ignite button, so a customer who comes back late can be picked up from ATAM GO.',
