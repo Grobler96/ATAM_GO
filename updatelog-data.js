@@ -11,14 +11,14 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v54', date: '2026-10-30', status: 'built', areas: ['Quotes', 'Calendar', 'Database'],
+    v: 'v54', date: '2026-10-30', status: 'live', pr: 50, areas: ['Quotes', 'Calendar', 'Database'],
     title: 'Park a quote until a later date',
     summary: 'When a customer says \u201cnot yet\u201d, a quote can now be parked until a date you choose. It drops out of the chasing and the win rate, then comes back by itself on that day.',
     changes: ['New 💤 Park button on every open or expired quote (on the card and in the side panel). Pick a date (1 week, 2 weeks, 1 month, 3 months, early January, or any date) and write why, so whoever sees it later knows.', 'While parked the quote is out of the Pipeline, the chase lists, the counts, the win rate and DAN, so nobody chases a customer who has asked to wait, and it is not marked as lost.', 'New Parked tab on Quotes listing everything parked, when it comes back and why. You can change the date or bring one back early.', 'On the return day it comes back by itself as Hot, marked \u201cBack from parking\u201d with the reason, and a note to check that the quote has not expired in DecoNetwork. It also shows on the Calendar that day.', 'A parked quote that the customer approves in DecoNetwork is never hidden, so no sale is missed.', 'Quotes already approved or cancelled cannot be parked. The date must be after today and within about 13 months.'],
     watch: 'DecoNetwork cannot be changed from here, so if a quote has expired in DecoNetwork by the time it comes back, reopen it there as before. While a quote is parked it is not counted in Quotes raised, since it is hidden from the board. If a parked quote has gone missing, look on the Parked tab.'
   },
   {
-    v: 'v53', date: '2026-10-30', status: 'built', areas: ['Customers'],
+    v: 'v53', date: '2026-10-30', status: 'live', pr: 50, areas: ['Customers'],
     title: 'Push to GHL button removed',
     summary: 'The Push to GHL button on the Customer Watchlist has been removed, along with the empty Action column it sat in.',
     changes: ['The button never did anything, because nothing was ever connected to it.', 'The Customer Watchlist now ends at the Last Value column. Nothing else about it has changed.'],
