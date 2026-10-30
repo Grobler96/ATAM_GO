@@ -49,7 +49,6 @@ body.state-critical {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.5));
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  white-space: nowrap;
   cursor: default;
   transition: border-color 0.2s ease;
 }
@@ -96,6 +95,7 @@ body.state-critical {
 }
 
 .atam-stat-count {
+  white-space: nowrap;
   font-size: 22px;
   line-height: 1;
   font-weight: 800;
@@ -105,6 +105,7 @@ body.state-critical {
 }
 
 .atam-stat-label {
+  line-height: 1.2;
   color: #94a3b8;
   font-size: 12px;
   font-weight: 600;
@@ -370,9 +371,44 @@ tbody tr {
 ::-webkit-scrollbar-thumb:hover { background: rgba(56,189,248,0.4); }
 
 
+/* ── ATAM WORKWEAR title: slow light sweep across the letters, glowing accent bar ── */
+.topbar .eyebrow {
+  position: relative;
+  padding-left: 20px;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.34em;
+  background-image: linear-gradient(100deg, #38bdf8 0%, #818cf8 28%, #f0f9ff 50%, #818cf8 72%, #38bdf8 100%);
+  background-size: 360px 100%;
+  background-repeat: repeat-x;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.35));
+  animation: atam-title-sweep 7s linear infinite;
+}
+.topbar .eyebrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 4px;
+  height: 1.3em;
+  transform: translateY(-50%);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #38bdf8, #6366f1);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.65);
+  animation: atam-title-glow 3.5s ease-in-out infinite;
+}
+@keyframes atam-title-sweep { from { background-position: 0 0; } to { background-position: 360px 0; } }
+@keyframes atam-title-glow { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; box-shadow: 0 0 18px rgba(56, 189, 248, 0.9); } }
+@media (prefers-reduced-motion: reduce) { .topbar .eyebrow, .topbar .eyebrow::before { animation: none; } }
+@media (max-width: 760px) { .topbar .eyebrow { font-size: 14px; letter-spacing: 0.26em; } }
+
 /* ── TITLE + FILTER ROW: one tidy line, a single segmented date control ── */
 .topbar { align-items: center; padding: 12px 0; margin-bottom: 18px; }
-.topbar .eyebrow { font-size: 13px; font-weight: 800; letter-spacing: 0.2em; }
 .topbar-controls { align-items: center; gap: 10px; }
 .date-range-controls { gap: 8px; align-items: flex-end; }
 .range-presets {
