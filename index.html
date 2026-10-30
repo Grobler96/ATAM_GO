@@ -42,7 +42,8 @@
       transition: transform 0.2s cubic-bezier(.34,1.56,.64,1), box-shadow 0.2s;
     }
     #dan-fab:hover { transform: scale(1.12); box-shadow: 0 8px 32px rgba(56,189,248,0.6), 0 0 0 6px rgba(56,189,248,0.12); }
-    #dan-fab.dan-open { transform: scale(0.9) rotate(20deg); background: linear-gradient(135deg, #ef4444, #f97316); }
+    /* While the panel is open the floating button hides: it sat on top of the mic and send buttons, and the panel has its own close button */
+    #dan-fab.dan-open { opacity: 0; pointer-events: none; transform: scale(0.6); }
     #dan-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #0b1220; box-sizing: border-box; }
     #dan-badge[hidden] { display: none; }
     #dan-fab.dan-alert:not(.dan-open) { animation: danPulse 2.4s ease-in-out infinite; }
@@ -100,11 +101,15 @@
     }
     #dan-voice-toggle:hover { background: rgba(56,189,248,0.15); color: #7dd3fc; }
     #dan-voice-toggle.active { background: rgba(56,189,248,0.2); color: #38bdf8; border-color: rgba(56,189,248,0.4); }
-    #dan-insights { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    /* Alerts: short one-line rows, the top three first, and never taller than a third of the panel so the chat is not squeezed */
+    #dan-insights { padding: 10px 16px 6px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; max-height: 36vh; overflow-y: auto; }
+    .dan-insights-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 2px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: #94a3b8; }
+    .dan-insights-head button { background: none; border: 0; padding: 2px 4px; color: #7dd3fc; font-size: 12px; letter-spacing: 0; text-transform: none; cursor: pointer; }
+    .dan-insights-head button:hover { color: #bae6fd; text-decoration: underline; }
     .dan-insight-card {
-      display: flex; align-items: flex-start; gap: 10px;
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
       background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: all 0.15s;
+      border-radius: 10px; padding: 7px 10px; cursor: pointer; transition: all 0.15s;
       animation: dan-card-in 0.35s ease both;
     }
     @keyframes dan-card-in { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
@@ -113,13 +118,13 @@
     .dan-insight-card.warning { border-left: 3px solid #f59e0b; }
     .dan-insight-card.good { border-left: 3px solid #22c55e; }
     .dan-insight-card.info { border-left: 3px solid #38bdf8; }
-    .dan-ic-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-    .dan-ic-text { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
+    .dan-ic-icon { font-size: 15px; flex-shrink: 0; }
+    .dan-insight-card > div:last-child { flex: 1; min-width: 0; }
+    .dan-ic-text { font-size: 12.5px; line-height: 1.4; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dan-ic-text strong { color: #f8fafc; font-weight: 700; }
-    .dan-ic-hint { font-size: 10px; color: rgba(56,189,248,0.7); margin-top: 3px; }
     #dan-messages {
       flex: 1; overflow-y: auto; padding: 14px 16px;
-      display: flex; flex-direction: column; gap: 10px; min-height: 0;
+      display: flex; flex-direction: column; gap: 10px; min-height: 160px;
     }
     #dan-messages::-webkit-scrollbar { width: 4px; }
     #dan-messages::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 2px; }
@@ -133,8 +138,9 @@
     .dan-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
     .dan-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes dan-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-4px);opacity:1} }
-    .dan-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-    .dan-chip { background: rgba(56,189,248,0.1); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.22); border-radius: 20px; padding: 5px 11px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .dan-chips { display: flex; flex-wrap: nowrap; gap: 6px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+    .dan-chips::-webkit-scrollbar { display: none; }
+    .dan-chip { flex: none; background: rgba(56,189,248,0.1); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.22); border-radius: 20px; padding: 5px 11px; font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .dan-chip:hover { background: rgba(56,189,248,0.2); color: #bae6fd; }
     .dan-speak-btn {
       display: inline-flex; align-items: center; justify-content: center;
@@ -361,7 +367,7 @@
     function cleanDashes(text) { return String(text).replace(/\s*[—–]\s*/g, ', '); }
 
     function buildInsights() {
-      const s = window.state || {};
+      const s = (typeof state !== 'undefined' && state) || window.state || {};
       const overview = s.data?.overview?.[0] || {};
       const risk = s.data?.risk || [];
       const ready = s.data?.ready || [];
@@ -402,15 +408,34 @@
       return insights;
     }
 
+    // Alerts: urgent first, the top three shown as one-line rows, with a toggle for the rest.
+    let insightsOpen = false;
+    const INSIGHT_ORDER = { urgent: 0, warning: 1, warn: 1, good: 2, info: 3 };
+    const INSIGHTS_SHOWN = 3;
     function renderInsights() {
       const container = document.getElementById('dan-insights');
       if (!container) return;
+      const all = (serverInsights() || buildInsights()).slice().sort((a, b) => (INSIGHT_ORDER[a.type] ?? 3) - (INSIGHT_ORDER[b.type] ?? 3));
+      const list = insightsOpen ? all : all.slice(0, INSIGHTS_SHOWN);
       container.innerHTML = '';
-      (serverInsights() || buildInsights()).forEach((ins, i) => {
+      if (all.length > INSIGHTS_SHOWN) {
+        const head = document.createElement('div');
+        head.className = 'dan-insights-head';
+        head.innerHTML = `<span>${all.length} things to look at</span>`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = insightsOpen ? 'Show fewer' : `Show all ${all.length}`;
+        btn.setAttribute('aria-expanded', String(insightsOpen));
+        btn.onclick = () => { insightsOpen = !insightsOpen; renderInsights(); };
+        head.appendChild(btn);
+        container.appendChild(head);
+      }
+      list.forEach((ins, i) => {
         const card = document.createElement('div');
         card.className = `dan-insight-card ${ins.type}`;
-        card.style.animationDelay = `${i * 70}ms`;
-        card.innerHTML = `<div class="dan-ic-icon">${ins.icon}</div><div><div class="dan-ic-text">${ins.text}</div>${ins.hint ? `<div class="dan-ic-hint">${ins.hint} →</div>` : ''}</div>`;
+        card.style.animationDelay = `${i * 50}ms`;
+        card.innerHTML = `<div class="dan-ic-icon">${ins.icon}</div><div><div class="dan-ic-text">${ins.text}</div></div>`;
+        card.title = (card.querySelector('.dan-ic-text').textContent || '') + ' (tap to ask DAN)';
         card.onclick = () => danSendText(ins.prompt);
         container.appendChild(card);
       });
@@ -1317,7 +1342,7 @@
   <script src="newcustomers.js?v=20261023"></script>
   <script src="calendar.js?v=20261027b"></script>
   <script src="accountmanagers.js?v=20261030"></script>
-  <script src="updatelog-data.js?v=20261030g"></script>
+  <script src="updatelog-data.js?v=20261030h"></script>
   <script src="updatelog.js?v=20261029j"></script>
   <script src="stock.js?v=20261027b"></script>
   <script src="glass.js?v=20261028"></script>
