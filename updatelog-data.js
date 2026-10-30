@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v52', date: '2026-10-30', status: 'live', pr: 49, timeTaken: '45 m', areas: ['DAN'],
+    title: 'DAN chat panel tidied up: no more overlaps',
+    summary: 'The DAN panel is now shorter and neater. The alerts no longer cover the chat, and the floating robot button no longer sits on top of the mic and send buttons.',
+    changes: ['Alerts are now short one-line rows, most urgent first. The top three show, with a \u201cShow all\u201d link for the rest. Hover over a row to read the whole alert, and tap it to ask DAN about it as before.', 'The alert area can never take more than a third of the panel, so there is always room for the conversation (before, six alerts could take most of it and push the first message under them).', 'The floating robot button now hides while the panel is open, because it was sitting on top of the mic and send buttons. Use the \u2715 at the top of the panel to close it; the button comes back when it is closed.', 'The quick-question buttons under a message now sit on one line that you can swipe sideways, instead of taking up three lines.', 'Also fixed: the backup alerts DAN shows when the server list is unavailable were always empty because of the same data fault as the header tiles.'],
+    watch: 'If an alert looks cut off, that is deliberate: hover over it (or tap it and ask DAN) to see the whole thing. If the DAN panel still looks cramped, do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) and tell Oliver your screen size.'
+  },
+  {
     v: 'v51', date: '2026-10-30', status: 'live', pr: 48, timeTaken: '1 h', areas: ['Site'],
     title: 'Overview numbers fixed, plus graphs, change figures and a late-orders badge',
     summary: 'The Overview totals are now complete for busy months, the six Overview cards show a graph and how they compare with last week or last month, and the Dispatch button shows how many orders are late.',
