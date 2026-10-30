@@ -32,110 +32,22 @@
   const qs = (sel, ctx = document) => ctx.querySelector(sel);
   const qsa = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
+  // app.js declares `const state = {...}`: a global variable, but NOT a property of window, so window.state is always empty.
+  // The status bar reads it this way. (The other functions below still use getState() and so stay switched off, see the note
+  // on getState.)
+  function appState() {
+    return (typeof state !== 'undefined' && state) ? state : (window.state || null);
+  }
+
   function getState() {
-    // Safe accessor — falls back gracefully if app.js hasn't loaded yet
+    // NOTE: this is always null (see appState above), so the KPI sparklines / deltas, sidebar count badges and the DAN
+    // notification dot that use it have never run. They are left off on purpose: the deltas compare one refresh with the
+    // previous one (so they would be nonsense after changing the date range) and the card order does not match.
     return window.state || null;
   }
 
   /* ══════════════════════════════════════════════════════════════
-     1. HEARTBEAT STRIP
-     Injected directly after <main class="main-content"> opens,
-     before the topbar. Animated EKG driven by a real clock.
-     ══════════════════════════════════════════════════════════════ */
-  function initHeartbeat() {
-    const main = qs('.main-content');
-    if (!main) return;
-
-    const strip = document.createElement('div');
-    strip.id = 'atam-heartbeat';
-    strip.innerHTML = `
-      <span class="hb-label">PRODUCTION PULSE</span>
-      <canvas id="atam-hb-canvas"></canvas>
-      <span class="hb-clock" id="atam-hb-clock">--:--:--</span>
-    `;
-
-    // Insert before topbar
-    const topbar = qs('.topbar', main);
-    main.insertBefore(strip, topbar);
-
-    // Wire canvas after DOM insertion
-    requestAnimationFrame(() => drawHeartbeat());
-  }
-
-  let _hbOffset = 0;
-  let _hbLastTs = 0;
-
-  function ekgY(t) {
-    // A natural-looking EKG shape via piecewise function
-    const x = ((t % 1) + 1) % 1;
-    if (x < 0.04) return 0;
-    if (x < 0.06) return ((x - 0.04) / 0.02) * 0.28;
-    if (x < 0.08) return 0.28 - ((x - 0.06) / 0.02) * 0.58;
-    if (x < 0.09) return -0.30 + ((x - 0.08) / 0.01) * 1.55;
-    if (x < 0.11) return 1.25 - ((x - 0.09) / 0.02) * 1.95;
-    if (x < 0.14) return -0.70 + ((x - 0.11) / 0.03) * 0.85;
-    if (x < 0.19) return 0.15 - ((x - 0.14) / 0.05) * 0.15;
-    return Math.sin(x * 55) * 0.012; // Flat with micro-noise
-  }
-
-  function drawHeartbeat(ts = 0) {
-    const canvas = $('atam-hb-canvas');
-    if (!canvas) return;
-
-    const parent = canvas.parentElement;
-    const W = parent.offsetWidth;
-    const H = parent.offsetHeight;
-
-    if (canvas.width !== W || canvas.height !== H) {
-      canvas.width = W;
-      canvas.height = H;
-    }
-
-    const dt = ts - _hbLastTs;
-    _hbLastTs = ts;
-    _hbOffset += (dt / 1000) * 0.055; // speed
-
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, W, H);
-
-    // Fading trail gradient (right side brighter)
-    const grad = ctx.createLinearGradient(0, 0, W, 0);
-    grad.addColorStop(0,   'transparent');
-    grad.addColorStop(0.55, 'transparent');
-    grad.addColorStop(1,   'rgba(56,189,248,0.12)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-
-    const mid = H / 2;
-    const amp = H * 0.36;
-    const segs = 600;
-
-    ctx.beginPath();
-    for (let i = 0; i <= segs; i++) {
-      const t = _hbOffset + i / segs;
-      const x = (i / segs) * W;
-      const y = mid - ekgY(t) * amp;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-
-    ctx.strokeStyle = 'rgba(56,189,248,0.85)';
-    ctx.lineWidth = 1.4;
-    ctx.shadowColor = 'rgba(56,189,248,0.6)';
-    ctx.shadowBlur = 6;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Clock
-    const clock = $('atam-hb-clock');
-    if (clock) {
-      clock.textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
-    }
-
-    requestAnimationFrame(drawHeartbeat);
-  }
-
-  /* ══════════════════════════════════════════════════════════════
-     2. STATUS BAR — always-visible traffic lights
+     1. STATUS BAR — always-visible traffic lights, with a small live clock
      Injected as the very first child of .main-content
      ══════════════════════════════════════════════════════════════ */
   function initStatusBar() {
@@ -148,7 +60,7 @@
       <div class="atam-stat-pill">
         <div class="atam-stat-dot green" id="atam-dot-prod"></div>
         <span class="atam-stat-count" id="atam-s-total">—</span>
-        <span class="atam-stat-label">Decorated Today</span>
+        <span class="atam-stat-label" id="atam-s-total-label">Decorated</span>
       </div>
       <div class="atam-stat-pill">
         <div class="atam-stat-dot amber" id="atam-dot-due"></div>
@@ -165,31 +77,42 @@
         <span class="atam-stat-count" id="atam-s-ship">—</span>
         <span class="atam-stat-label">Ready to Ship</span>
       </div>
+      <div class="atam-live" title="The dashboard is connected and refreshing"><i></i><span>Live</span><time id="atam-live-clock">--:--</time></div>
     `;
 
-    // Insert as the absolute first thing in main-content (before heartbeat even)
+    // Insert as the absolute first thing in main-content
     main.insertBefore(bar, main.firstChild);
+
+    // a tiny clock instead of the old animated heartbeat line (which redrew a canvas 60 times a second, all day)
+    const tick = () => { const c = $('atam-live-clock'); if (c) c.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
+    tick();
+    setInterval(tick, 15000);
   }
 
+  const RANGE_WORDS = { today: 'Today', yesterday: 'Yesterday', week: 'This Week', month: 'This Month', custom: 'Selected Dates' };
+  // The page only loads the 50 most urgent late / ready orders, so a count of 50 really means "50 or more"
+  const capped = n => (n >= 50 ? '50+' : fmtNum(n));
+
   function updateStatusBar() {
-    const s = getState();
+    const s = appState();
     if (!s) return;
 
-    const overview = s.data?.overview?.[0] || {};
-    const total    = overview.total_decorations || 0;
-    const due      = parseInt($('dueTodayCount')?.textContent?.replace(/,/g,'')) || 0;
+    const overview = s.data?.overview?.[0];
+    const due      = parseInt($('dueTodayCount')?.textContent?.replace(/,/g,''));
     const late     = s.data?.risk?.length || 0;
     const ship     = s.data?.ready?.length || 0;
 
-    setText('atam-s-total', fmtNum(total));
-    setText('atam-s-due',   fmtNum(due));
-    setText('atam-s-late',  fmtNum(late));
-    setText('atam-s-ship',  fmtNum(ship));
+    // "Decorated" follows the date buttons: it is the total for the dates chosen, not always today
+    setText('atam-s-total-label', 'Decorated ' + (RANGE_WORDS[s.range] || 'Selected Dates'));
+    setText('atam-s-total', overview ? fmtNum(overview.total_decorations) : '—');
+    setText('atam-s-due',   isNaN(due) ? '—' : fmtNum(due));
+    setText('atam-s-late',  capped(late));
+    setText('atam-s-ship',  capped(ship));
 
     // Ambient glow state
     document.body.classList.remove('state-warning', 'state-critical');
     if (late >= 1) document.body.classList.add('state-critical');
-    else if (due >= 3) document.body.classList.add('state-warning');
+    else if ((due || 0) >= 3) document.body.classList.add('state-warning');
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -580,7 +503,6 @@
      ══════════════════════════════════════════════════════════════ */
   function boot() {
     initStatusBar();
-    initHeartbeat();
     initNavEnhancements();
     initKpiCards();
     initTableAnimations();
