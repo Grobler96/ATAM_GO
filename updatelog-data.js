@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v49', date: '2026-10-30', status: 'built', areas: ['Account managers'],
+    title: 'Account managers tab put back to how it was before the 3D office',
+    summary: 'The 3D office has been taken off the Account managers tab because the page was not loading properly and was buggy. The tab is back to the cards and the account list.',
+    changes: ['Everything else on the tab is the same as before: the manager cards, the account drawers, changing who owns an account, and the revenue, quote and margin figures.', 'Nothing about who owns which account has changed or been lost.'],
+    watch: 'If the tab still does not load, do a hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) and tell Oliver what you see.'
+  },
+  {
     v: 'v48', date: '2026-10-30', status: 'live', pr: 45, timeTaken: '1 h', areas: ['Quotes', 'Win-back'],
     title: 'Customer history chart shows the two years in different colours',
     summary: 'The Spend by month chart in the customer history panel (Quotes and Win-back) now shows the last 12 months in bright blue and the 12 before in grey, so you can tell the years apart.',
@@ -25,11 +32,11 @@ window.ATAM_UPDATES = [
     watch: 'If a quote you re-ignited is back in Expired after a month, it simply went quiet again for 30 days. If the customer link in a re-ignite email does not work, the quote was not reopened in DecoNetwork first.'
   },
   {
-    v: 'v46', date: '2026-10-29', status: 'live', pr: null, areas: ['Account managers'],
+    v: 'v46', date: '2026-10-29', status: 'rolled_back', pr: null, areas: ['Account managers'],
     title: '3D office on the Account managers tab',
     summary: 'The Account managers tab now opens on a little 3D office with one person at a desk for each account manager.',
     changes: ['Click a person to open them, the same as clicking their card. Hover over one to see their revenue, accounts and open quotes. Drag to turn the office around.', 'The meeting table in the middle has a glowing bar for each person showing their revenue, and the screen on the wall shows the total for the period you have chosen.', 'Accounts with no owner sit at an empty desk called Unassigned.', 'The cards and the account table are unchanged underneath, and still work if the 3D view cannot load on someone\u2019s device.'],
-    watch: 'If the office is blank or the tab feels slow on an older phone or computer, tell Oliver which device. The cards below it keep working either way.'
+    watch: 'Taken out again in v49 because the tab would not load properly and was buggy.'
   },
   {
     v: 'v45', date: '2026-10-29', status: 'live', pr: null, areas: ['Update log'],
