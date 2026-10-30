@@ -167,7 +167,7 @@ body.state-critical {
   height: 28px !important;
 }
 
-/* Delta badge */
+/* Delta badge (hidden until there is a real figure to show) */
 .atam-delta {
   display: inline-flex;
   align-items: center;
@@ -179,6 +179,7 @@ body.state-critical {
   letter-spacing: 0.02em;
 }
 
+.atam-delta:empty { display: none; }
 .atam-delta.up   { background: rgba(34,197,94,0.14);  color: #4ade80; }
 .atam-delta.down { background: rgba(239,68,68,0.14);  color: #f87171; }
 .atam-delta.flat { background: rgba(148,163,184,0.12); color: var(--muted); }
@@ -330,30 +331,7 @@ tbody tr {
   transition: transform 0.2s ease, box-shadow 0.2s ease !important;
 }
 
-#dan-fab.atam-dan-notify {
-  animation: atam-dan-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  box-shadow: 0 4px 16px rgba(26,115,232,0.45), 0 0 0 4px rgba(26,115,232,0.2) !important;
-}
-
-@keyframes atam-dan-bounce {
-  0%   { transform: scale(1); }
-  40%  { transform: scale(1.2); }
-  70%  { transform: scale(0.92); }
-  100% { transform: scale(1); }
-}
-
-/* Notification dot on DAN fab */
-#dan-fab .atam-fab-dot {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 10px;
-  height: 10px;
-  background: var(--red);
-  border-radius: 50%;
-  border: 2px solid #020617;
-  animation: atam-dot-pulse 2s infinite;
-}
+/* (DAN's own alert badge and pulse live in index.html; the extra dot and bounce that used to be here were removed) */
 
 /* ── 16. CONNECTION STATUS COLOUR ───────────────────────────── */
 #connectionStatus {

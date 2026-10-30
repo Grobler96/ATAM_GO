@@ -33,17 +33,9 @@
   const qsa = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
   // app.js declares `const state = {...}`: a global variable, but NOT a property of window, so window.state is always empty.
-  // The status bar reads it this way. (The other functions below still use getState() and so stay switched off, see the note
-  // on getState.)
+  // Everything here reads the page's data through this.
   function appState() {
     return (typeof state !== 'undefined' && state) ? state : (window.state || null);
-  }
-
-  function getState() {
-    // NOTE: this is always null (see appState above), so the KPI sparklines / deltas, sidebar count badges and the DAN
-    // notification dot that use it have never run. They are left off on purpose: the deltas compare one refresh with the
-    // previous one (so they would be nonsense after changing the date range) and the card order does not match.
-    return window.state || null;
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -118,90 +110,72 @@
   /* ══════════════════════════════════════════════════════════════
      3. KPI CARD ACCENTS + SPARKLINES + COUNT-UP
      ══════════════════════════════════════════════════════════════ */
+  // The six Overview cards (in page order) and the figures behind each: the daily series for the graph and the total that is
+  // compared with the previous period for the % change.
+  const OVERVIEW_KPIS = [
+    { day: 'qty',    total: 'total_decorations',      color: '#38bdf8' },
+    { day: 'emb',    total: 'embroidery_total',       color: '#a78bfa' },
+    { day: 'print',  total: 'print_total',            color: '#22c55e' },
+    { day: 'orders', total: 'unique_orders',          color: '#f59e0b' },
+    { day: 'avg',    total: 'avg_garments_per_order', color: '#ef4444' },
+    { day: 'lines',  total: 'decoration_lines',       color: '#06b6d4' },
+  ];
+
   function initKpiCards() {
-    const cards = qsa('.kpi-card');
-    cards.forEach((card, i) => {
-      // Accent top border
+    const overviewCards = qsa('#overview .kpi-grid .kpi-card').slice(0, OVERVIEW_KPIS.length);
+    qsa('.kpi-card').forEach((card, i) => {
+      // Accent top border on every card
       card.classList.add(KPI_ACCENTS[i % KPI_ACCENTS.length]);
 
-      // Add sparkline canvas container
-      const sparkWrap = document.createElement('div');
-      sparkWrap.className = 'atam-sparkline-wrap';
-      sparkWrap.innerHTML = `<canvas id="atam-spark-${i}"></canvas>`;
-      card.appendChild(sparkWrap);
+      const k = overviewCards.indexOf(card);
+      if (k >= 0) {
+        // graph and "change since the previous period" chip, only where we have the figures for them
+        const sparkWrap = document.createElement('div');
+        sparkWrap.className = 'atam-sparkline-wrap';
+        sparkWrap.innerHTML = `<canvas id="atam-spark-${k}"></canvas>`;
+        card.appendChild(sparkWrap);
 
-      // Add delta placeholder
-      const delta = document.createElement('div');
-      delta.className = 'atam-delta flat';
-      delta.id = `atam-delta-${i}`;
-      delta.textContent = '—';
-      // Insert after <small>
-      const small = qs('small', card);
-      if (small) small.insertAdjacentElement('afterend', delta);
+        const delta = document.createElement('div');
+        delta.className = 'atam-delta flat';
+        delta.id = `atam-delta-${k}`;
+        const small = qs('small', card);
+        if (small) small.insertAdjacentElement('afterend', delta);
+      }
 
       setTimeout(() => card.classList.add('atam-loaded'), 100 + i * 60);
     });
   }
 
-  // Historical data store (grows each refresh, capped at 7 points)
-  const _sparkHistory = {};
-
   function updateKpiSparklines() {
-    const s = getState();
+    const s = appState();
     if (!s) return;
 
-    const overview = s.data?.overview?.[0] || {};
+    const cur  = s.data?.overview?.[0] || {};
+    const prev = s.data?.overviewPrev || null;
+    const daily = s.data?.daily || [];
+    const cmp = s.compare;
 
-    const metrics = [
-      { key: 'total',  value: overview.total_decorations || 0, color: '#38bdf8' },
-      { key: 'emb',    value: overview.embroidery_total  || 0, color: '#a78bfa' },
-      { key: 'print',  value: overview.print_total       || 0, color: '#22c55e' },
-      { key: 'orders', value: overview.unique_orders     || 0, color: '#f59e0b' },
-      { key: 'custs',  value: overview.unique_customers  || 0, color: '#ef4444' },
-      { key: 'lines',  value: overview.decoration_lines  || 0, color: '#06b6d4' },
-    ];
-
-    metrics.forEach((m, i) => {
-      if (!_sparkHistory[m.key]) _sparkHistory[m.key] = [];
-      _sparkHistory[m.key].push(m.value);
-      if (_sparkHistory[m.key].length > 7) _sparkHistory[m.key].shift();
-
-      const history = _sparkHistory[m.key];
-      drawSparkline(`atam-spark-${i}`, history, m.color);
-
-      // Delta vs previous reading
-      if (history.length >= 2) {
-        const prev = history[history.length - 2];
-        const curr = history[history.length - 1];
-        const delta = $(`atam-delta-${i}`);
-        if (delta && prev > 0) {
-          const pct = Math.round(((curr - prev) / prev) * 100);
-          if (pct > 0) {
-            delta.className = 'atam-delta up';
-            delta.textContent = `↑ ${pct}%`;
-          } else if (pct < 0) {
-            delta.className = 'atam-delta down';
-            delta.textContent = `↓ ${Math.abs(pct)}%`;
-          } else {
-            delta.className = 'atam-delta flat';
-            delta.textContent = '→ 0%';
-          }
-        }
+    OVERVIEW_KPIS.forEach((m, i) => {
+      // graph: this metric day by day across the chosen dates so far (needs at least two days to be a line)
+      const wrap = qs(`#atam-spark-${i}`)?.parentElement;
+      const series = daily.map(d => d[m.day]);
+      if (series.length >= 2) {
+        drawSparkline(`atam-spark-${i}`, series, m.color);
+        if (wrap) setTimeout(() => wrap.classList.add('visible'), 200 + i * 80);
+      } else if (wrap) {
+        wrap.classList.remove('visible');
       }
 
-      // Show sparkline
-      const wrap = qs(`#atam-spark-${i}`)?.parentElement;
-      if (wrap) setTimeout(() => wrap.classList.add('visible'), 200 + i * 80);
+      // change: this period against the same number of days straight before it
+      const delta = $(`atam-delta-${i}`);
+      if (!delta) return;
+      const a = Number(cur[m.total] || 0), b = prev ? Number(prev[m.total] || 0) : 0;
+      if (!prev || !(b > 0) || !cmp) { delta.textContent = ''; return; }
+      const pct = Math.round(((a - b) / b) * 100);
+      delta.className = 'atam-delta ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat');
+      delta.textContent = (pct > 0 ? '↑ ' : pct < 0 ? '↓ ' : '→ ') + Math.abs(pct) + '% vs ' + cmp.label;
+      delta.title = `${fmtNum(a)} now, against ${fmtNum(b)} for ${cmp.title} (${cmp.from}${cmp.from !== cmp.to ? ' to ' + cmp.to : ''})`;
     });
-
-    // Alert pulses on danger/warning KPIs
-    const atRisk = parseInt($('reorderAtRisk')?.textContent?.replace(/,/g,'')) || 0;
-    const dueSoon = parseInt($('reorderDueSoon')?.textContent?.replace(/,/g,'')) || 0;
-
-    const dangerCard = qs('.danger-kpi');
-    const warnCard   = qs('.warning-kpi');
-    if (dangerCard) dangerCard.classList.toggle('atam-alert', atRisk > 0);
-    if (warnCard)   warnCard.classList.toggle('atam-alert', dueSoon > 0);
   }
 
   function drawSparkline(id, data, color) {
@@ -262,26 +236,33 @@
      4. COUNT-UP ANIMATION for KPI numbers
      ══════════════════════════════════════════════════════════════ */
   const _prevValues = {};
+  const _animToken = {};
 
+  // The figure each Overview card should end on comes from the page's data, not from the text on screen: the text is half-way
+  // through an animation whenever a second refresh signal arrives, which used to leave a card stuck on an old number. Starting a
+  // new count-up also cancels any earlier one still running for the same card.
   function animateKpiNumbers() {
+    const cur = appState()?.data?.overview?.[0];
+    if (!cur) return;
     const targets = [
-      { id: 'totalDecorations' },
-      { id: 'embroideryTotal' },
-      { id: 'printTotal' },
-      { id: 'uniqueOrders' },
-      { id: 'uniqueCustomers' },
-      { id: 'decorationLines' },
+      { id: 'totalDecorations',    key: 'total_decorations' },
+      { id: 'embroideryTotal',     key: 'embroidery_total' },
+      { id: 'printTotal',          key: 'print_total' },
+      { id: 'uniqueOrders',        key: 'unique_orders' },
+      { id: 'avgGarmentsPerOrder', key: 'avg_garments_per_order' },
+      { id: 'decorationLines',     key: 'decoration_lines' },
     ];
 
-    targets.forEach(({ id }) => {
+    targets.forEach(({ id, key }) => {
       const el = $(id);
       if (!el) return;
 
-      const raw = el.textContent.replace(/,/g, '');
-      const to = parseInt(raw) || 0;
+      const to = Math.round(Number(cur[key] || 0));
       const from = _prevValues[id] || 0;
+      const token = (_animToken[id] || 0) + 1;
+      _animToken[id] = token;
 
-      if (to === from) return;
+      if (to === from) { el.textContent = fmtNum(to); return; }
       _prevValues[id] = to;
 
       const card = el.closest('.kpi-card');
@@ -291,6 +272,7 @@
       const start = performance.now();
 
       function step(now) {
+        if (_animToken[id] !== token) return;   // a newer refresh has taken over this card
         const t = Math.min((now - start) / duration, 1);
         const ease = 1 - Math.pow(1 - t, 3); // ease-out-cubic
         const current = Math.round(from + (to - from) * ease);
@@ -322,31 +304,27 @@
     });
   }
 
+  // Red count on the Dispatch button: orders that are late or at risk (the page loads the 50 most urgent, so 50 means 50 or more).
+  // The Dispatch button is added a moment after load by dispatch.js, so this is also retried a few times at start-up.
   function updateNavBadges() {
-    const s = getState();
+    const s = appState();
     if (!s) return;
+    const count = s.data?.risk?.length || 0;
+    const btn = qs('.nav-link[data-page="dispatch"]');
+    if (!btn) return;
 
-    const badges = {
-      orders:    (s.data?.risk?.length || 0) + (s.data?.ready?.length || 0),
-      customers: (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length,
-    };
-
-    Object.entries(badges).forEach(([page, count]) => {
-      const btn = qs(`.nav-link[data-page="${page}"]`);
-      if (!btn) return;
-
-      let badge = qs('.atam-nav-badge', btn);
-      if (count > 0) {
-        if (!badge) {
-          badge = document.createElement('span');
-          badge.className = 'atam-nav-badge';
-          btn.appendChild(badge);
-        }
-        badge.textContent = count > 99 ? '99+' : count;
-      } else if (badge) {
-        badge.remove();
+    let badge = qs('.atam-nav-badge', btn);
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'atam-nav-badge';
+        badge.title = 'Late or at-risk orders';
+        btn.appendChild(badge);
       }
-    });
+      badge.textContent = count >= 50 ? '50+' : count;
+    } else if (badge) {
+      badge.remove();
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -408,41 +386,6 @@
      9. DAN FAB — proactive insight notification dot
      Shows a red dot when there are late orders or at-risk customers
      ══════════════════════════════════════════════════════════════ */
-  function initDanEnhancement() {
-    const fab = $('dan-fab');
-    if (!fab) return;
-
-    // Add notification dot element
-    const dot = document.createElement('span');
-    dot.className = 'atam-fab-dot';
-    dot.id = 'atam-dan-dot';
-    fab.style.position = 'fixed'; // ensure position context
-    fab.appendChild(dot);
-  }
-
-  function updateDanBadge() {
-    const s = getState();
-    const dot = $('atam-dan-dot');
-    if (!dot || !s) return;
-
-    const lateCount = s.data?.risk?.length || 0;
-    const atRisk    = (s.data?.customerAlerts || []).filter(c => c.reorder_status === 'At Risk').length;
-    const urgent    = lateCount + atRisk;
-
-    dot.style.display = urgent > 0 ? 'block' : 'none';
-
-    // Bounce the fab if there's something urgent and DAN isn't already open
-    const panel = $('dan-panel');
-    if (urgent > 0 && panel && !panel.classList.contains('open')) {
-      const fab = $('dan-fab');
-      if (fab) {
-        fab.classList.remove('atam-dan-notify');
-        void fab.offsetWidth; // reflow
-        fab.classList.add('atam-dan-notify');
-      }
-    }
-  }
-
   /* ══════════════════════════════════════════════════════════════
      10. TOPBAR sticky — becomes more opaque on scroll
      ══════════════════════════════════════════════════════════════ */
@@ -480,8 +423,7 @@
           updateKpiSparklines();
           animateKpiNumbers();
           updateNavBadges();
-          updateDanBadge();
-        }, 80);
+            }, 80);
       }
     });
 
@@ -507,10 +449,12 @@
     initKpiCards();
     initTableAnimations();
     initRefreshBtn();
-    initDanEnhancement();
     initTopbarScroll();
     watchConnectionStatus();
     patchAppRefresh();
+
+    // Dispatch is added to the sidebar a little after load, so try its badge again a few times
+    [2500, 6000, 12000].forEach(ms => setTimeout(updateNavBadges, ms));
 
     // Initial draw tick after a short delay
     // (in case data was already loaded before this script ran)
@@ -518,7 +462,6 @@
       updateStatusBar();
       updateKpiSparklines();
       updateNavBadges();
-      updateDanBadge();
     }, 500);
   }
 
@@ -533,7 +476,6 @@
     updateStatusBar,
     updateKpiSparklines,
     updateNavBadges,
-    updateDanBadge,
     animateKpiNumbers,
   };
 

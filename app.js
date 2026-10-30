@@ -31,6 +31,9 @@ const state = {
   search: '',
   customerSearch: '',
   charts: {},
+  records: [],
+  prevRecords: null,
+  compare: null,
   data: {
     overview: [],
     deco: [],
@@ -40,7 +43,9 @@ const state = {
     ready: [],
     risk: [],
     activity: [],
-    customerAlerts: []
+    customerAlerts: [],
+    overviewPrev: null,
+    daily: []
   }
 };
 
@@ -194,6 +199,7 @@ async function refresh() {
   try {
     status('Loading...');
 
+    await loadRecords();
     await overview();
     await deco();
     await process();
@@ -233,22 +239,74 @@ async function refresh() {
   }
 }
 
-function baseRecordsQuery() {
-  let q = sb
-    .from('decoration_records')
-    .select('*')
-    .gte('report_date', state.dateFrom)
-    .lte('report_date', state.dateTo);
+// All decoration records for a date range. The database hands back at most 1,000 rows per request, and a month can hold more
+// than that, so the records are read in pages of 1,000 (in a fixed order so no row is skipped or repeated).
+async function fetchRecords(from, to) {
+  const PAGE = 1000;
+  let all = [];
+  for (let start = 0, pages = 0; pages < 60; start += PAGE, pages++) {
+    let q = sb
+      .from('decoration_records')
+      .select('*')
+      .gte('report_date', from)
+      .lte('report_date', to)
+      .order('id', { ascending: true })
+      .range(start, start + PAGE - 1);
 
-  if (state.store) q = q.eq('store_name', state.store);
-  if (state.type) q = q.eq('decoration_type', state.type);
+    if (state.store) q = q.eq('store_name', state.store);
+    if (state.type) q = q.eq('decoration_type', state.type);
 
-  return q;
+    const { data, error } = await q;
+    if (error) throw error;
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE) break;
+  }
+  return all;
+}
+
+// local calendar dates as YYYY-MM-DD, and day arithmetic that is safe across clock changes
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const fromYmd = t => { const p = String(t).slice(0, 10).split('-'); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); };
+const addDaysYmd = (t, n) => { const d = fromYmd(t); d.setDate(d.getDate() + n); return ymd(d); };
+
+// The period to compare with, like for like. If the chosen dates run into the future (this week, this month) only the days
+// that have happened so far count, and they are matched to the same days a week / a month earlier, so a Monday-to-Friday
+// week is not set against a stretch that includes a weekend.
+//   This Week, a single day  -> the same days one week earlier
+//   This Month               -> the same days of the previous month
+//   anything else            -> the same number of days straight before
+function comparePeriod() {
+  const today = ymd(new Date());
+  const end = state.dateTo < today ? state.dateTo : today;
+  if (!state.dateFrom || end < state.dateFrom) return null;
+  const days = Math.round((fromYmd(end) - fromYmd(state.dateFrom)) / 86400000) + 1;
+
+  if (state.range === 'week' || (days === 1 && state.dateFrom === state.dateTo)) {
+    return { days, end, from: addDaysYmd(state.dateFrom, -7), to: addDaysYmd(end, -7), label: days === 1 ? 'last week' : 'last week', title: days === 1 ? 'the same day last week' : 'the same days last week' };
+  }
+  if (state.range === 'month') {
+    const f = fromYmd(state.dateFrom);
+    const prevFirst = new Date(f.getFullYear(), f.getMonth() - 1, 1);
+    const prevLast = new Date(f.getFullYear(), f.getMonth(), 0);
+    const wanted = new Date(prevFirst.getFullYear(), prevFirst.getMonth(), prevFirst.getDate() + days - 1);
+    return { days, end, from: ymd(prevFirst), to: ymd(wanted < prevLast ? wanted : prevLast), label: 'last month', title: 'the same days last month' };
+  }
+  return { days, end, from: addDaysYmd(state.dateFrom, -days), to: addDaysYmd(state.dateFrom, -1), label: 'previous ' + (days === 1 ? 'day' : days + ' days'), title: 'the ' + (days === 1 ? 'day' : days + ' days') + ' before' };
+}
+
+async function loadRecords() {
+  state.records = await fetchRecords(state.dateFrom, state.dateTo);
+  state.prevRecords = null;
+  const cmp = comparePeriod();
+  state.compare = cmp;
+  if (cmp) {
+    try { state.prevRecords = await fetchRecords(cmp.from, cmp.to); }
+    catch (e) { console.warn('Previous period failed (changes will be hidden):', e.message); }
+  }
 }
 
 async function overview() {
-  const { data, error } = await baseRecordsQuery();
-  if (error) throw error;
+  const data = state.records || [];
 
   const rows = data || [];
   const orders = new Set(rows.map(r => r.order_id).filter(Boolean));
@@ -257,6 +315,31 @@ async function overview() {
   );
 
   const totalQty = rows.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+
+  const totals = list => {
+    const ords = new Set(list.map(r => r.order_id).filter(Boolean));
+    const qty = list.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+    return {
+      total_decorations: qty,
+      embroidery_total: list.filter(r => r.decoration_type === 'embroidery').reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+      print_total: list.filter(r => r.decoration_type === 'print').reduce((sum, r) => sum + Number(r.quantity || 0), 0),
+      unique_orders: ords.size,
+      decoration_lines: list.length,
+      avg_garments_per_order: ords.size > 0 ? Math.round(qty / ords.size) : 0
+    };
+  };
+
+  // the same figures for the previous period (null if it could not be loaded), and one entry per day so far for the graphs
+  state.data.overviewPrev = state.prevRecords ? totals(state.prevRecords) : null;
+  const cmp = state.compare, byDay = {};
+  for (const r of rows) (byDay[String(r.report_date).slice(0, 10)] = byDay[String(r.report_date).slice(0, 10)] || []).push(r);
+  state.data.daily = [];
+  if (cmp) {
+    for (let d = state.dateFrom; d <= cmp.end; d = addDaysYmd(d, 1)) {
+      const t = totals(byDay[d] || []);
+      state.data.daily.push({ date: d, qty: t.total_decorations, emb: t.embroidery_total, print: t.print_total, orders: t.unique_orders, lines: t.decoration_lines, avg: t.avg_garments_per_order });
+    }
+  }
 
   state.data.overview = [
     {
@@ -276,8 +359,7 @@ async function overview() {
 }
 
 async function deco() {
-  const { data, error } = await baseRecordsQuery();
-  if (error) throw error;
+  const data = state.records || [];
 
   const grouped = {};
 
@@ -304,8 +386,7 @@ async function deco() {
 }
 
 async function process() {
-  const { data, error } = await baseRecordsQuery();
-  if (error) throw error;
+  const data = state.records || [];
 
   const grouped = {};
 
@@ -334,8 +415,7 @@ async function process() {
 }
 
 async function customers() {
-  const { data, error } = await baseRecordsQuery();
-  if (error) throw error;
+  const data = state.records || [];
 
   const grouped = {};
 
@@ -367,8 +447,7 @@ async function customers() {
 }
 
 async function stores() {
-  const { data, error } = await baseRecordsQuery();
-  if (error) throw error;
+  const data = state.records || [];
 
   const grouped = {};
 
