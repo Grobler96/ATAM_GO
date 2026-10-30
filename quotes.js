@@ -51,6 +51,7 @@
 
   const TABS = [
     { key: 'pipeline', label: 'Pipeline' },
+    { key: 'expired', label: 'Expired' },
     { key: 'team', label: 'Sales team' },
     { key: 'won', label: 'Converted' },
     { key: 'lost', label: 'Lost' },
@@ -62,7 +63,7 @@
     tab: 'pipeline', period: '90', rep: '', store: '', q: '',
     sort: { key: 'idle', dir: -1 },
     chart: null, timer: null, openId: null, senders: null, composeOpen: false, animate: true, updatedAt: null,
-    removed: [], showRemoved: false, removing: false
+    removed: [], showRemoved: false, removing: false, reigniting: false
   };
 
   // remember the last tab / period / salesperson / store on this device
@@ -123,8 +124,9 @@
     const lastTo = toDate(r.last_to_customer_at);
     const lastFrom = toDate(r.last_from_customer_at);
     const lastChase = toDate(r.last_chase_at);
+    const revivedAt = toDate(r.revived_at);   // someone pressed Re-ignite: counts as a touch, so the quote is Hot again and the 30 day clock restarts
     let lastTouch = created;
-    [modified, lastTo, lastFrom, lastChase].forEach(d => { if (d && d > lastTouch) lastTouch = d; });
+    [modified, lastTo, lastFrom, lastChase, revivedAt].forEach(d => { if (d && d > lastTouch) lastTouch = d; });
     const idle = Math.max(0, days(lastTouch, now));
     const status = r.order_status == null ? null : Number(r.order_status);
     let stage, closedAt = null, lostReason = null;
@@ -141,6 +143,9 @@
     const emailSentAt = toDate(r.email_sent_at), emailDueAt = toDate(r.email_due_at), emailRepliedAt = toDate(r.email_replied_at);
     const emailReplied = !!emailSentAt && (!!emailRepliedAt || (!!lastFrom && lastFrom > emailSentAt));
     const open = !approved && stage !== 'lost';
+    // Expired = went quiet for 30 days (not cancelled, not approved). These are the ones a customer can come back to.
+    const expired = stage === 'lost' && status !== 4 && !approved;
+    const customerLastWord = !!lastFrom && (!lastTo || lastFrom > lastTo);
     const emailWaiting = open && !!emailSentAt && !emailReplied;
     const emailDue = emailWaiting && !!emailDueAt && now >= emailDueAt;
     return {
@@ -151,7 +156,8 @@
       value: num(r.quote_value), qty: r.garment_qty, processes: r.processes || [],
       created, approved, modified, dueDate: toDate(r.date_due), shippedAt: toDate(r.date_shipped),
       lastTo, lastFrom, toCount: num(r.to_customer_count), fromCount: num(r.from_customer_count), notes: num(r.notes_count),
-      lastTouch, idle, status, stage, closedAt, lostReason, awaitingUs,
+      lastTouch, idle, status, stage, closedAt, lostReason, awaitingUs, expired, customerLastWord,
+      revivedAt, revivedBy: r.revived_by || '', revivedTimes: num(r.revived_times),
       chases: num(r.chase_count), lastChaseAt: lastChase, lastChaseBy: r.last_chase_by, lastChaseNote: r.last_chase_note,
       daysToClose: toClose == null ? null : Math.max(0, toClose / DAY),
       instant: toClose != null && toClose < HOUR,
@@ -309,6 +315,7 @@
       const count = k => k === 'pipeline' ? rows.filter(r => ['fresh', 'chase', 'cold'].includes(r.stage)).length
         : k === 'won' ? rows.filter(r => r.stage === 'won' && inPeriod(r.approved)).length
         : k === 'lost' ? rows.filter(r => r.stage === 'lost' && inPeriod(r.closedAt)).length
+        : k === 'expired' ? rows.filter(r => r.expired && inPeriod(r.closedAt)).length
         : k === 'all' ? rows.length : null;
       tabs.innerHTML = TABS.map(t => `<button type="button" role="tab" data-tab="${t.key}" class="qt-tab${t.key === state.tab ? ' active' : ''}">${esc(t.label)}${count(t.key) != null ? `<span class="qt-tab-n">${count(t.key)}</span>` : ''}</button>`).join('');
     }
@@ -360,6 +367,7 @@
       ${r.job ? `<div class="qt-card-job">${esc(r.job)}</div>` : ''}
       <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span></div>
       ${r.awaitingUs ? '<div class="qt-reply">💬 Customer replied, waiting on you</div>' : ''}
+      ${r.revivedAt && open ? `<div class="qt-revived-tag" title="Re-ignited from Expired">🔥 Re-ignited ${esc(fmtDate(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}</div>` : ''}
       ${foot}${removeBtn}</article>`;
   }
 
@@ -417,11 +425,15 @@
     now: { label: 'Order now', get: r => r.status || 0, html: r => esc(STATUS[r.status] || (r.status == null ? '—' : 'Status ' + r.status)) },
     stage: { label: 'Stage', get: r => Object.keys(STAGES).indexOf(r.stage), html: r => `<span class="qt-chip" style="--c:${STAGES[r.stage].color}">${STAGES[r.stage].icon} ${esc(STAGES[r.stage].label)}</span>${r.awaitingUs ? ' <span title="Customer replied, waiting on you">💬</span>' : ''}` },
     idle: { label: 'Quiet for', get: r => ['won', 'lost'].includes(r.stage) ? -1 : r.idle, html: r => ['won', 'lost'].includes(r.stage) ? '—' : esc(quiet(r.idle)), right: true },
-    chases: { label: 'Chases', get: r => r.toCount + r.chases, html: r => String(r.toCount + r.chases), right: true }
+    chases: { label: 'Chases', get: r => r.toCount + r.chases, html: r => String(r.toCount + r.chases), right: true },
+    expiredOn: { label: 'Expired', get: r => (r.closedAt || 0), html: r => `${esc(fmtDate(r.closedAt))}<div class="qt-dim">${esc(ago(r.closedAt))}</div>` },
+    signal: { label: 'Worth a call?', get: r => (r.customerLastWord ? 2 : 0) + (r.emailReplied ? 1 : 0), html: r => r.customerLastWord ? '<span class="qt-signal" title="The customer wrote last and nobody answered before it expired">💬 Customer replied, never answered</span>' : r.emailReplied ? '<span class="qt-signal" title="They replied to an email sent from ATAM GO">💬 Replied to our email</span>' : '<span class="qt-dim">—</span>' },
+    actions: { label: '', get: () => 0, html: r => `<span class="qt-acts"><button type="button" class="qt-quick qt-fire" data-reignite="${esc(r.id)}" title="Put this quote back in the pipeline and open it in DecoNetwork so it can be reopened there">🔥 Re-ignite</button><button type="button" class="qt-quick qt-mail" data-email="${esc(r.id)}" title="Write to the customer about this expired quote">✉️ Email</button>${r.decoId ? `<a class="qt-quick" href="${DECO_ORDER_URL}${encodeURIComponent(r.decoId)}" target="_blank" rel="noopener" title="Open in DecoNetwork">↗</a>` : ''}</span>` }
   };
   const TABLE_COLS = {
     won: ['customer', 'id', 'rep', 'store', 'value', 'raised', 'converted', 'dtc', 'now'],
     lost: ['customer', 'id', 'rep', 'store', 'value', 'raised', 'lostOn', 'reason', 'chases'],
+    expired: ['customer', 'id', 'rep', 'value', 'raised', 'expiredOn', 'signal', 'actions'],
     all: ['customer', 'id', 'rep', 'store', 'value', 'stage', 'raised', 'idle', 'chases']
   };
 
@@ -429,15 +441,17 @@
     let rows = visible();
     if (tab === 'won') rows = rows.filter(r => r.stage === 'won' && inPeriod(r.approved));
     else if (tab === 'lost') rows = rows.filter(r => r.stage === 'lost' && inPeriod(r.closedAt));
-    const defKey = tab === 'won' ? 'converted' : tab === 'lost' ? 'lostOn' : 'idle';
+    else if (tab === 'expired') rows = rows.filter(r => r.expired && inPeriod(r.closedAt));
+    const defKey = tab === 'won' ? 'converted' : tab === 'lost' ? 'lostOn' : tab === 'expired' ? 'expiredOn' : 'idle';
     const key = state.sort.tab === tab ? state.sort.key : defKey;
     const dir = state.sort.tab === tab ? state.sort.dir : -1;
     const col = COLS[key] || COLS[defKey];
     rows = rows.slice().sort((a, b) => { const x = col.get(a), y = col.get(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
     const cols = TABLE_COLS[tab];
-    if (!rows.length) return `<div class="qt-empty">${tab === 'won' ? 'No quotes have converted in this period.' : tab === 'lost' ? 'No lost quotes in this period.' : 'No quotes match.'}</div>`;
+    const intro = tab === 'expired' ? `<div class="qt-note qt-expired-intro"><b>Expired quotes.</b> These went quiet for ${LOST_DAYS} days, which is when DecoNetwork expires them. If a customer comes back, press <b>🔥 Re-ignite</b>: it goes back into the Pipeline as Hot and the quote opens in DecoNetwork, where it still has to be reopened (DecoNetwork cannot be changed from here). <b>✉️ Email</b> lets you write to the customer first, and sending also puts the quote back in the Pipeline.</div>` : '';
+    if (!rows.length) return `${intro}<div class="qt-empty">${tab === 'won' ? 'No quotes have converted in this period.' : tab === 'lost' ? 'No lost quotes in this period.' : tab === 'expired' ? 'No expired quotes in this period. Try a longer period above.' : 'No quotes match.'}</div>`;
     const total = rows.reduce((s, r) => s + r.value, 0);
-    return `<div class="qt-tablewrap"><table class="qt-table"><thead><tr>${cols.map(c => `<th data-sort="${c}" class="${COLS[c].right ? 'r' : ''}${c === key ? ' sorted' : ''}">${esc(COLS[c].label)}${c === key ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+    return `${intro}<div class="qt-tablewrap"><table class="qt-table"><thead><tr>${cols.map(c => `<th data-sort="${c}" class="${COLS[c].right ? 'r' : ''}${c === key ? ' sorted' : ''}">${esc(COLS[c].label)}${c === key ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
       <tbody>${rows.map(r => `<tr data-id="${esc(r.id)}" tabindex="0">${cols.map(c => `<td class="${COLS[c].right ? 'r' : ''}">${COLS[c].html(r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
       <div class="qt-tfoot">${plural(rows.length, 'quote')} · ${gbp(total)} quoted</div>`;
   }
@@ -602,6 +616,43 @@
     state.removing = false;
   }
 
+  // ───────────────────────── re-igniting expired quotes ─────────────────────────
+  // DecoNetwork expires a quote after 30 days and its API cannot reopen one, so the quote still has to be reopened in DecoNetwork
+  // by hand. Re-ignite does the part we can do: it records who re-ignited it (quote_revived), which makes the quote Hot again and
+  // restarts its 30 day clock, and it opens the quote in DecoNetwork. Database: sql/quote_reignite_2026-10-29.sql.
+  async function reigniteQuote(id) {
+    const r = state.rows.find(x => x.id === id);
+    if (!r || state.reigniting) return;
+    state.reigniting = true;
+    if (r.decoId) window.open(DECO_ORDER_URL + encodeURIComponent(r.decoId), '_blank', 'noopener');   // before any await, so pop-up blockers allow it
+    try {
+      const { error } = await client().rpc('reignite_quote', { p_order_id: id });
+      if (error) throw error;
+      toast('🔥 Re-ignited. It is back in the Pipeline as Hot. Now reopen it in DecoNetwork so the customer\'s link works.', false, 7000);
+      await load(true);
+      if (state.openId === id) { const r2 = state.rows.find(x => x.id === id); if (r2) { $('qtSheet').innerHTML = drawerHtml(r2, null); loadTimeline(id); } }
+    } catch (e) {
+      console.error('re-ignite failed', e);
+      toast('Couldn\'t re-ignite it: ' + ((e && e.message) || 'unknown error'), true);
+    }
+    state.reigniting = false;
+  }
+  async function undoReignite(id) {
+    if (state.reigniting) return;
+    state.reigniting = true;
+    try {
+      const { error } = await client().rpc('undo_reignite_quote', { p_order_id: id });
+      if (error) throw error;
+      toast('Undone. If it is still quiet it goes back to Expired.');
+      await load(true);
+      if (state.openId === id) { const r2 = state.rows.find(x => x.id === id); if (r2) { $('qtSheet').innerHTML = drawerHtml(r2, null); loadTimeline(id); } }
+    } catch (e) {
+      console.error('undo re-ignite failed', e);
+      toast('Couldn\'t undo it: ' + ((e && e.message) || 'unknown error'), true);
+    }
+    state.reigniting = false;
+  }
+
   async function restoreQuote(id) {
     if (state.removing) return;
     state.removing = true;
@@ -687,6 +738,12 @@
       <div class="qt-d-val">${gbp(r.value, true)}<span>quoted, ex VAT</span></div>
       ${r.awaitingUs ? '<div class="qt-reply qt-reply-lg">💬 The customer replied and nobody has answered yet</div>' : ''}
       ${link}
+      ${r.expired ? `<div class="qt-expired-box"><b>⌛ This quote has expired</b>
+        <p>It went quiet ${esc(quiet(r.idle))} ago${r.closedAt ? ' (expired ' + esc(fmtDate(r.closedAt)) + ')' : ''}. If the customer wants to go ahead, re-ignite it: it goes back into the Pipeline as Hot, and the quote opens in DecoNetwork where it still has to be reopened.</p>
+        ${r.customerLastWord ? '<p class="qt-signal">💬 The customer wrote last and nobody answered before it expired. Worth a call.</p>' : r.emailReplied ? '<p class="qt-signal">💬 They replied to an email sent from ATAM GO.</p>' : ''}
+        <button type="button" class="qt-btn qt-primary qt-fire-btn" data-reignite="${esc(r.id)}">🔥 Re-ignite and open in DecoNetwork</button></div>` : ''}
+      ${r.revivedAt && open ? `<div class="qt-revived-box">🔥 Re-ignited ${esc(fmtDateTime(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}${r.revivedTimes > 1 ? ' (' + r.revivedTimes + ' times)' : ''}. Make sure it has been reopened in DecoNetwork so the customer's link works.
+        <button type="button" class="qt-btn" data-undo-reignite="${esc(r.id)}" title="Put it back to Expired">Undo</button></div>` : ''}
       <div class="qt-facts">
         ${fact('Salesperson', `<span class="qt-rep">${avatar(r.rep)}${esc(repName(r.rep))}</span>`)}
         ${fact('Store', esc(r.store || '—'))}
@@ -703,7 +760,7 @@
         ${fact('Chases logged', String(r.chases))}
       </div>
       ${r.approved ? '' : `<div class="qt-remove-row lg"><button type="button" class="qt-btn qt-danger" data-remove="${esc(r.id)}">🗑 Remove this quote from the list</button><span class="qt-dim">For old quotes that are never going to happen. You can bring it back later.</span></div>`}
-      ${open ? `<div class="qt-email-wrap">${emailTimerHtml(r)}<button type="button" class="qt-btn qt-primary qt-mailbtn" data-act="compose" data-for="${esc(r.id)}">✉️ ${r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email the customer'}</button><div id="qtCompose"></div></div>` : ''}
+      ${open || r.expired ? `<div class="qt-email-wrap">${emailTimerHtml(r)}<button type="button" class="qt-btn ${r.expired ? '' : 'qt-primary '}qt-mailbtn" data-act="compose" data-for="${esc(r.id)}">✉️ ${r.expired ? 'Email the customer about this expired quote' : r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email the customer'}</button><div id="qtCompose"></div></div>` : ''}
       ${open ? `<form class="qt-chase" id="qtChaseForm" data-id="${esc(r.id)}">
         <h4>Log a chase</h4>
         <div class="qt-chase-row">
@@ -730,7 +787,8 @@
         if (r.lastFrom) items.push({ when: r.lastFrom, icon: '💬', text: 'Customer last replied' + (r.fromCount > 1 ? ' (' + r.fromCount + ' replies in total)' : ''), cls: 'good' });
         if (r.modified && !r.approved) items.push({ when: r.modified, icon: '✏️', text: 'Quote last edited', cls: '' });
         if (r.approved) items.push({ when: r.approved, icon: '✅', text: 'Approved and converted into an order', cls: 'good' });
-        if (r.stage === 'lost' && r.closedAt) items.push({ when: r.closedAt, icon: '✖', text: r.lostReason || 'Lost', cls: 'bad' });
+        if (r.stage === 'lost' && r.closedAt) items.push({ when: r.closedAt, icon: r.expired ? '⌛' : '✖', text: r.expired ? 'Expired (quiet for ' + LOST_DAYS + ' days)' : (r.lostReason || 'Lost'), cls: 'bad' });
+        if (r.revivedAt) items.push({ when: r.revivedAt, icon: '🔥', text: 'Re-ignited' + (r.revivedBy ? ' by ' + r.revivedBy : ''), cls: 'good' });
       }
       ((em && em.data) || []).forEach(m => {
         if (m.status === 'sent') items.push({ when: new Date(m.sent_at), icon: '✉️', text: 'Chase #' + m.chase_no + ' emailed to ' + m.to_email + ' from ' + m.sender_email + (m.sent_by ? ' (sent by ' + m.sent_by + ')' : '') + ' — “' + m.subject + '”', cls: '' });
@@ -992,7 +1050,7 @@
     return '';
   }
   const LINK_LINE = { friendly: 'You can view the quote here:', short: 'Quote:', formal: 'You may view the quote at the following link:', gentle: "In case it helps, here's the link to the quote:", helpful: 'You can view the quote here:', ready: 'You can review the quote here:' };
-  function draftEmail(r, sender, no, tone, link) {
+  function draftEmail(r, sender, no, tone, link, expired) {
     tone = TONES.some(t => t.key === tone) ? tone : 'friendly';
     const fn = firstName(r.contact);
     const hi = fn ? 'Hi ' + fn : 'Hello';
@@ -1022,6 +1080,16 @@
         ? `I'm following up on ${q}${job}${items}. If you're happy with it, just reply "yes" to this email and I'll get it started.`
         : `Just a quick reminder about ${q}${job}. If you're happy to go ahead, reply "yes" to this email and I'll get it moving.`
     };
+    if (expired) {   // the quote has timed out: offer to refresh it. Still no prices, dates or promises.
+      Object.assign(L, {
+        friendly: `I wanted to check in about ${q}${job}. It's been a little while, so the quote has timed out on our system, but I'm very happy to refresh it for you so it's all up to date. Are you still interested in going ahead?`,
+        short: `${q}${job} has timed out, but I can refresh it quickly if you'd still like to go ahead. Shall I?`,
+        formal: `${fn ? 'Dear ' + fn : 'Good day'},\n\nI am writing regarding ${q}${job}${items}. As some time has passed, the quote has now expired. I would be pleased to refresh it for you if you are still considering going ahead, and would be grateful if you could let me know.`,
+        gentle: `No pressure at all, but ${q}${job} is still something we'd be happy to help with. The quote has timed out, so if you'd like to pick it back up, just say and I'll refresh it.`,
+        helpful: `I'm following up on ${q}${job}${items}. The quote has timed out, so I'd be glad to refresh it, and it's a good moment to change anything, such as quantities, colours, logo placement or sizes. Just tell me what would help.`,
+        ready: `${q}${job}${items} has timed out, but I can refresh it straight away. If you'd like to go ahead, just reply "yes" and I'll get it reopened and moving.`
+      });
+    }
     const formal = tone === 'formal';
     const lk = link ? `\n\n${LINK_LINE[tone]}\n${link}` : '';
     const body = formal ? `${L.formal}${lk}\n\nKind regards,\n${me}\nATAM Workwear` : `${hi},\n\n${L[tone]}${lk}\n\nKind regards,\n${me}\nATAM Workwear`;
@@ -1033,6 +1101,14 @@
       helpful: 'Your quote' + ' #' + r.id + (sj ? ' - ' + sj : '') + ' - happy to adjust',
       ready: 'Ready when you are - quote #' + r.id + (sj ? ' - ' + sj : '')
     };
+    if (expired) Object.assign(subjects, {
+      friendly: 'Your quote #' + r.id + (sj ? ' - ' + sj : '') + ' - happy to refresh it',
+      short: 'Quote #' + r.id + ' - still interested?',
+      formal: 'Quote #' + r.id + (sj ? ' - ' + sj : '') + ' - would you like it refreshed?',
+      gentle: 'Checking in on quote #' + r.id,
+      helpful: 'Your quote #' + r.id + (sj ? ' - ' + sj : '') + ' - happy to update it',
+      ready: 'Ready when you are - quote #' + r.id + (sj ? ' - ' + sj : '')
+    });
     return { subject: subjects[tone], body };
   }
 
@@ -1047,11 +1123,15 @@
     if (!list.length) { box.innerHTML = '<div class="qt-note">No sender mailboxes have been set up yet.</div>'; return; }
     const def = pickSender(list, r.rep);
     const no = r.emailNo + 1;
+    const exp = !!r.expired;
     mountCompose(box, {
       senders: list, def, to: r.email, no, kind: 'quote', linkEnabled: true, rep: r.rep,
-      heading: `Chase #${no} by email`,
-      footnote: `Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.`,
-      draft: (sender, tone, link) => draftEmail(r, sender, no, tone, link),
+      heading: exp ? 'Email about this expired quote' : `Chase #${no} by email`,
+      footnote: exp
+        ? `Sends straight away from the mailbox above. It counts as a chase, so sending also puts this quote back in the Pipeline as Hot. Nothing sends until you press Send.`
+        : `Sends straight away from the mailbox above and marks this as chase #${no}. If there is no reply in ${REPLY_DAYS} days this quote shows that chase #${no + 1} is due. Nothing sends until you press Send.`,
+      linkHint: exp ? 'The old customer link will not work. Reopen the quote in DecoNetwork first, then copy the new link the customer gets and paste it here.' : '',
+      draft: (sender, tone, link) => draftEmail(r, sender, no, tone, link, exp),
       queue: p => client().rpc('queue_quote_email', { p_order_id: id, p_sender_id: p.senderId, p_to: p.to, p_subject: p.subject, p_body: p.body }),
       toast,
       after: async () => {
@@ -1071,7 +1151,7 @@
     const d = cfg.draft(def, 'friendly', '');
     const linkRow = cfg.linkEnabled ? `
       <label>Quote link (optional)<input id="qtLink" type="text" inputmode="url" autocomplete="off" placeholder="Paste the customer link copied from DecoNetwork"></label>
-      <p class="qt-dim qt-linkhint" id="qtLinkHint">In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.</p>` : '';
+      <p class="qt-dim qt-linkhint" id="qtLinkHint">${esc(cfg.linkHint || 'In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.')}</p>` : '';
     box.innerHTML = `<form class="qt-compose" id="qtComposeForm">
       <h4>${esc(cfg.heading)}</h4>
       <div class="qt-tones" role="group" aria-label="Choose a tone for this email"><span class="qt-dim">Tone:</span>${TONES.map(t => `<button type="button" class="qt-tone${t.key === 'friendly' ? ' on' : ''}" data-tone="${esc(t.key)}" title="${esc(t.hint)}" aria-pressed="${t.key === 'friendly'}">${esc(t.label)}</button>`).join('')}<button type="button" class="qt-tone" id="qtUndo" hidden title="Put back the wording from before the last rewrite">Undo rewrite</button></div>
@@ -1093,7 +1173,7 @@
       $('qtLink').addEventListener('input', () => {
         const c = checkQuoteLink($('qtLink').value), hint = $('qtLinkHint');
         hint.className = 'qt-dim qt-linkhint' + (c.error ? ' bad' : c.warn ? ' warn' : c.url ? ' ok' : '');
-        hint.textContent = c.error ? c.error : c.warn ? c.warn : c.url ? 'Link added to the message.' : 'In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.';
+        hint.textContent = c.error ? c.error : c.warn ? c.warn : c.url ? 'Link added to the message.' : (cfg.linkHint || 'In DecoNetwork, open the quote and copy the link the customer gets, then paste it here and it is added to the message.');
         const next = c.url || '';
         if (next === shownLink) return;
         const msg = $('qtMsg');
@@ -1188,10 +1268,10 @@
   }
 
   let toastTimer = null;
-  function toast(msg, bad) {
+  function toast(msg, bad, ms) {
     const t = $('qtToast'); if (!t) return;
     t.textContent = msg; t.className = 'qt-toast show' + (bad ? ' bad' : '');
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'qt-toast'; }, 3500);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'qt-toast'; }, ms || 3500);
   }
 
   // ───────────────────────── page shell ─────────────────────────
@@ -1369,6 +1449,18 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-remove-row.lg { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0; }
 .qt-drawer .qt-danger { border-color:rgba(239,68,68,.45); color:#fecaca; }
 .qt-drawer .qt-danger:hover { background:rgba(239,68,68,.14); }
+#quotes .qt-expired-intro { margin:0 0 12px; }
+#quotes .qt-acts { display:inline-flex; gap:6px; align-items:center; white-space:nowrap; }
+#quotes .qt-acts .qt-quick { text-decoration:none; }
+#quotes .qt-fire { border-color:rgba(249,115,22,.6); color:#fdba74; }
+#quotes .qt-fire:hover { background:rgba(249,115,22,.14); }
+#quotes .qt-signal { color:#86efac; font-size:12px; }
+#quotes .qt-revived-tag { margin-top:6px; font-size:11.5px; color:#fdba74; }
+.qt-drawer .qt-expired-box, .qt-drawer .qt-revived-box { margin:0 0 14px; padding:12px 14px; border-radius:12px; font-size:13px; line-height:1.5; }
+.qt-drawer .qt-expired-box { border:1px solid rgba(249,115,22,.5); background:rgba(249,115,22,.08); }
+.qt-drawer .qt-expired-box p { margin:6px 0 10px; color:#cbd5e1; }
+.qt-drawer .qt-expired-box .qt-signal, .qt-drawer .qt-signal { color:#86efac; }
+.qt-drawer .qt-revived-box { border:1px solid rgba(34,197,94,.45); background:rgba(34,197,94,.08); color:#bbf7d0; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
 #quotes .qt-remove-row { display:flex; justify-content:flex-end; margin-top:6px; }
 #quotes .qt-remove-row.lg { justify-content:flex-start; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0; }
 #quotes .qt-remove { background:none; border:1px solid transparent; border-radius:7px; padding:2px 7px; color:#64748b; font-size:11px; cursor:pointer; transition:color .15s, border-color .15s, background .15s; }
@@ -1534,6 +1626,9 @@ body.qt-lock { overflow:hidden; }
 
     // page events
     sec.addEventListener('click', e => {
+      const fire = e.target.closest('[data-reignite]');
+      if (fire) { e.stopPropagation(); reigniteQuote(fire.dataset.reignite); return; }
+      if (e.target.closest('a.qt-quick')) { e.stopPropagation(); return; }
       const rmv = e.target.closest('[data-remove]');
       if (rmv) { e.stopPropagation(); removeQuote(rmv.dataset.remove); return; }
       const rst = e.target.closest('[data-restore]');
@@ -1563,7 +1658,7 @@ body.qt-lock { overflow:hidden; }
     });
     sec.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-restore]')) return;
+      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-restore], [data-reignite]')) return;
       const item = e.target.closest('.qt-card[data-id], .qt-first-card[data-id], tr[data-id]');
       if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
       const repCard = e.target.closest('.qt-rep-card');
@@ -1574,6 +1669,10 @@ body.qt-lock { overflow:hidden; }
     $('qtSearch').addEventListener('input', e => { state.q = e.target.value.trim().toLowerCase(); renderKpis(); renderControls(); renderBody(); });
 
     drawer.addEventListener('click', e => {
+      const fire = e.target.closest('[data-reignite]');
+      if (fire) { reigniteQuote(fire.dataset.reignite); return; }
+      const und = e.target.closest('[data-undo-reignite]');
+      if (und) { undoReignite(und.dataset.undoReignite); return; }
       const rmv = e.target.closest('[data-remove]');
       if (rmv) { removeQuote(rmv.dataset.remove); return; }
       if (e.target.closest('[data-act="close"]')) closeDrawer();
