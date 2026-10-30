@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v47', date: '2026-10-30', status: 'built', pr: 44, areas: ['Quotes', 'Database'],
+    title: 'Expired quotes tab and Re-ignite button',
+    summary: 'The Quotes tab now has an Expired tab listing quotes that went quiet for 30 days, with a Re-ignite button, so a customer who comes back late can be picked up from ATAM GO.',
+    changes: ['New Expired tab on Quotes: quotes quiet for 30 days that were never approved or cancelled, newest first, with who quoted them. A flag shows when the customer wrote last and nobody answered.', 'Re-ignite puts the quote back in the Pipeline as Hot, restarts its 30 day clock, shows who re-ignited it and when, and opens the quote in DecoNetwork. Undo puts it back to Expired.', 'DecoNetwork cannot be changed from ATAM GO, so the quote still has to be reopened there by hand. Re-ignite takes you straight to it.', 'You can email the customer from an expired quote, with wording that offers to refresh it (no prices or dates promised). Sending also puts the quote back in the Pipeline.', 'Everyone signed in can use it. Cancelled quotes are not listed.'],
+    watch: 'If a quote you re-ignited is back in Expired after a month, it simply went quiet again for 30 days. If the customer link in a re-ignite email does not work, the quote was not reopened in DecoNetwork first.'
+  },
+  {
     v: 'v46', date: '2026-10-29', status: 'live', pr: null, areas: ['Account managers'],
     title: '3D office on the Account managers tab',
     summary: 'The Account managers tab now opens on a little 3D office with one person at a desk for each account manager.',
