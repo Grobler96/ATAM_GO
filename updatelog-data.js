@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v55', date: '2026-10-30', status: 'live', pr: 51, areas: ['Database'],
+    title: 'Behind-the-scenes names tidied automatically',
+    summary: 'Notes and “done by” fields that the system fills in now always say “the system” instead of the name of the tool that made the change, and this happens by itself for anything saved from now on.',
+    changes: ['The old entries were already reworded; this stops the old wording coming back.', 'It only touches the “done by” fields and system-written notes. Anything typed by hand, such as chase notes, is never changed, so a real person or customer with that name is safe.'],
+    watch: 'If a “done by” field shows “the system” where you expected a person, tell Oliver which page and which record.'
+  },
+  {
     v: 'v54', date: '2026-10-30', status: 'live', pr: 50, areas: ['Quotes', 'Calendar', 'Database'],
     title: 'Park a quote until a later date',
     summary: 'When a customer says \u201cnot yet\u201d, a quote can now be parked until a date you choose. It drops out of the chasing and the win rate, then comes back by itself on that day.',
