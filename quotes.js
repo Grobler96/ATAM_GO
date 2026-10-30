@@ -869,10 +869,14 @@
       const hh = Math.round(num(x.v) / max * (H - 30));
       const d = new Date(x.m + '-01T12:00:00');
       const name = d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
-      const lab = i % 3 === 0 || i === m.length - 1 ? `<text x="${i * bw + bw / 2}" y="${H - 3}" text-anchor="middle" font-size="11" fill="#64748b">${esc(d.toLocaleDateString('en-GB', { month: 'short' }))}</text>` : '';
-      return `<g><title>${esc(name)}: ${esc(gbp(x.v))} from ${plural(num(x.n), 'order')}</title><rect x="${i * bw + 3}" y="${H - 16 - hh}" width="${bw - 6}" height="${Math.max(hh, num(x.v) > 0 ? 2 : 0)}" rx="3" fill="${num(x.v) > 0 ? '#38bdf8' : 'rgba(148,163,184,.25)'}"/>${lab}</g>`;
+      // the last 12 months in bright blue and the 12 before in a muted blue-grey, so the two years can be told apart (same as the Account managers tab)
+      const recent = i >= m.length - 12;
+      const showYear = i === 0 || d.getMonth() === 0;
+      const lab = i % 3 === 0 || i === m.length - 1 ? `<text x="${i * bw + bw / 2}" y="${H - 3}" text-anchor="middle" font-size="11" fill="#94a3b8">${esc(d.toLocaleDateString('en-GB', showYear ? { month: 'short', year: '2-digit' } : { month: 'short' }))}</text>` : '';
+      return `<g><title>${esc(name)}: ${esc(gbp(x.v))} from ${plural(num(x.n), 'order')}</title><rect x="${i * bw + 3}" y="${H - 16 - hh}" width="${bw - 6}" height="${Math.max(hh, num(x.v) > 0 ? 2 : 0)}" rx="3" fill="${num(x.v) > 0 ? (recent ? '#38bdf8' : '#475569') : 'rgba(148,163,184,.25)'}"/>${lab}</g>`;
     }).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Spend by month for the last 24 months">${bars}</svg>`;
+    const key = '<div class="qt-dim" style="display:flex;gap:16px;margin-top:4px;font-size:12px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#38bdf8;margin-right:5px"></i>last 12 months</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#475569;margin-right:5px"></i>the 12 before</span></div>';
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Spend by month for the last 24 months, the last 12 months in bright blue and the 12 before in grey">${bars}</svg>${key}`;
   }
 
   // opts (used by the Win-back tab): quotes = the customer's quotes in the shape of state.rows, noOpen = do not make quote rows clickable,
