@@ -3,7 +3,7 @@
 // offline resilience. Deliberately does NOT touch Supabase or n8n requests —
 // every dashboard number always comes straight from the network, never cache.
 
-const CACHE = 'atamgo-shell-v4';
+const CACHE = 'atamgo-shell-v5';
 
 const SHELL = [
   './',
@@ -62,5 +62,40 @@ self.addEventListener('fetch', (event) => {
         return res;
       })
       .catch(() => caches.match(event.request))
+  );
+});
+
+// ---- Phone alerts (web push) ----
+// The sender (an n8n workflow) pushes a small encrypted JSON message {title, body, url, tag}. A browser requires every push to show a
+// notification, so this always does, even if the message cannot be read.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+  const title = data.title || 'ATAM GO';
+  const options = {
+    body: data.body || '',
+    icon: 'icon-192.png',
+    badge: 'favicon-32.png',
+    tag: data.tag || undefined,
+    data: { url: data.url || './' }
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Tapping an alert: use the ATAM GO window that is already open (and tell it where to go), or open a new one.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || './';
+  const go = (new URL(target, self.registration.scope).searchParams.get('go')) || '';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (c.url.startsWith(self.registration.scope) && 'focus' in c) {
+          c.postMessage({ type: 'atamgo-go', go });
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(new URL('index.html' + (go ? '?go=' + encodeURIComponent(go) : ''), self.registration.scope).href);
+    })
   );
 });
