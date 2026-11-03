@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v64', date: '2026-11-03', status: 'in_progress', areas: ['Invoices', 'Overview'],
+    v: 'v64', date: '2026-11-03', status: 'live', pr: 59, areas: ['Invoices', 'Overview'],
     title: 'Cash tab: money coming in, bills going out, and who to chase',
     summary: 'A new Cash tab shows what is owed to us, when it is likely to arrive over the next eight weeks, which supplier bills fall due, and the overdue invoices to chase, with a draft chasing email for each customer. Nothing is sent or posted from it.',
     changes: ['Top figures: unpaid invoices, overdue (up to three months), falling due in the next seven days, expected in over eight weeks, and supplier bills due.', 'A week-by-week chart of money expected in against supplier bills due.', 'Expected money in is worked out from how our customers really pay: about 46% pay by the due date, and the middle one pays a day after it. Bigger and older invoices are weighted by how often invoices like them got paid.', 'Overdue invoices are grouped by customer, biggest first, with the oldest invoice shown. Press Draft chase to get a ready-written email (friendly, firmer or final, depending on how late it is) to copy or open in your own email program. It never includes bank details and nothing is sent from the page.', 'Invoices more than three months overdue are left out and shown as a note, because many look like old records worth reviewing in Xero.'],
