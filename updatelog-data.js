@@ -11,14 +11,14 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v59', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Overview'],
+    v: 'v59', date: '2026-11-03', status: 'live', pr: 54, areas: ['Quotes', 'Overview'],
     title: 'Sales forecast: what the open quotes are worth',
     summary: 'The Quotes tab now shows an Expected to win figure: every open quote\u2019s value multiplied by its chance to win, added up. Each salesperson\u2019s card shows their own.',
     changes: ['A new tile at the top of the Quotes tab, next to Open quotes, with the percentage it works out to.', 'Each salesperson card on the Sales team tab has an expected-to-win figure for their open quotes.', 'It follows the salesperson, store and search filters, so you can see it for one person or the whole team.', 'It uses the chance-to-win figures, so it is only as good as those: a guide to what the open quotes are worth, not a promise.'],
     watch: 'If the figure looks far too high or too low compared with what usually comes in, tell Oliver. The chance-to-win figures behind it can be tuned.'
   },
   {
-    v: 'v58', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Database'],
+    v: 'v58', date: '2026-11-03', status: 'live', pr: 54, areas: ['Quotes', 'Database'],
     title: 'Chance to win on every open quote',
     summary: 'Open quotes on the Quotes tab now show a chance to win, such as \u201c72% to win\u201d, worked out from how our own quotes have turned out. It helps decide who to chase first.',
     changes: ['It looks at quotes raised since June that have since been won or lost. For a quote of the same size and the same age that was still open, it takes the share that ended up approved.', 'Quotes get less likely the longer they sit: for small quotes the figure drops from about 80% on day one to about 25% after ten days.', 'Hover over the figure (or open the quote) to see how many quotes it is based on. It only looks at age and size, so it does not know the customer or whether they replied. Treat it as a starting point, not a promise.', 'The figure is refreshed every time the page loads, so it keeps learning as more quotes are won and lost.'],
