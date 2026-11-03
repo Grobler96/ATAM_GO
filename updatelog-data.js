@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v60', date: '2026-11-03', status: 'in_progress', areas: ['Overview', 'Quotes', 'Automation'],
+    v: 'v60', date: '2026-11-03', status: 'built', pr: 55, areas: ['Overview', 'Quotes', 'Automation'],
     title: 'Monday morning report for Daniel',
     summary: 'A one-page email for Daniel every Monday at 7:30: last week against the week before, where the open quotes stand, and what needs attention. Built and checked, but not switched on yet.',
     changes: ['Last week against the week before: orders approved, quotes raised, invoiced, and pieces embroidered and printed, with the change in percent.', 'Open quotes right now: how many, how much, what they are expected to win, and how many have gone quiet.', 'The five open quotes worth the most, late orders, overdue invoices (invoices more than three months overdue are shown separately), and a small table for each salesperson.', 'It will come from the support mailbox and goes to Daniel only. It is switched off until Oliver says to start it.'],
