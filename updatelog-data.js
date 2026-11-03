@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v63', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Win-back', 'Customers'],
+    v: 'v63', date: '2026-11-03', status: 'live', pr: 58, areas: ['Quotes', 'Win-back', 'Customers'],
     title: 'Ideas to offer each customer',
     summary: 'The customer history panel (on Quotes and Win-back) now has an Ideas to offer card: the garment types that customers like this one buy, but this customer does not.',
     changes: ['For example: \u201cSweatshirts & hoodies: 63% of similar customers buy it (34 of 52), spending about \u00a3307 a year on it.\u201d', 'Similar customers are other customers who buy some of the same garment types over the last 24 months, weighted by how alike their ranges are.', 'It only suggests something when there are at least eight similar customers, at least three of them buy it, and the share is 35% or more. Otherwise the card says why there is nothing to suggest.', 'The card also lists what the customer already buys, so you can see at a glance what is missing.', 'It is a conversation starter, not a prediction. It looks at product types, not colours, sizes or logos.'],
