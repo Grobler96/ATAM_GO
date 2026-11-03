@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v59', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Overview'],
+    title: 'Sales forecast: what the open quotes are worth',
+    summary: 'The Quotes tab now shows an Expected to win figure: every open quote\u2019s value multiplied by its chance to win, added up. Each salesperson\u2019s card shows their own.',
+    changes: ['A new tile at the top of the Quotes tab, next to Open quotes, with the percentage it works out to.', 'Each salesperson card on the Sales team tab has an expected-to-win figure for their open quotes.', 'It follows the salesperson, store and search filters, so you can see it for one person or the whole team.', 'It uses the chance-to-win figures, so it is only as good as those: a guide to what the open quotes are worth, not a promise.'],
+    watch: 'If the figure looks far too high or too low compared with what usually comes in, tell Oliver. The chance-to-win figures behind it can be tuned.'
+  },
+  {
     v: 'v58', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Database'],
     title: 'Chance to win on every open quote',
     summary: 'Open quotes on the Quotes tab now show a chance to win, such as \u201c72% to win\u201d, worked out from how our own quotes have turned out. It helps decide who to chase first.',
@@ -427,7 +434,6 @@ window.ATAM_UPDATES = [
 
 window.ATAM_PLANNED = [
   { title: 'Phone app with alerts', areas: ['Site'], detail: 'ATAM GO already installs on a phone like an app. Add alerts such as customer replied to a quote, an order is late, or your chase list is ready.' },
-  { title: 'Sales forecast', areas: ['Quotes', 'Overview'], detail: 'Expected sales from open quotes over the next 30 days, weighted by win chance.' },
   { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
   { title: 'Product suggestions for each customer', areas: ['Customers', 'Quotes'], detail: 'On the customer panel: what a customer buys, what similar customers buy that they do not.' },
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
