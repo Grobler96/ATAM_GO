@@ -30,7 +30,7 @@
 
   const state = {
     view: 'stock', tab: 'tshirts', q: '', open: {}, expanded: {},
-    rows: [], valueBySku: new Map(), workingOnly: [], missingOnly: [], totals: { onHand: 0, working: 0, total: 0 }, spend: [],
+    rows: [], reorder: [], valueBySku: new Map(), workingOnly: [], missingOnly: [], totals: { onHand: 0, working: 0, total: 0 }, spend: [],
     summary: {}, summaryLoaded: false, detail: {}, calY: null, calM: null, historyDays: 0, syncedAt: 0,
     loaded: false, loading: false, error: null, timer: null, focusSearch: false
   };
@@ -106,6 +106,10 @@
         total: val.reduce((s, r) => s + (Number(r.total_value) || 0), 0)
       };
       state.spend = (spend && spend.data) || [];
+      try {   // suggested reorder list (database function stock_reorder_suggestions); the rest of the page works without it
+        const ro = await sb.rpc('stock_reorder_suggestions');
+        state.reorder = ro.error || !Array.isArray(ro.data) ? [] : ro.data;
+      } catch (e) { state.reorder = []; }
       state.syncedAt = inv.reduce((m, r) => { const t = r.updated_at ? new Date(r.updated_at).getTime() : 0; return t > m ? t : m; }, 0);
       try {
         const s = await sb.from('daily_stock_value_summary').select('*').order('snapshot_date');
@@ -184,6 +188,21 @@
     return `<div class="sk-attention-section"><div class="sk-attention-header"><span class="sk-dot"></span><strong>Critically low &mdash; 2 or fewer units</strong><span>${crit.length} SKU${crit.length === 1 ? '' : 's'}</span></div>
       <div class="sk-attention-body">${vis.map(r => `<div class="sk-attention-row"><span class="sk-attn-name">${esc(r.product_name)}</span><span class="sk-attn-meta">${esc(r.color_name || '')} ${esc(r.size_code || '')} &middot; ${esc(r.sku || '')}</span><span class="sk-stock-pill low" style="flex-shrink:0">${num(r.inv_lvl)}</span></div>`).join('')}
       ${expandBtn('attention', crit.length, exp, 'critically low SKUs')}</div></div>`;
+  }
+  // Suggested reorder: garments we keep in stock that are out or running low, from what has been used on recent orders. A draft for a person to check.
+  function reorderText() {
+    const lines = state.reorder.map(r => [r.sku, r.product, [r.color, r.size].filter(Boolean).join(' '), 'on hand ' + r.on_hand, 'suggest ' + r.suggest_qty, r.est_cost == null ? '' : '~GBP ' + Number(r.est_cost).toFixed(2)].join(' | '));
+    return 'Suggested stock reorder (draft, please check before ordering)\n' + lines.join('\n');
+  }
+  function reorderHtml() {
+    const list = state.reorder || [];
+    if (!list.length) return '';
+    const exp = !!state.expanded.reorder, vis = exp ? list : list.slice(0, 10);
+    const total = list.reduce((t, r) => t + (Number(r.est_cost) || 0), 0), outN = list.filter(r => r.status === 'out').length;
+    return `<div class="sk-attention-section info"><div class="sk-attention-header"><span class="sk-dot"></span><strong>Suggested reorder (a draft to check)</strong><span>${list.length} SKU${list.length === 1 ? '' : 's'} &middot; ${outN} out of stock &middot; about ${esc(moneyP(total))}</span></div>
+      <div class="sk-attention-body">${vis.map(r => `<div class="sk-attention-row"><span class="sk-attn-name">${esc(r.product || r.sku)}</span><span class="sk-attn-meta">${esc([r.color, r.size].filter(Boolean).join(' '))} &middot; ${esc(r.sku)} &middot; ${num(r.on_hand)} on hand${r.status === 'out' ? ' (out)' : ''}, ${num(r.used_70d)} used in 10 weeks on ${num(r.orders)} orders${num(r.allocated) ? ', ' + num(r.allocated) + ' allocated to open jobs' : ''}</span><span class="sk-stock-pill ok" style="flex-shrink:0;background:${r.status === 'out' ? 'rgba(248,113,113,0.15)' : 'rgba(245,158,11,0.15)'};color:${r.status === 'out' ? '#fca5a5' : '#fbbf24'}">buy ${num(r.suggest_qty)}${r.est_cost == null ? '' : ' &middot; ' + money(r.est_cost)}</span></div>`).join('')}
+      ${expandBtn('reorder', list.length, exp, 'suggested SKUs')}<button class="sk-expand-btn" data-copy-reorder="1">Copy the list</button></div>
+      <div class="sk-attention-note">Only garments we really keep in stock are looked at (stock in at least 14 daily snapshots since July, and used on at least 2 orders in the last 10 weeks). The suggestion is enough to reach 6 weeks of cover at the recent pace. It does not know supplier minimums, pack sizes, prices or what is already on order, and nothing is ordered from here: Steph checks it first.</div></div>`;
   }
   function workingHtml() {
     if (!state.workingOnly.length) return '';
@@ -302,7 +321,7 @@
         ${kpi('money', 'Working stock value', money(t.working), 'Tied up in unshipped orders')}
         ${kpi('', 'Projected value (next month)', proj ? money(proj.value) : 'Gathering data', proj ? (projPct >= 0 ? '+' : '') + projPct.toFixed(1) + '% seasonal, from ' + proj.monthsOfHistory + 'mo history' : 'Needs 2+ months of PO history', ' style="border-color:rgba(167,139,250,0.3)"')}</div>
         <div class="sk-controls-row"><input id="stSearch" type="search" value="${esc(state.q)}" placeholder="Search by product name, SKU, colour..." aria-label="Search stock"></div>
-        ${attentionHtml()}${workingHtml()}${missingHtml()}
+        ${attentionHtml()}${reorderHtml()}${workingHtml()}${missingHtml()}
         <div class="sk-tab-page active">${page}</div>
         <div class="sk-last-synced"><span class="sk-history-progress">Reorder history: ${state.historyDays}/${REORDER_TARGET_DAYS} days <span class="sk-history-track"><span class="sk-history-fill" style="width:${pct}%"></span></span></span><span>${state.syncedAt ? 'Last synced: ' + new Date(state.syncedAt).toLocaleString('en-GB') : ''}</span></div></div>`;
   }
@@ -614,6 +633,8 @@
       if (act && act.dataset.act === 'proj') { state.view = state.view === 'proj' ? 'stock' : 'proj'; render(); return; }
       const tab = e.target.closest('[data-tab]'); if (tab) { state.tab = tab.dataset.tab; render(); return; }
       const tg = e.target.closest('[data-toggle]'); if (tg) { const k = tg.dataset.toggle; state.open[k] = !state.open[k]; const card = tg.closest('.sk-product-card'); if (card) { card.classList.toggle('open', !!state.open[k]); tg.setAttribute('aria-expanded', String(!!state.open[k])); } return; }
+      const cp = e.target.closest('[data-copy-reorder]');
+      if (cp) { (async () => { try { await navigator.clipboard.writeText(reorderText()); cp.textContent = 'Copied'; } catch (er) { cp.textContent = 'Could not copy'; } setTimeout(() => { cp.textContent = 'Copy the list'; }, 2000); })(); return; }
       const ex = e.target.closest('[data-expand]'); if (ex) { const k = ex.dataset.expand; state.expanded[k] = !state.expanded[k]; render(); return; }
       const nav = e.target.closest('[data-calnav]');
       if (nav) { state.calM += Number(nav.dataset.calnav); if (state.calM < 0) { state.calM = 11; state.calY--; } if (state.calM > 11) { state.calM = 0; state.calY++; } render(); return; }

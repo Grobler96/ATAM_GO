@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v65', date: '2026-11-03', status: 'in_progress', areas: ['Stock'],
+    title: 'Suggested reorder list on the Stock tab',
+    summary: 'The Stock tab now has a Suggested reorder section: the garments we keep in stock that are out or running low, how many to buy to get back to about six weeks of cover, and a rough cost. It is a draft for Steph to check. Nothing is ordered from it.',
+    changes: ['It only looks at garments we really keep in stock. ATAM mostly buys garments for each job, so most items used on orders are not stocked and are not suggested.', 'Usage comes from the last ten weeks of orders. Each line shows what is on hand, how many were used and on how many orders, and anything already set aside for open jobs.', 'There is a Copy the list button to paste the list into an email or a supplier order.', 'It does not know supplier minimums, pack sizes or prices, or what is already on order, so check it before ordering.'],
+    watch: 'If a suggestion looks silly (an item we have stopped stocking, or a one-off big job pushing the numbers up), tell Oliver which item. Because the pace comes from only ten weeks of orders, one large order can make an item look busier than it is.'
+  },
+  {
     v: 'v64', date: '2026-11-03', status: 'live', pr: 59, areas: ['Invoices', 'Overview'],
     title: 'Cash tab: money coming in, bills going out, and who to chase',
     summary: 'A new Cash tab shows what is owed to us, when it is likely to arrive over the next eight weeks, which supplier bills fall due, and the overdue invoices to chase, with a draft chasing email for each customer. Nothing is sent or posted from it.',
@@ -470,7 +477,6 @@ window.ATAM_UPDATES = [
 window.ATAM_PLANNED = [
   { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
-  { title: 'Suggested supplier orders', areas: ['Stock'], detail: 'A draft reorder list from stock levels and open orders, for Steph to approve. Nothing is ordered automatically.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
   { title: 'Guided steps for Quotes and New customers', areas: ['Quotes', 'New customers'], detail: 'The same "Your move" help that Win-back now has, with wording agreed with Daniel and Steph.' },
