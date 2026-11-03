@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v63', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Win-back', 'Customers'],
+    title: 'Ideas to offer each customer',
+    summary: 'The customer history panel (on Quotes and Win-back) now has an Ideas to offer card: the garment types that customers like this one buy, but this customer does not.',
+    changes: ['For example: \u201cSweatshirts & hoodies: 63% of similar customers buy it (34 of 52), spending about \u00a3307 a year on it.\u201d', 'Similar customers are other customers who buy some of the same garment types over the last 24 months, weighted by how alike their ranges are.', 'It only suggests something when there are at least eight similar customers, at least three of them buy it, and the share is 35% or more. Otherwise the card says why there is nothing to suggest.', 'The card also lists what the customer already buys, so you can see at a glance what is missing.', 'It is a conversation starter, not a prediction. It looks at product types, not colours, sizes or logos.'],
+    watch: 'It takes about a second to appear when you open a customer. Very large customers buy almost everything, so they usually have no ideas. If a suggestion looks wrong for a customer you know well, tell Oliver which customer.'
+  },
+  {
     v: 'v62', date: '2026-11-03', status: 'partly', pr: 57, areas: ['Overview', 'Site', 'Automation'],
     title: 'Phone alerts',
     summary: 'People can switch on alerts on their phone from the Today tab. They then get a message when a customer replies to one of their quotes, or one of their orders becomes late. Built and checked as far as possible without a real phone.',
@@ -455,7 +462,6 @@ window.ATAM_UPDATES = [
 
 window.ATAM_PLANNED = [
   { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
-  { title: 'Product suggestions for each customer', areas: ['Customers', 'Quotes'], detail: 'On the customer panel: what a customer buys, what similar customers buy that they do not.' },
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
   { title: 'Cash forecast and invoice chasing drafts', areas: ['Invoices'], detail: 'An 8 week view of money owed and supplier orders due, with chasing emails drafted for a person to send. Nothing is sent or posted automatically.' },
   { title: 'Suggested supplier orders', areas: ['Stock'], detail: 'A draft reorder list from stock levels and open orders, for Steph to approve. Nothing is ordered automatically.' },
