@@ -196,6 +196,12 @@
         const cr = await client().from('quote_close_reasons_board').select('*');
         state.reasons = cr.error ? [] : (cr.data || []);
       } catch (e) { state.reasons = []; }
+      let chances = new Map();
+      try {   // chance to win, from how similar quotes turned out (view quote_win_chance)
+        const wc = await client().from('quote_win_chance').select('order_id,win_pct,basis_n,age_days');
+        if (!wc.error) chances = new Map((wc.data || []).map(x => [String(x.order_id), x]));
+      } catch (e) { /* the chance is simply not shown */ }
+      state.rows.forEach(r => { const c = chances.get(r.id); r.winPct = c ? Number(c.win_pct) : null; r.winBasis = c ? Number(c.basis_n) : 0; r.winAge = c ? Number(c.age_days) : null; });
       const byReason = new Map(state.reasons.map(x => [String(x.order_id), x]));
       state.rows.forEach(r => { const x = byReason.get(r.id); r.closeReason = x ? { code: x.code, note: x.note || '', by: x.set_by || '', at: toDate(x.set_at) } : null; });
       state.loaded = true; state.error = null; state.updatedAt = new Date();
@@ -398,11 +404,21 @@
     return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
       <div class="qt-card-top"><span class="qt-card-cust">${esc(r.customer)}</span><span class="qt-card-val">${gbp(r.value)}</span></div>
       ${r.job ? `<div class="qt-card-job">${esc(r.job)}</div>` : ''}
-      <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span></div>
+      <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span>${winChip(r)}</div>
       ${r.awaitingUs ? '<div class="qt-reply">💬 Customer replied, waiting on you</div>' : ''}
       ${backFromParking(r) ? `<div class="qt-revived-tag" title="${esc(r.parkReason || 'Came back from parking')}">💤 Back from parking${r.parkReason ? ': ' + esc(r.parkReason.length > 40 ? r.parkReason.slice(0, 40) + '…' : r.parkReason) : ''}</div>` : ''}
       ${r.revivedAt && open ? `<div class="qt-revived-tag" title="Re-ignited from Expired">🔥 Re-ignited ${esc(fmtDate(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}</div>` : ''}
       ${foot}${reasonTag}${removeBtn}</article>`;
+  }
+
+  // Chance to win: only for open quotes. Colour says how good it looks; the tooltip says what it rests on.
+  const winTone = p => p >= 60 ? '#22c55e' : p >= 35 ? '#f59e0b' : '#94a3b8';
+  function winChip(r) {
+    if (r.winPct == null || !['fresh', 'chase', 'cold'].includes(r.stage)) return '';
+    return `<span class="qt-win" style="--c:${winTone(r.winPct)}" title="${esc(winText(r))}">${r.winPct}% to win</span>`;
+  }
+  function winText(r) {
+    return 'Of ' + r.winBasis + ' similar quotes that were still open after ' + r.winAge + (r.winAge === 1 ? ' day' : ' days') + ', about ' + r.winPct + '% were eventually approved.' + (r.winBasis < 30 ? ' (Not many to go on yet.)' : '');
   }
 
   function boardHtml() {
@@ -1004,6 +1020,7 @@
         ${fact('Order status now', esc(STATUS[r.status] || (r.status == null ? '—' : 'Status ' + r.status)))}
         ${fact('Raised', esc(fmtDateTime(r.created)))}
         ${r.approved ? fact('Approved', esc(fmtDateTime(r.approved))) : fact('Quiet for', esc(quiet(r.idle)))}
+        ${r.winPct != null && ['fresh', 'chase', 'cold'].includes(r.stage) ? fact('Chance to win', `<span style="color:${winTone(r.winPct)}">${r.winPct}%</span><div class="qt-dim">${esc(winText(r))}</div>`) : ''}
         ${r.daysToClose != null ? fact('Time to approve', r.instant ? 'Within the hour' : r.daysToClose < 1 ? 'Same day' : Math.round(r.daysToClose) + ' days') : ''}
         ${fact('Garments', r.qty != null ? esc(r.qty) : '—')}
         ${fact('Decoration', r.processes.length ? esc(r.processes.join(', ')) : '—')}
@@ -1609,6 +1626,7 @@
 #quotes .qt-card-cust { font-weight:600; font-size:13px; line-height:1.3; overflow-wrap:anywhere; }
 #quotes .qt-card-job { margin-top:3px; font-size:11.5px; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #quotes .qt-card-val { font-weight:700; font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+#quotes .qt-win { margin-left:auto; padding:1px 8px; border-radius:999px; font-size:10.5px; font-weight:700; color:var(--c); border:1px solid var(--c); background:rgba(255,255,255,.04); white-space:nowrap; }
 #quotes .qt-card-mid { display:flex; align-items:center; gap:7px; margin:8px 0; font-size:11.5px; color:#94a3b8; }
 #quotes .qt-card-rep { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #quotes .qt-card-id { color:#64748b; font-variant-numeric:tabular-nums; }
