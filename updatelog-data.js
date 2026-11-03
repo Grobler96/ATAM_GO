@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v60', date: '2026-11-03', status: 'in_progress', areas: ['Overview', 'Quotes', 'Automation'],
+    title: 'Monday morning report for Daniel',
+    summary: 'A one-page email for Daniel every Monday at 7:30: last week against the week before, where the open quotes stand, and what needs attention. Built and checked, but not switched on yet.',
+    changes: ['Last week against the week before: orders approved, quotes raised, invoiced, and pieces embroidered and printed, with the change in percent.', 'Open quotes right now: how many, how much, what they are expected to win, and how many have gone quiet.', 'The five open quotes worth the most, late orders, overdue invoices (invoices more than three months overdue are shown separately), and a small table for each salesperson.', 'It will come from the support mailbox and goes to Daniel only. It is switched off until Oliver says to start it.'],
+    watch: 'Once it is switched on, if no email arrives on a Monday morning, tell Oliver. The Automation health box on this tab shows whether it failed.'
+  },
+  {
     v: 'v59', date: '2026-11-03', status: 'live', pr: 54, areas: ['Quotes', 'Overview'],
     title: 'Sales forecast: what the open quotes are worth',
     summary: 'The Quotes tab now shows an Expected to win figure: every open quote\u2019s value multiplied by its chance to win, added up. Each salesperson\u2019s card shows their own.',
@@ -440,7 +447,6 @@ window.ATAM_PLANNED = [
   { title: 'Cash forecast and invoice chasing drafts', areas: ['Invoices'], detail: 'An 8 week view of money owed and supplier orders due, with chasing emails drafted for a person to send. Nothing is sent or posted automatically.' },
   { title: 'Suggested supplier orders', areas: ['Stock'], detail: 'A draft reorder list from stock levels and open orders, for Steph to approve. Nothing is ordered automatically.' },
   { title: 'Sales targets and a team board', areas: ['Quotes'], detail: 'Targets per person, progress, a leaderboard and a wall-screen mode for the office.' },
-  { title: 'Monday morning report for Daniel', areas: ['Overview'], detail: 'An automatic one-page summary emailed every Monday: last week against the week before, the pipeline, orders at risk and money owed.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
   { title: 'Guided steps for Quotes and New customers', areas: ['Quotes', 'New customers'], detail: 'The same "Your move" help that Win-back now has, with wording agreed with Daniel and Steph.' },
