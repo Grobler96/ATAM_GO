@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v64', date: '2026-11-03', status: 'live', pr: 59, areas: ['Invoices', 'Overview'],
+    title: 'Cash tab: money coming in, bills going out, and who to chase',
+    summary: 'A new Cash tab shows what is owed to us, when it is likely to arrive over the next eight weeks, which supplier bills fall due, and the overdue invoices to chase, with a draft chasing email for each customer. Nothing is sent or posted from it.',
+    changes: ['Top figures: unpaid invoices, overdue (up to three months), falling due in the next seven days, expected in over eight weeks, and supplier bills due.', 'A week-by-week chart of money expected in against supplier bills due.', 'Expected money in is worked out from how our customers really pay: about 46% pay by the due date, and the middle one pays a day after it. Bigger and older invoices are weighted by how often invoices like them got paid.', 'Overdue invoices are grouped by customer, biggest first, with the oldest invoice shown. Press Draft chase to get a ready-written email (friendly, firmer or final, depending on how late it is) to copy or open in your own email program. It never includes bank details and nothing is sent from the page.', 'Invoices more than three months overdue are left out and shown as a note, because many look like old records worth reviewing in Xero.'],
+    watch: 'The supplier side is only partial: it shows bills posted from ATAM GO since mid August and cannot tell whether one has already been paid, and there are no wages, rent, VAT or bank balance. Treat it as a guide, not a bank forecast. If a figure looks wrong, tell Oliver which one.'
+  },
+  {
     v: 'v63', date: '2026-11-03', status: 'live', pr: 58, areas: ['Quotes', 'Win-back', 'Customers'],
     title: 'Ideas to offer each customer',
     summary: 'The customer history panel (on Quotes and Win-back) now has an Ideas to offer card: the garment types that customers like this one buy, but this customer does not.',
@@ -463,7 +470,6 @@ window.ATAM_UPDATES = [
 window.ATAM_PLANNED = [
   { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
-  { title: 'Cash forecast and invoice chasing drafts', areas: ['Invoices'], detail: 'An 8 week view of money owed and supplier orders due, with chasing emails drafted for a person to send. Nothing is sent or posted automatically.' },
   { title: 'Suggested supplier orders', areas: ['Stock'], detail: 'A draft reorder list from stock levels and open orders, for Steph to approve. Nothing is ordered automatically.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
