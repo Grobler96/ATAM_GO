@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v61', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Overview'],
+    title: 'Team board: targets, leaderboard and wall screen',
+    summary: 'A new Team board tab shows each salesperson\u2019s orders approved this month against their target, ranked, with where they should be by today. A Wall screen button fills the screen with big figures for the office TV.',
+    changes: ['Each person has a card: orders approved and their value, progress to target, whether they are ahead of pace, on pace or behind, how they compare with last month, and what they could reach if their open quotes land as expected.', 'The whole team has a bar at the top. It only counts people who have a target, so the comparison is fair.', 'Daniel and Oliver can set targets with the Set targets button. A target applies from the month you set it until you set a new one, so there is nothing to re-enter every month. Nobody else can change them.', 'Use the arrows to look at earlier months and see who hit their target.', 'Wall screen refreshes itself every minute. Press Esc or the Leave button to come out of it.'],
+    watch: 'No targets exist yet, so every card says No target set until Daniel or Oliver add them. \u201cSales\u201d means orders approved in the month, including orders keyed straight in. Early in the month the pace marker moves a lot, because only a few working days have passed.'
+  },
+  {
     v: 'v60', date: '2026-11-03', status: 'built', pr: 55, areas: ['Overview', 'Quotes', 'Automation'],
     title: 'Monday morning report for Daniel',
     summary: 'A one-page email for Daniel every Monday at 7:30: last week against the week before, where the open quotes stand, and what needs attention. Built and checked, but not switched on yet.',
@@ -446,7 +453,6 @@ window.ATAM_PLANNED = [
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
   { title: 'Cash forecast and invoice chasing drafts', areas: ['Invoices'], detail: 'An 8 week view of money owed and supplier orders due, with chasing emails drafted for a person to send. Nothing is sent or posted automatically.' },
   { title: 'Suggested supplier orders', areas: ['Stock'], detail: 'A draft reorder list from stock levels and open orders, for Steph to approve. Nothing is ordered automatically.' },
-  { title: 'Sales targets and a team board', areas: ['Quotes'], detail: 'Targets per person, progress, a leaderboard and a wall-screen mode for the office.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
   { title: 'Guided steps for Quotes and New customers', areas: ['Quotes', 'New customers'], detail: 'The same "Your move" help that Win-back now has, with wording agreed with Daniel and Steph.' },
