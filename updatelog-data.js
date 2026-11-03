@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v66', date: '2026-11-03', status: 'in_progress', areas: ['Customers', 'Overview', 'Automation'],
+    title: 'Job profit: what each job really made',
+    summary: 'A new Job profit tab shows, for jobs that have shipped, the price charged, what the garments cost, and an estimate of how long the decoration took from its stitch count and number of items. It uses the order data already coming from DecoNetwork.',
+    changes: ['The data (price, quantity, each size\u2019s garment cost and each design\u2019s stitch count) is now saved with every order the production capture reads, and about four months of past orders were filled in.', 'Top figures for the last 30, 60 or 90 days: jobs shipped, revenue, garment cost, profit after garments, estimated production hours and stitches.', 'Every job is listed lowest margin first, so loss-making jobs stand out. A question mark means a garment had no cost in DecoNetwork, so that job\u2019s profit is overstated. There are also tables by salesperson and for the biggest customers.', 'Production time uses 3 minutes per item (Daniel\u2019s rough guide) plus stitches at 700 a minute. Daniel or Oliver can change these and enter the cost of an hour of production. Until a cost per hour is entered the page only shows profit after garments and does not guess a production cost.'],
+    watch: 'Revenue and garment costs come from DecoNetwork, so they are only as good as the costs set up there; about one job in six currently has a garment with no cost. Time is worked out one machine at a time. If the page looks wrong or empty, tell Oliver. The Automation health box shows whether the order capture is running.'
+  },
+  {
     v: 'v65', date: '2026-11-03', status: 'in_progress', areas: ['Stock'],
     title: 'Suggested reorder list on the Stock tab',
     summary: 'The Stock tab now has a Suggested reorder section: the garments we keep in stock that are out or running low, how many to buy to get back to about six weeks of cover, and a rough cost. It is a draft for Steph to check. Nothing is ordered from it.',
@@ -475,7 +482,6 @@ window.ATAM_UPDATES = [
 ];
 
 window.ATAM_PLANNED = [
-  { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
