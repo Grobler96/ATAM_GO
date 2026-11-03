@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v61', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Overview'],
+    v: 'v61', date: '2026-11-03', status: 'live', pr: 56, areas: ['Quotes', 'Overview'],
     title: 'Team board: targets, leaderboard and wall screen',
     summary: 'A new Team board tab shows each salesperson\u2019s orders approved this month against their target, ranked, with where they should be by today. A Wall screen button fills the screen with big figures for the office TV.',
     changes: ['Each person has a card: orders approved and their value, progress to target, whether they are ahead of pace, on pace or behind, how they compare with last month, and what they could reach if their open quotes land as expected.', 'The whole team has a bar at the top. It only counts people who have a target, so the comparison is fair.', 'Daniel and Oliver can set targets with the Set targets button. A target applies from the month you set it until you set a new one, so there is nothing to re-enter every month. Nobody else can change them.', 'Use the arrows to look at earlier months and see who hit their target.', 'Wall screen refreshes itself every minute. Press Esc or the Leave button to come out of it.'],
