@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v62', date: '2026-11-03', status: 'built', areas: ['Overview', 'Site', 'Automation'],
+    title: 'Phone alerts',
+    summary: 'People can switch on alerts on their phone from the Today tab. They then get a message when a customer replies to one of their quotes, or one of their orders becomes late. Built and checked as far as possible without a real phone.',
+    changes: ['A Phone alerts box at the top of the Today tab: Turn on alerts, Send me a test, Turn off. Each person chooses for themselves, on each device.', 'Alerts go to the salesperson the quote or order belongs to. Tapping an alert opens ATAM GO on the right page.', 'It checks every two hours, so an alert can arrive up to two hours after the news reaches ATAM GO, which itself refreshes every few hours.', 'On an iPhone or iPad, first tap Share and Add to Home Screen, then open ATAM GO from that icon. Apple only allows alerts that way.', 'The first time it runs it only notes what already exists, so switching it on does not send a flood of old alerts.'],
+    watch: 'The first real test needs a phone. If Send me a test never arrives, or alerts stop, tell Oliver. The Automation health box shows whether the alert sender failed.'
+  },
+  {
     v: 'v61', date: '2026-11-03', status: 'live', pr: 56, areas: ['Quotes', 'Overview'],
     title: 'Team board: targets, leaderboard and wall screen',
     summary: 'A new Team board tab shows each salesperson\u2019s orders approved this month against their target, ranked, with where they should be by today. A Wall screen button fills the screen with big figures for the office TV.',
@@ -447,7 +454,6 @@ window.ATAM_UPDATES = [
 ];
 
 window.ATAM_PLANNED = [
-  { title: 'Phone app with alerts', areas: ['Site'], detail: 'ATAM GO already installs on a phone like an app. Add alerts such as customer replied to a quote, an order is late, or your chase list is ready.' },
   { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
   { title: 'Product suggestions for each customer', areas: ['Customers', 'Quotes'], detail: 'On the customer panel: what a customer buys, what similar customers buy that they do not.' },
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },

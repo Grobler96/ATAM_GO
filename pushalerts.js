@@ -92,7 +92,7 @@
     try {
       const r = await client().rpc('send_test_push');
       if (r.error) throw r.error;
-      state.msg = 'Test sent. It should arrive within a minute or two.';
+      state.msg = 'Test queued. Alerts are sent every 2 hours, so it can take up to 2 hours to arrive. (Oliver can send the queue straight away.)';
     } catch (e) { state.msg = (e && e.message) || 'Could not send a test.'; }
     state.busy = false; draw();
   }
@@ -106,7 +106,7 @@
     else if (st === 'ios-install') main = 'On an iPhone or iPad: tap the Share button, choose <b>Add to Home Screen</b>, then open ATAM GO from that icon and come back here to turn alerts on.';
     else if (st === 'denied') main = 'Alerts are blocked for this site. Allow notifications for ATAM GO in your phone or browser settings, then come back here.';
     else if (st === 'on') main = `🔔 Alerts are <b>on</b> for this device. <button type="button" class="pa-btn" data-pa="test"${state.busy ? ' disabled' : ''}>Send me a test</button> <button type="button" class="pa-btn" data-pa="off"${state.busy ? ' disabled' : ''}>Turn off</button>`;
-    else main = `🔕 Alerts are off. Get a message on your phone when a customer replies to your quote or an order of yours becomes late. <button type="button" class="pa-btn pa-primary" data-pa="on"${state.busy ? ' disabled' : ''}>Turn on alerts</button>`;
+    else main = `🔕 Alerts are off. Get a message on your phone when a customer replies to your quote or an order of yours becomes late (checked every 2 hours). <button type="button" class="pa-btn pa-primary" data-pa="on"${state.busy ? ' disabled' : ''}>Turn on alerts</button>`;
     box.innerHTML = `<div class="pa-row">${main}</div>${state.msg ? `<div class="pa-msg" role="status">${esc(state.msg)}</div>` : ''}`;
   }
 
