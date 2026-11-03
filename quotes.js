@@ -196,6 +196,12 @@
         const cr = await client().from('quote_close_reasons_board').select('*');
         state.reasons = cr.error ? [] : (cr.data || []);
       } catch (e) { state.reasons = []; }
+      let chances = new Map();
+      try {   // chance to win, from how similar quotes turned out (view quote_win_chance)
+        const wc = await client().from('quote_win_chance').select('order_id,win_pct,basis_n,age_days');
+        if (!wc.error) chances = new Map((wc.data || []).map(x => [String(x.order_id), x]));
+      } catch (e) { /* the chance is simply not shown */ }
+      state.rows.forEach(r => { const c = chances.get(r.id); r.winPct = c ? Number(c.win_pct) : null; r.winBasis = c ? Number(c.basis_n) : 0; r.winAge = c ? Number(c.age_days) : null; });
       const byReason = new Map(state.reasons.map(x => [String(x.order_id), x]));
       state.rows.forEach(r => { const x = byReason.get(r.id); r.closeReason = x ? { code: x.code, note: x.note || '', by: x.set_by || '', at: toDate(x.set_at) } : null; });
       state.loaded = true; state.error = null; state.updatedAt = new Date();
@@ -242,6 +248,9 @@
     return {
       open, won, lost, raised, closed: decided, wonValue, lostValue, wonQuotes,
       openValue: open.reduce((s, r) => s + r.value, 0),
+      // Expected wins: each open quote's value times its chance to win (see quote_win_chance). Quotes with no figure are left out.
+      expected: open.reduce((s, r) => s + (r.winPct == null ? 0 : r.value * r.winPct / 100), 0),
+      expectedFrom: open.filter(r => r.winPct != null).reduce((s, r) => s + r.value, 0),
       raisedValue: raised.reduce((s, r) => s + r.value, 0),
       rate: decided ? wonQuotes.length / decided : null,
       valueRate: (wonQuotesValue + lostValue) ? wonQuotesValue / (wonQuotesValue + lostValue) : null,
@@ -313,13 +322,14 @@
     const needs = s.chase.concat(s.cold);
     const tiles = [
       { n: s.open.length, label: 'Open quotes', sub: gbp(s.openValue) + ' on the table' },
+      { txt: gbp(s.expected), label: 'Expected to win', sub: s.open.length ? (s.expectedFrom ? 'about ' + Math.round(s.expected / s.expectedFrom * 100) + '% of ' + gbp(s.expectedFrom) + (s.expectedFrom < s.openValue * 0.98 ? ' (some have no estimate)' : ' open') : 'no estimate yet') : 'no open quotes', title: 'Each open quote\u2019s value times its chance to win, added up. A guide to what the open quotes are worth, not a promise.', cls: 'qt-kpi-good' },
       { n: needs.length, label: 'Need chasing', sub: s.waiting.length ? plural(s.waiting.length, 'customer') + ' waiting on a reply' : gbp(needs.reduce((t, r) => t + r.value, 0)) + ' at risk', cls: 'qt-kpi-attn' },
       { n: s.raised.length, label: 'Quotes raised', sub: gbp(s.raisedValue) + ' · ' + per, spark: spark(w.raised, '#38bdf8') },
       { n: s.won.length, label: 'Converted', sub: gbp(s.wonValue) + ' · ' + per, cls: 'qt-kpi-good', spark: spark(w.conv, '#22c55e') },
       { txt: s.rate == null ? '—' : Math.round(s.rate * 100) + '%', label: 'Conversion rate', sub: s.closed ? `${s.wonQuotes.length} won of ${s.closed} decided` + (s.instant ? ' · excl. ' + s.instant + ' keyed straight in' : '') : 'nothing decided yet' },
       { txt: fmtDays(s.avgDays), label: 'Avg days to convert', sub: 'quote → approved, excl. same-hour' }
     ];
-    el.innerHTML = tiles.map((t, i) => `<div class="qt-kpi ${t.cls || ''}" style="--i:${i}">
+    el.innerHTML = tiles.map((t, i) => `<div class="qt-kpi ${t.cls || ''}" style="--i:${i}"${t.title ? ` title="${esc(t.title)}"` : ''}>
       <div class="qt-kpi-n"${t.n != null ? ` data-to="${t.n}"` : ''}>${t.n != null ? t.n : esc(t.txt)}</div>
       <div class="qt-kpi-l">${esc(t.label)}</div><div class="qt-kpi-s">${esc(t.sub)}</div>${t.spark || ''}</div>`).join('');
     countUp(el);
@@ -398,11 +408,21 @@
     return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
       <div class="qt-card-top"><span class="qt-card-cust">${esc(r.customer)}</span><span class="qt-card-val">${gbp(r.value)}</span></div>
       ${r.job ? `<div class="qt-card-job">${esc(r.job)}</div>` : ''}
-      <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span></div>
+      <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span>${winChip(r)}</div>
       ${r.awaitingUs ? '<div class="qt-reply">💬 Customer replied, waiting on you</div>' : ''}
       ${backFromParking(r) ? `<div class="qt-revived-tag" title="${esc(r.parkReason || 'Came back from parking')}">💤 Back from parking${r.parkReason ? ': ' + esc(r.parkReason.length > 40 ? r.parkReason.slice(0, 40) + '…' : r.parkReason) : ''}</div>` : ''}
       ${r.revivedAt && open ? `<div class="qt-revived-tag" title="Re-ignited from Expired">🔥 Re-ignited ${esc(fmtDate(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}</div>` : ''}
       ${foot}${reasonTag}${removeBtn}</article>`;
+  }
+
+  // Chance to win: only for open quotes. Colour says how good it looks; the tooltip says what it rests on.
+  const winTone = p => p >= 60 ? '#22c55e' : p >= 35 ? '#f59e0b' : '#94a3b8';
+  function winChip(r) {
+    if (r.winPct == null || !['fresh', 'chase', 'cold'].includes(r.stage)) return '';
+    return `<span class="qt-win" style="--c:${winTone(r.winPct)}" title="${esc(winText(r))}">${r.winPct}% to win</span>`;
+  }
+  function winText(r) {
+    return 'Of ' + r.winBasis + ' similar quotes that were still open after ' + r.winAge + (r.winAge === 1 ? ' day' : ' days') + ', about ' + r.winPct + '% were eventually approved.' + (r.winBasis < 30 ? ' (Not many to go on yet.)' : '');
   }
 
   function boardHtml() {
@@ -574,6 +594,7 @@
             <div><b>${s.won.length}</b><span>converted</span></div>
             <div><b>${gbp(s.wonValue)}</b><span>won value</span></div>
             <div><b>${s.open.length}</b><span>open now</span></div>
+            <div title="Open quotes' value times their chance to win"><b>${gbp(s.expected)}</b><span>expected to win</span></div>
             <div class="${s.chase.length + s.cold.length ? 'warn' : ''}"><b>${s.chase.length + s.cold.length}</b><span>need chasing</span></div>
             <div><b>${s.lost.length}</b><span>lost</span></div>
             <div><b>${fmtDays(s.avgDays)}</b><span>avg to approve</span></div>
@@ -1004,6 +1025,7 @@
         ${fact('Order status now', esc(STATUS[r.status] || (r.status == null ? '—' : 'Status ' + r.status)))}
         ${fact('Raised', esc(fmtDateTime(r.created)))}
         ${r.approved ? fact('Approved', esc(fmtDateTime(r.approved))) : fact('Quiet for', esc(quiet(r.idle)))}
+        ${r.winPct != null && ['fresh', 'chase', 'cold'].includes(r.stage) ? fact('Chance to win', `<span style="color:${winTone(r.winPct)}">${r.winPct}%</span><div class="qt-dim">${esc(winText(r))}</div>`) : ''}
         ${r.daysToClose != null ? fact('Time to approve', r.instant ? 'Within the hour' : r.daysToClose < 1 ? 'Same day' : Math.round(r.daysToClose) + ' days') : ''}
         ${fact('Garments', r.qty != null ? esc(r.qty) : '—')}
         ${fact('Decoration', r.processes.length ? esc(r.processes.join(', ')) : '—')}
@@ -1545,7 +1567,7 @@
 #quotes .qt-head p { margin:0; color:#94a3b8; font-size:14px; max-width:760px; line-height:1.5; }
 #quotes .qt-head .eyebrow { margin-bottom:4px; }
 #quotes .qt-updated { font-size:11.5px; color:#64748b; white-space:nowrap; padding-top:6px; }
-#quotes .qt-kpis { display:grid; grid-template-columns:repeat(6,1fr); margin:22px 0 14px; border:1px solid rgba(255,255,255,.1); border-radius:14px; background:rgba(15,23,42,.82); overflow:hidden; }
+#quotes .qt-kpis { display:grid; grid-template-columns:repeat(7,1fr); margin:22px 0 14px; border:1px solid rgba(255,255,255,.1); border-radius:14px; background:rgba(15,23,42,.82); overflow:hidden; }
 #quotes .qt-kpi { position:relative; padding:16px 18px; border-right:1px solid rgba(255,255,255,.08); min-width:0; animation:qtUp .5s both; animation-delay:calc(var(--i,0) * 60ms); }
 #quotes .qt-kpi:last-child { border-right:none; }
 #quotes .qt-kpi .qt-spark { position:absolute; right:14px; top:16px; }
@@ -1609,6 +1631,7 @@
 #quotes .qt-card-cust { font-weight:600; font-size:13px; line-height:1.3; overflow-wrap:anywhere; }
 #quotes .qt-card-job { margin-top:3px; font-size:11.5px; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #quotes .qt-card-val { font-weight:700; font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+#quotes .qt-win { margin-left:auto; padding:1px 8px; border-radius:999px; font-size:10.5px; font-weight:700; color:var(--c); border:1px solid var(--c); background:rgba(255,255,255,.04); white-space:nowrap; }
 #quotes .qt-card-mid { display:flex; align-items:center; gap:7px; margin:8px 0; font-size:11.5px; color:#94a3b8; }
 #quotes .qt-card-rep { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #quotes .qt-card-id { color:#64748b; font-variant-numeric:tabular-nums; }
@@ -1795,7 +1818,7 @@ body.qt-lock { overflow:hidden; }
 .qt-drawer .qt-timeline li { display:flex; gap:11px; font-size:13px; line-height:1.4; }
 .qt-drawer .qt-timeline li.good { color:#86efac; } .qt-drawer .qt-timeline li.bad { color:#fca5a5; }
 .qt-drawer .qt-tl-i { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.07); display:grid; place-items:center; font-size:12px; flex:none; }
-@media (max-width: 1100px) { #quotes .qt-kpis { grid-template-columns:repeat(3,1fr); } #quotes .qt-kpi:nth-child(3n) { border-right:none; } #quotes .qt-kpi:nth-child(-n+3) { border-bottom:1px solid rgba(255,255,255,.08); } }
+@media (max-width: 1100px) { #quotes .qt-kpis { grid-template-columns:repeat(4,1fr); } #quotes .qt-kpi { border-bottom:1px solid rgba(255,255,255,.08); } #quotes .qt-kpi:nth-child(4n) { border-right:none; } }
 @media (max-width: 640px) { #quotes .qt-head { padding:16px; flex-direction:column; } #quotes .qt-kpi .qt-spark { display:none; }
   #quotes .qt-kpis { grid-template-columns:repeat(2,1fr); } #quotes .qt-kpi:nth-child(3n) { border-right:1px solid rgba(255,255,255,.08); } #quotes .qt-kpi:nth-child(2n) { border-right:none; } #quotes .qt-kpi { border-bottom:1px solid rgba(255,255,255,.08); }
   #quotes .qt-board { grid-template-columns:repeat(5,82vw); scroll-snap-type:x mandatory; } #quotes .qt-col { scroll-snap-align:start; }
