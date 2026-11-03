@@ -1122,8 +1122,12 @@
     if (hit && Date.now() - hit.at < HIST_TTL) { renderHistory(id, hit.data); return; }
     setHist('<div class="qt-hgrid"><div class="qt-hc qt-hc-wide">Loading customer history…</div></div>');
     try {
-      const res = await client().rpc('quote_customer_history', { p_order_id: id });
+      const [res, pi] = await Promise.all([
+        client().rpc('quote_customer_history', { p_order_id: id }),
+        row ? client().rpc('customer_product_ideas', { p_name: row.customer }) : Promise.resolve({ data: null })
+      ]);
       if (res.error) throw res.error;
+      if (res.data && pi && !pi.error && pi.data) res.data.ideas = pi.data;
       histCache.set(ck, { at: Date.now(), data: res.data });
       renderHistory(id, res.data);
     } catch (e) {
@@ -1246,7 +1250,21 @@
       ${(h.processes || []).length ? `<div class="qt-hsub">Decoration (orders)</div><div class="qt-hchips">${h.processes.map(p => `<span class="qt-hpill">${esc(p.process)} · ${num(p.orders)}</span>`).join('')}</div>` : ''}
       ${(h.reps || []).length ? `<div class="qt-hsub">Handled by (completed orders)</div>${h.reps.map(x => `<div class="qt-hrep">${avatar(x.rep)}<span>${esc(x.rep)}</span><em>${plural(num(x.orders), 'order')} · ${esc(gbp(x.spend))}</em></div>`).join('')}` : ''}</section>` : '';
 
-    const stageChip = x => `<span class="qt-chip" style="--c:${STAGES[x.stage].color}">${STAGES[x.stage].icon} ${esc(STAGES[x.stage].label)}</span>`;
+    // Ideas to offer: garment types that similar customers buy and this one does not (database function customer_product_ideas).
+    let ideasCard = '';
+    const pi = h.ideas;
+    if (pi && pi.found) {
+      const list = pi.ideas || [];
+      const bought = (pi.bought || []).join(', ');
+      ideasCard = `<section class="qt-hc"><h4>Ideas to offer <span class="qt-dim">(what similar customers buy)</span></h4>` +
+        (list.length
+          ? `<ul class="qt-htp">${list.map(x => `<li><b>${esc(x.product_type)}</b>: ${esc(x.share_pct)}% of similar customers buy it (${esc(x.n_with)} of ${esc(pi.peers)}), spending about ${esc(gbp(x.typical_year))} a year on it.</li>`).join('')}</ul>`
+          : `<div class="qt-dim">${!(pi.bought || []).length ? 'No garment purchases on file to compare with.' : num(pi.peers) < 8 ? 'Not enough similar customers to suggest anything yet.' : 'They already buy most of what similar customers buy.'}</div>`) +
+        (bought ? `<div class="qt-hsub">They already buy</div><div class="qt-hchips">${(pi.bought || []).map(t => `<span class="qt-hpill">${esc(t)}</span>`).join('')}</div>` : '') +
+        `<div class="qt-dim qt-hnote">Similar customers are the ones who buy some of the same garment types, over the last 24 months. It is something to mention, not a prediction.</div></section>`;
+    }
+
+    const stageChip = x => `<span class="qt-chip" style="--c:${STAGES[x.stage].color}"> style="--c:${STAGES[x.stage].color}">${STAGES[x.stage].icon} ${esc(STAGES[x.stage].label)}</span>`;
     const quotesCard = `<section class="qt-hc"><h4>Quotes with us (${mine.length})</h4>
       <div class="qt-hfacts qt-hfacts-3"><div><span>Total quoted</span><b>${esc(gbp(quotedTotal))}</b></div><div><span>Won</span><b>${won} of ${closed.length}</b><i>${closed.length ? Math.round(won / closed.length * 100) + '% of decided quotes' : 'none decided yet'}</i></div><div><span>Average quote</span><b>${esc(gbp(mine.length ? quotedTotal / mine.length : 0))}</b></div></div>
       ${others.length ? `<table class="qt-ht"><thead><tr><th>Quote</th><th>Job</th><th>Stage</th><th class="r">Value</th><th>Raised</th></tr></thead><tbody>${others.slice(0, 12).map(x => `<tr${opts.noOpen ? '' : ` class="qt-hlink" data-hist-open="${esc(x.id)}" tabindex="0" role="button" title="Open this quote"`}><td>#${esc(x.id)}</td><td>${esc(x.job || '—')}</td><td>${stageChip(x)}</td><td class="r">${esc(gbp(x.value, true))}</td><td>${esc(fmtDate(x.created))}</td></tr>`).join('')}</tbody></table>${others.length > 12 ? `<p class="qt-dim">Showing the latest 12 of ${others.length}.</p>` : ''}` : '<p class="qt-dim">This is their only quote in the synced period.</p>'}</section>`;
@@ -1267,7 +1285,7 @@
       ${opts.top || ''}
       <section class="qt-hc qt-hc-wide"><h4>Key numbers</h4><div class="qt-hkpis">${kpis}</div></section>
       <section class="qt-hc qt-hc-wide"><h4>Spend by month <span class="qt-dim">(last 24 months, ex VAT, by ship date)</span></h4>${monthChart(h.monthly)}</section>
-      ${lastCard}${openCard}${recentCard}${buyCard}${quotesCard}${peopleCard}
+      ${lastCard}${openCard}${recentCard}${buyCard}${ideasCard}${quotesCard}${peopleCard}
       <p class="qt-dim qt-hnote">Orders and invoices are matched to this customer by company name, so a customer trading under two names may be split. Figures exclude VAT unless it says otherwise.</p></div>`;
   }
 

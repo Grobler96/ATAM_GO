@@ -970,11 +970,14 @@
     if (hit && Date.now() - hit.at < HIST_TTL) { renderHistory(id, hit.data, hit.emails); return; }
     setHist('<div class="qt-hgrid"><div class="qt-hc qt-hc-wide">Loading customer history…</div></div>');
     try {
-      const [h, em] = await Promise.all([
+      const wbRow = state.rows.find(x => x.id === id);
+      const [h, em, pi] = await Promise.all([
         client().rpc('winback_customer_history', { p_customer_id: id }),
-        client().from('winback_emails').select('chase_no,sender_email,subject,status,sent_at,replied_at,sent_by,created_at').eq('customer_id', id).order('created_at', { ascending: false }).limit(10)
+        client().from('winback_emails').select('chase_no,sender_email,subject,status,sent_at,replied_at,sent_by,created_at').eq('customer_id', id).order('created_at', { ascending: false }).limit(10),
+        wbRow ? client().rpc('customer_product_ideas', { p_name: wbRow.label }) : Promise.resolve({ data: null })
       ]);
       if (h.error) throw h.error;
+      if (h.data && pi && !pi.error && pi.data) h.data.ideas = pi.data;
       const emails = em.error ? [] : (em.data || []);
       histCache.set(id, { at: Date.now(), data: h.data, emails });
       renderHistory(id, h.data, emails);
