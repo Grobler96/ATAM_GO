@@ -64,8 +64,17 @@
     tab: 'pipeline', period: '90', rep: '', store: '', q: '',
     sort: { key: 'idle', dir: -1 },
     chart: null, timer: null, openId: null, senders: null, composeOpen: false, animate: true, updatedAt: null,
-    removed: [], showRemoved: false, removing: false, reigniting: false, parked: [], parking: false
+    removed: [], showRemoved: false, removing: false, reigniting: false, parked: [], parking: false, reasons: [], reasonBusy: false
   };
+
+  // Why a quote was closed. "Needs more time" is not stored as a reason: it sends the person to Park instead. Database: sql/quote_close_reasons_2026-11-03.sql.
+  const REASONS = [
+    { code: 'converted_other', label: 'Converted on another quote', icon: '🔁' },
+    { code: 'bought_elsewhere', label: 'Customer bought elsewhere', icon: '🛒' },
+    { code: 'budget', label: 'Budget', icon: '💷' },
+    { code: 'other', label: 'Other', icon: '✏️' }
+  ];
+  const reasonLabel = code => (REASONS.find(x => x.code === code) || {}).label || '';
 
   // remember the last tab / period / salesperson / store on this device
   const PREF_KEY = 'atamgo_quotes_prefs_v2';
@@ -183,6 +192,12 @@
         const pp = await client().from('quotes_parked_board').select('*').order('parked_until', { ascending: true });
         state.parked = pp.error ? [] : (pp.data || []);
       } catch (e) { state.parked = []; }
+      try {   // why quotes were closed (reason picker + report on the Lost tab)
+        const cr = await client().from('quote_close_reasons_board').select('*');
+        state.reasons = cr.error ? [] : (cr.data || []);
+      } catch (e) { state.reasons = []; }
+      const byReason = new Map(state.reasons.map(x => [String(x.order_id), x]));
+      state.rows.forEach(r => { const x = byReason.get(r.id); r.closeReason = x ? { code: x.code, note: x.note || '', by: x.set_by || '', at: toDate(x.set_at) } : null; });
       state.loaded = true; state.error = null; state.updatedAt = new Date();
       if (state.rep && !state.rows.some(r => (r.rep || '__none') === state.rep)) state.rep = '';
       if (state.store && !state.rows.some(r => r.store === state.store)) state.store = '';
@@ -375,6 +390,10 @@
     else if (r.stage === 'won') foot = `<div class="qt-card-foot"><span>Approved ${esc(fmtDate(r.approved))}</span><span>${r.daysToClose != null ? (r.instant ? 'same hour' : r.daysToClose < 1 ? 'same day' : Math.round(r.daysToClose) + 'd to close') : ''}</span></div>`;
     else foot = `<div class="qt-card-foot"><span>${esc(r.lostReason || 'Lost')}</span><span>${esc(fmtDate(r.closedAt))}</span></div>`;
     const parkable = !r.approved && r.status !== 4;
+    const lostRow = r.stage === 'lost';
+    const reasonTag = lostRow ? (r.closeReason
+      ? `<button type="button" class="qt-reason-tag" data-reason="${esc(r.id)}" title="${esc((r.closeReason.note ? r.closeReason.note + ' · ' : '') + 'Click to change')}">${esc(reasonLabel(r.closeReason.code))}</button>`
+      : `<button type="button" class="qt-reason-tag none" data-reason="${esc(r.id)}" title="Say why this quote was lost">+ Add reason</button>`) : '';
     const removeBtn = r.approved ? '' : `<div class="qt-remove-row">${parkable ? `<button type="button" class="qt-remove qt-parkbtn" data-park="${esc(r.id)}" title="Customer wants to wait? Hide this quote until a date you choose">💤 Park</button>` : ''}<button type="button" class="qt-remove" data-remove="${esc(r.id)}" title="Take this old quote off the list completely">🗑 Remove</button></div>`;
     return `<article class="qt-card" data-id="${esc(r.id)}" tabindex="0" style="--c:${st.color};--i:${Math.min(i || 0, 8)}">
       <div class="qt-card-top"><span class="qt-card-cust">${esc(r.customer)}</span><span class="qt-card-val">${gbp(r.value)}</span></div>
@@ -383,7 +402,7 @@
       ${r.awaitingUs ? '<div class="qt-reply">💬 Customer replied, waiting on you</div>' : ''}
       ${backFromParking(r) ? `<div class="qt-revived-tag" title="${esc(r.parkReason || 'Came back from parking')}">💤 Back from parking${r.parkReason ? ': ' + esc(r.parkReason.length > 40 ? r.parkReason.slice(0, 40) + '…' : r.parkReason) : ''}</div>` : ''}
       ${r.revivedAt && open ? `<div class="qt-revived-tag" title="Re-ignited from Expired">🔥 Re-ignited ${esc(fmtDate(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}</div>` : ''}
-      ${foot}${removeBtn}</article>`;
+      ${foot}${reasonTag}${removeBtn}</article>`;
   }
 
   function boardHtml() {
@@ -435,6 +454,9 @@
     raised: { label: 'Raised', get: r => r.created.getTime(), html: r => esc(fmtDate(r.created)) },
     converted: { label: 'Approved', get: r => (r.approved || 0), html: r => esc(fmtDateTime(r.approved)) },
     lostOn: { label: 'Lost on', get: r => (r.closedAt || 0), html: r => esc(fmtDate(r.closedAt)) },
+    why: { label: 'Why closed', get: r => (r.closeReason ? r.closeReason.code : 'zzz'), html: r => r.closeReason
+      ? `<button type="button" class="qt-reason-tag" data-reason="${esc(r.id)}" title="${esc((r.closeReason.note ? r.closeReason.note + ' · ' : '') + 'Click to change')}">${esc(reasonLabel(r.closeReason.code))}</button>${r.closeReason.note ? `<div class="qt-dim">${esc(r.closeReason.note.length > 50 ? r.closeReason.note.slice(0, 50) + '…' : r.closeReason.note)}</div>` : ''}`
+      : `<button type="button" class="qt-reason-tag none" data-reason="${esc(r.id)}">+ Add reason</button>` },
     reason: { label: 'Reason', get: r => r.lostReason || '', html: r => esc(r.lostReason || '—') },
     dtc: { label: 'Days to approve', get: r => r.daysToClose == null ? -1 : r.daysToClose, html: r => r.daysToClose == null ? '—' : r.instant ? 'Same hour' : r.daysToClose < 1 ? 'Same day' : Math.round(r.daysToClose) + 'd', right: true },
     now: { label: 'Order now', get: r => r.status || 0, html: r => esc(STATUS[r.status] || (r.status == null ? '—' : 'Status ' + r.status)) },
@@ -447,8 +469,8 @@
   };
   const TABLE_COLS = {
     won: ['customer', 'id', 'rep', 'store', 'value', 'raised', 'converted', 'dtc', 'now'],
-    lost: ['customer', 'id', 'rep', 'store', 'value', 'raised', 'lostOn', 'reason', 'chases'],
-    expired: ['customer', 'id', 'rep', 'value', 'raised', 'expiredOn', 'signal', 'actions'],
+    lost: ['customer', 'id', 'rep', 'store', 'value', 'raised', 'lostOn', 'reason', 'why', 'chases'],
+    expired: ['customer', 'id', 'rep', 'value', 'raised', 'expiredOn', 'why', 'signal', 'actions'],
     all: ['customer', 'id', 'rep', 'store', 'value', 'stage', 'raised', 'idle', 'chases']
   };
 
@@ -463,7 +485,7 @@
     const col = COLS[key] || COLS[defKey];
     rows = rows.slice().sort((a, b) => { const x = col.get(a), y = col.get(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
     const cols = TABLE_COLS[tab];
-    const intro = tab === 'expired' ? `<div class="qt-note qt-expired-intro"><b>Expired quotes.</b> These went quiet for ${LOST_DAYS} days, which is when DecoNetwork expires them. If a customer comes back, press <b>🔥 Re-ignite</b>: it goes back into the Pipeline as Hot and the quote opens in DecoNetwork, where it still has to be reopened (DecoNetwork cannot be changed from here). <b>✉️ Email</b> lets you write to the customer first, and sending also puts the quote back in the Pipeline.</div>` : '';
+    const intro = tab === 'lost' ? reasonsReportHtml(rows) : tab === 'expired' ? `<div class="qt-note qt-expired-intro"><b>Expired quotes.</b> These went quiet for ${LOST_DAYS} days, which is when DecoNetwork expires them. If a customer comes back, press <b>🔥 Re-ignite</b>: it goes back into the Pipeline as Hot and the quote opens in DecoNetwork, where it still has to be reopened (DecoNetwork cannot be changed from here). <b>✉️ Email</b> lets you write to the customer first, and sending also puts the quote back in the Pipeline.</div>` : '';
     if (!rows.length) return `${intro}<div class="qt-empty">${tab === 'won' ? 'No quotes have converted in this period.' : tab === 'lost' ? 'No lost quotes in this period.' : tab === 'expired' ? 'No expired quotes in this period. Try a longer period above.' : 'No quotes match.'}</div>`;
     const total = rows.reduce((s, r) => s + r.value, 0);
     return `${intro}<div class="qt-tablewrap"><table class="qt-table"><thead><tr>${cols.map(c => `<th data-sort="${c}" class="${COLS[c].right ? 'r' : ''}${c === key ? ' sorted' : ''}">${esc(COLS[c].label)}${c === key ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
@@ -610,14 +632,18 @@
   // A removed quote is only hidden: its order id goes in quote_removed and the quotes_board view leaves it out (so the board, the
   // counts and DAN all stop seeing it). Nothing is deleted from DecoNetwork, and it can be brought back from the list below the board.
   // Approved quotes cannot be removed. Database: sql/quote_remove_2026-10-28.sql.
-  async function removeQuote(id) {
+  // Removing now asks why first (the same reason picker as "Add reason"); the reason goes in quote_close_reason and its words in the removed list.
+  function removeQuote(id) {
     const r = state.rows.find(x => x.id === id);
     if (!r || state.removing) return;
-    if (!window.confirm('Remove this quote from the list?\n\n' + r.customer + (r.job ? ' · ' + r.job : '') + ' · #' + r.id + ' · ' + gbp(r.value) +
-      '\n\nIt will disappear from the board, the counts and DAN. It is not deleted from DecoNetwork, and you can bring it back from "Removed quotes" at the bottom of this page.')) return;
+    openReasonDialog(id, 'remove');
+  }
+  async function doRemove(id, code, note) {
     state.removing = true;
     try {
-      const { error } = await client().rpc('remove_quote', { p_order_id: id, p_reason: '' });
+      const sr = await client().rpc('set_quote_close_reason', { p_order_id: id, p_code: code, p_note: note || null });
+      if (sr.error) throw sr.error;
+      const { error } = await client().rpc('remove_quote', { p_order_id: id, p_reason: reasonLabel(code) + (note ? ': ' + note : '') });
       if (error) throw error;
       state.rows = state.rows.filter(x => x.id !== id);
       if (state.openId === id) closeDrawer();
@@ -627,8 +653,128 @@
     } catch (e) {
       console.error('remove quote failed', e);
       toast('Couldn\'t remove it: ' + ((e && e.message) || 'unknown error'), true);
+      state.removing = false;
+      return false;
     }
     state.removing = false;
+    return true;
+  }
+  async function saveReason(id, code, note) {
+    try {
+      const { error } = await client().rpc('set_quote_close_reason', { p_order_id: id, p_code: code, p_note: note || null });
+      if (error) throw error;
+      toast('Reason saved.');
+      await load(true);
+      if (state.openId === id) openDrawer(id);
+      return true;
+    } catch (e) {
+      console.error('save reason failed', e);
+      toast('Couldn\'t save the reason: ' + ((e && e.message) || 'unknown error'), true);
+      return false;
+    }
+  }
+  async function clearReason(id) {
+    try {
+      const { error } = await client().rpc('clear_quote_close_reason', { p_order_id: id });
+      if (error) throw error;
+      toast('Reason cleared.');
+      await load(true);
+      if (state.openId === id) openDrawer(id);
+      return true;
+    } catch (e) {
+      toast('Couldn\'t clear it: ' + ((e && e.message) || 'unknown error'), true);
+      return false;
+    }
+  }
+
+  // The reason picker. mode "remove": pick a reason, then the quote is taken off the list. mode "set": just record or change the reason.
+  // "Needs more time" is offered as a way out to Park (not stored as a reason).
+  function closeReasonDialog() {
+    const m = $('qtReasonModal'); if (m) m.remove();
+    document.removeEventListener('keydown', reasonKeys, true);
+  }
+  function reasonKeys(e) { if (e.key === 'Escape') { e.stopPropagation(); closeReasonDialog(); } }
+  function openReasonDialog(id, mode) {
+    const r = state.rows.find(x => x.id === id);
+    if (!r) return;
+    closeReasonDialog();
+    const cur = r.closeReason;
+    const canPark = r.status !== 4 && !r.approved;
+    const opts = REASONS.map(o => `<label class="qt-rsn-opt"><input type="radio" name="qtRsn" value="${o.code}"${cur && cur.code === o.code ? ' checked' : ''}><span>${o.icon} ${esc(o.label)}</span></label>`).join('') +
+      (canPark ? `<label class="qt-rsn-opt wait"><input type="radio" name="qtRsn" value="wait"><span>💤 Needs more time <em>(park it until a date instead)</em></span></label>` : '');
+    const m = document.createElement('div');
+    m.id = 'qtReasonModal'; m.className = 'qt-modal';
+    m.innerHTML = `<div class="qt-modal-box" role="dialog" aria-modal="true" aria-labelledby="qtRsnTitle">
+      <h3 id="qtRsnTitle">${mode === 'remove' ? 'Remove this quote' : 'Why was this quote lost?'}</h3>
+      <p class="qt-dim">${esc(r.customer)}${r.job ? ' · ' + esc(r.job) : ''} · #${esc(r.id)} · ${gbp(r.value)}</p>
+      ${mode === 'remove' ? '<p class="qt-dim">It will disappear from the board, the counts and DAN. It is not deleted from DecoNetwork, and you can bring it back from "Removed quotes" at the bottom of this page.</p>' : ''}
+      <form id="qtRsnForm"><div class="qt-rsn-list">${opts}</div>
+        <label class="qt-rsn-note">Note <span class="qt-dim" id="qtRsnNoteHint">(optional)</span><input type="text" id="qtRsnNote" maxlength="300" value="${esc(cur ? cur.note : '')}" placeholder="A few words, if useful"></label>
+        <div class="qt-rsn-err" id="qtRsnErr" role="alert" hidden></div>
+        <div class="qt-rsn-btns">${cur && mode === 'set' ? '<button type="button" class="qt-btn" id="qtRsnClear">Clear reason</button>' : ''}<span style="flex:1"></span><button type="button" class="qt-btn" id="qtRsnCancel">Cancel</button><button type="submit" class="qt-btn ${mode === 'remove' ? 'qt-danger' : 'qt-primary'}" id="qtRsnGo">${mode === 'remove' ? '🗑 Remove quote' : 'Save reason'}</button></div>
+      </form></div>`;
+    document.body.appendChild(m);
+    document.addEventListener('keydown', reasonKeys, true);
+    const form = $('qtRsnForm'), err = $('qtRsnErr'), go = $('qtRsnGo'), note = $('qtRsnNote');
+    const picked = () => { const x = form.querySelector('input[name="qtRsn"]:checked'); return x ? x.value : ''; };
+    const sync = () => {
+      const v = picked();
+      $('qtRsnNoteHint').textContent = v === 'other' ? '(required for Other)' : '(optional)';
+      go.textContent = v === 'wait' ? '💤 Choose a date to bring it back' : (mode === 'remove' ? '🗑 Remove quote' : 'Save reason');
+      go.className = 'qt-btn ' + (v === 'wait' ? 'qt-primary' : mode === 'remove' ? 'qt-danger' : 'qt-primary');
+      err.hidden = true;
+    };
+    form.addEventListener('change', sync);
+    sync();
+    m.addEventListener('click', e => { if (e.target === m) closeReasonDialog(); });
+    $('qtRsnCancel').addEventListener('click', closeReasonDialog);
+    const clr = $('qtRsnClear');
+    if (clr) clr.addEventListener('click', async () => { clr.disabled = true; if (await clearReason(id)) closeReasonDialog(); else clr.disabled = false; });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const v = picked(), txt = note.value.trim();
+      if (!v) { err.textContent = 'Please choose a reason.'; err.hidden = false; return; }
+      if (v === 'wait') {
+        closeReasonDialog();
+        openDrawer(id);
+        setTimeout(() => { const t = document.querySelector('#qtSheet [data-act="park-toggle"]'); if (t) t.click(); }, 0);
+        return;
+      }
+      if (v === 'other' && txt.length < 3) { err.textContent = 'Please add a few words for "Other".'; err.hidden = false; note.focus(); return; }
+      go.disabled = true;
+      const ok = mode === 'remove' ? await doRemove(id, v, txt) : await saveReason(id, v, txt);
+      if (ok) closeReasonDialog(); else go.disabled = false;
+    });
+    const first = form.querySelector('input[name="qtRsn"]:checked') || form.querySelector('input[name="qtRsn"]');
+    if (first) first.focus();
+  }
+
+  // Report on the Lost tab: lost quotes in the period (plus removed ones given a reason in the period), counted by reason, and by salesperson.
+  function reasonsReportHtml(lostRows) {
+    const items = lostRows.map(r => ({ rep: r.rep || '', value: r.value, code: r.closeReason ? r.closeReason.code : '' }));
+    const lostIds = new Set(lostRows.map(r => r.id));
+    (state.reasons || []).forEach(x => {
+      if (!x.removed || lostIds.has(String(x.order_id))) return;
+      if (state.rep && (x.assigned_to || '__none') !== state.rep) return;
+      if (!inPeriod(toDate(x.set_at))) return;
+      items.push({ rep: x.assigned_to || '', value: Number(x.quote_value) || 0, code: x.code });
+    });
+    if (!items.length) return '';
+    const cols = REASONS.map(o => o.code).concat(['']);
+    const label = c => c ? reasonLabel(c) : 'No reason given';
+    const tot = new Map(cols.map(c => [c, { n: 0, v: 0 }]));
+    const byRep = new Map();
+    items.forEach(it => {
+      const t = tot.get(it.code); t.n++; t.v += it.value;
+      const k = it.rep || '__none';
+      if (!byRep.has(k)) byRep.set(k, new Map(cols.map(c => [c, 0])));
+      byRep.get(k).set(it.code, byRep.get(k).get(it.code) + 1);
+    });
+    const all = items.length, given = all - tot.get('').n;
+    const reps = Array.from(byRep.keys()).sort((a, b) => Array.from(byRep.get(b).values()).reduce((x, y) => x + y, 0) - Array.from(byRep.get(a).values()).reduce((x, y) => x + y, 0));
+    return `<section class="qt-rsn-report"><h4>Why quotes are being lost <span class="qt-dim">${given} of ${all} have a reason</span></h4>
+      <div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Reason</th><th class="r">Quotes</th><th class="r">Value</th><th class="r">Share</th></tr></thead><tbody>${cols.map(c => { const t = tot.get(c); return `<tr${c ? '' : ' class="qt-dim"'}><td>${esc(label(c))}</td><td class="r">${t.n}</td><td class="r">${gbp(t.v)}</td><td class="r">${all ? Math.round(t.n / all * 100) : 0}%</td></tr>`; }).join('')}</tbody></table></div>
+      <div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Salesperson</th>${cols.map(c => `<th class="r">${esc(label(c))}</th>`).join('')}</tr></thead><tbody>${reps.map(k => `<tr><td>${esc(k === '__none' ? 'Unassigned' : repName(k))}</td>${cols.map(c => `<td class="r">${byRep.get(k).get(c) || '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`;
   }
 
   // ───────────────────────── re-igniting expired quotes ─────────────────────────
@@ -779,9 +925,9 @@
     const list = state.removed || [];
     if (!list.length) { el.innerHTML = ''; return; }
     el.innerHTML = `<section class="qt-removed"><button type="button" class="qt-btn" data-act="removed-toggle" aria-expanded="${state.showRemoved}">${state.showRemoved ? '−' : '+'} Removed quotes (${list.length})</button>` +
-      (state.showRemoved ? `<div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Customer</th><th>Job</th><th>Quote</th><th class="r">Value</th><th>Raised</th><th>Removed by</th><th></th></tr></thead><tbody>${list.map(q =>
+      (state.showRemoved ? `<div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Customer</th><th>Job</th><th>Quote</th><th class="r">Value</th><th>Raised</th><th>Why</th><th>Removed by</th><th></th></tr></thead><tbody>${list.map(q =>
         `<tr><td>${esc(q.customer_name || 'Unknown customer')}</td><td>${esc(q.job_name || '')}</td><td>#${esc(q.order_id)}</td><td class="r">${gbp(Number(q.quote_value) || 0)}</td><td>${esc(fmtDate(toDate(q.created_at)))}</td>` +
-        `<td>${esc(q.removed_by || '')}<div class="qt-dim">${esc(fmtDate(toDate(q.removed_at)))}</div></td><td><button type="button" class="qt-btn" data-restore="${esc(q.order_id)}">Put back</button></td></tr>`).join('')}</tbody></table></div>` : '') + '</section>';
+        `<td>${esc(q.reason || '—')}</td><td>${esc(q.removed_by || '')}<div class="qt-dim">${esc(fmtDate(toDate(q.removed_at)))}</div></td><td><button type="button" class="qt-btn" data-restore="${esc(q.order_id)}">Put back</button></td></tr>`).join('')}</tbody></table></div>` : '') + '</section>';
   }
 
   function exportCsv() {
@@ -866,6 +1012,7 @@
         ${fact('Customer replies', String(r.fromCount))}
         ${fact('Chases logged', String(r.chases))}
       </div>
+      ${r.stage === 'lost' ? `<div class="qt-why-box"><b>Why was it lost?</b> ${r.closeReason ? `${esc(reasonLabel(r.closeReason.code))}${r.closeReason.note ? ': ' + esc(r.closeReason.note) : ''} <span class="qt-dim">(${esc(r.closeReason.by || '')}${r.closeReason.at ? ', ' + esc(fmtDate(r.closeReason.at)) : ''})</span>` : '<span class="qt-dim">No reason given yet.</span>'} <button type="button" class="qt-btn" data-reason="${esc(r.id)}">${r.closeReason ? 'Change' : 'Add a reason'}</button></div>` : ''}
       ${(open || r.expired) ? parkFormHtml(r) : ''}
       ${r.approved ? '' : `<div class="qt-remove-row lg"><button type="button" class="qt-btn qt-danger" data-remove="${esc(r.id)}">🗑 Remove this quote from the list</button><span class="qt-dim">For old quotes that are never going to happen. You can bring it back later.</span></div>`}
       ${open || r.expired ? `<div class="qt-email-wrap">${emailTimerHtml(r)}<button type="button" class="qt-btn ${r.expired ? '' : 'qt-primary '}qt-mailbtn" data-act="compose" data-for="${esc(r.id)}">✉️ ${r.expired ? 'Email the customer about this expired quote' : r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email the customer'}</button><div id="qtCompose"></div></div>` : ''}
@@ -1590,6 +1737,32 @@ body.qt-lock { overflow:hidden; }
 #quotes .qt-remove:hover, #quotes .qt-remove:focus-visible { color:#fca5a5; border-color:rgba(239,68,68,.5); background:rgba(239,68,68,.08); }
 #quotes .qt-danger { border-color:rgba(239,68,68,.45); color:#fecaca; }
 #quotes .qt-danger:hover { background:rgba(239,68,68,.14); }
+#quotes .qt-reason-tag { display:inline-block; margin:6px 0 0; padding:2px 9px; border-radius:999px; border:1px solid rgba(148,163,184,.35); background:rgba(148,163,184,.1); color:#e2e8f0; font-size:11px; cursor:pointer; }
+#quotes .qt-reason-tag.none { border-style:dashed; color:#94a3b8; background:none; }
+#quotes .qt-reason-tag:hover, #quotes .qt-reason-tag:focus-visible { border-color:#38bdf8; color:#fff; }
+.qt-drawer .qt-why-box { margin:12px 0; padding:10px 12px; border-radius:10px; background:rgba(148,163,184,.1); display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; }
+#quotes .qt-rsn-report { margin:0 0 16px; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.03); }
+#quotes .qt-rsn-report h4 { margin:0 0 8px; font-size:14px; }
+#quotes .qt-rsn-report .qt-tablewrap { margin-top:8px; }
+.qt-modal { position:fixed; inset:0; z-index:10050; background:rgba(2,6,23,.7); display:flex; align-items:center; justify-content:center; padding:16px; }
+.qt-modal-box { width:min(460px,100%); max-height:92vh; overflow:auto; background:#0f172a; color:#e2e8f0; border:1px solid rgba(255,255,255,.14); border-radius:14px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+.qt-modal-box h3 { margin:0 0 4px; font-size:17px; }
+.qt-modal-box p { margin:4px 0; font-size:12.5px; }
+.qt-modal-box .qt-dim { color:#94a3b8; }
+.qt-modal .qt-btn { padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; color:#e2e8f0; border:1px solid rgba(255,255,255,.14); background:transparent; }
+.qt-modal .qt-btn:disabled { opacity:.5; cursor:default; }
+.qt-modal .qt-primary { background:linear-gradient(135deg,#38bdf8,#6366f1); border:none; color:#fff; }
+.qt-modal .qt-danger { border-color:rgba(239,68,68,.55); color:#fecaca; background:rgba(239,68,68,.12); }
+.qt-rsn-list { display:grid; gap:6px; margin:12px 0; }
+.qt-rsn-opt { display:flex; gap:9px; align-items:center; padding:9px 11px; border-radius:10px; border:1px solid rgba(255,255,255,.14); cursor:pointer; font-size:13.5px; }
+.qt-rsn-opt:hover { border-color:#38bdf8; }
+.qt-rsn-opt.wait { border-style:dashed; }
+.qt-rsn-opt em { color:#94a3b8; font-style:normal; font-size:12px; }
+.qt-rsn-note { display:grid; gap:4px; font-size:12.5px; }
+.qt-rsn-note input { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#020617; color:#e2e8f0; font-size:13px; }
+.qt-rsn-err { margin-top:8px; color:#fca5a5; font-size:12.5px; }
+.qt-rsn-err[hidden] { display:none; }
+.qt-rsn-btns { display:flex; gap:8px; margin-top:14px; align-items:center; }
 #quotes .qt-removed { margin-top:22px; padding-top:14px; border-top:1px dashed rgba(255,255,255,.12); }
 #quotes .qt-removed .qt-tablewrap { margin-top:12px; }
 #quotes .qt-quick-row { display:flex; gap:6px; }
@@ -1759,6 +1932,8 @@ body.qt-lock { overflow:hidden; }
       if (mvp) { e.stopPropagation(); const inp = mvp.parentElement.querySelector('.qt-park-date'); moveParked(mvp.dataset.parkMove, inp && inp.value); return; }
       if (e.target.closest('input.qt-park-date')) { e.stopPropagation(); return; }
       if (e.target.closest('a.qt-quick')) { e.stopPropagation(); return; }
+      const rsn = e.target.closest('[data-reason]');
+      if (rsn) { e.stopPropagation(); openReasonDialog(rsn.dataset.reason, 'set'); return; }
       const rmv = e.target.closest('[data-remove]');
       if (rmv) { e.stopPropagation(); removeQuote(rmv.dataset.remove); return; }
       const rst = e.target.closest('[data-restore]');
@@ -1788,7 +1963,7 @@ body.qt-lock { overflow:hidden; }
     });
     sec.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-restore], [data-reignite], [data-park], [data-unpark], [data-park-move], input')) return;
+      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-reason], [data-restore], [data-reignite], [data-park], [data-unpark], [data-park-move], input')) return;
       const item = e.target.closest('.qt-card[data-id], .qt-first-card[data-id], tr[data-id]');
       if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
       const repCard = e.target.closest('.qt-rep-card');
@@ -1813,6 +1988,8 @@ body.qt-lock { overflow:hidden; }
       }
       const pin = e.target.closest('[data-park-in]');
       if (pin) { const d = $('qtParkDate'); if (d) { d.value = pin.dataset.parkIn; d.focus(); } return; }
+      const rsn = e.target.closest('[data-reason]');
+      if (rsn) { openReasonDialog(rsn.dataset.reason, 'set'); return; }
       const rmv = e.target.closest('[data-remove]');
       if (rmv) { removeQuote(rmv.dataset.remove); return; }
       if (e.target.closest('[data-act="close"]')) closeDrawer();
@@ -1830,7 +2007,7 @@ body.qt-lock { overflow:hidden; }
       if (e.target.id === 'qtChaseForm') { e.preventDefault(); submitChase(e.target); }
       if (e.target.id === 'qtParkForm') { e.preventDefault(); parkQuote(e.target); }
     });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.openId) closeDrawer(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.openId && !$('qtReasonModal')) closeDrawer(); });
 
     renderControls();
     return true;

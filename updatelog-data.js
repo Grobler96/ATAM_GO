@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v56', date: '2026-11-03', status: 'in_progress', areas: ['Quotes', 'Database'],
+    title: 'Reason for closing a quote',
+    summary: 'Removing a quote now asks why (converted on another quote, customer bought elsewhere, budget or other), and lost or expired quotes can be given a reason too. The Lost tab has a new report of why quotes are being lost. This was Daniel\u2019s suggestion.',
+    changes: ['Remove now opens a small box to pick a reason. \u201cOther\u201d needs a few words.', 'There is a \u201cNeeds more time\u201d choice that takes you to Park instead, because that is what it really means.', 'Lost and Expired quotes show a Why closed column, and a lost quote\u2019s card and details have a button to add or change the reason.', 'The Lost tab starts with a report: how many quotes and how much money for each reason, and a table by salesperson. It follows the date, salesperson and search filters at the top. Quotes with no reason are counted too, so you can see how many are still unexplained.', 'The Removed quotes list at the bottom now shows the reason.'],
+    watch: 'Quotes that were lost before this update have no reason, so the report starts mostly as \u201cNo reason given\u201d until people fill them in. If the reason box will not save, tell Oliver what it said.'
+  },
+  {
     v: 'v55', date: '2026-10-30', status: 'live', pr: 51, areas: ['Database'],
     title: 'Behind-the-scenes names tidied automatically',
     summary: 'Notes and “done by” fields that the system fills in now always say “the system” instead of the name of the tool that made the change, and this happens by itself for anything saved from now on.',
