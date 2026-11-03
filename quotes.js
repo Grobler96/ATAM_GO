@@ -2022,5 +2022,17 @@ body.qt-lock { overflow:hidden; }
   window.QuotesPage = { reload: () => load(), state };
   // shared with the Win-back tab
   // (enrich + STAGES are also used by the Account managers tab so quote stages are worked out in one place)
-  window.ATAM_QT = { mountCompose, loadSenders, pickSender, firstName, TONES, JOB_WORDS, histHtml, ago, enrich, STAGES, DECO_ORDER_URL, emailEnabled: () => EMAIL_SENDING_ENABLED };
+  // Lets another tab (Today) jump straight to a quote: opens the Quotes tab, waits for it to load, opens the quote, and optionally the email box.
+  function openQuoteFrom(id, andEmail) {
+    const btn = document.querySelector('.nav-link[data-page="quotes"]'); if (btn) btn.click();
+    let n = 0;
+    const t = setInterval(() => {
+      n++;
+      if (state.loaded && state.rows.some(r => r.id === String(id))) {
+        clearInterval(t); openDrawer(String(id));
+        if (andEmail) setTimeout(() => { const b = document.querySelector('[data-act="compose"]'); if (b) b.click(); }, 0);
+      } else if (n > 60) clearInterval(t);
+    }, 150);
+  }
+  window.ATAM_QT = { openQuote: openQuoteFrom, mountCompose, loadSenders, pickSender, firstName, TONES, JOB_WORDS, histHtml, ago, enrich, STAGES, DECO_ORDER_URL, emailEnabled: () => EMAIL_SENDING_ENABLED };
 })();

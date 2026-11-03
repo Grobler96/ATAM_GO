@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v57', date: '2026-11-03', status: 'in_progress', progress: 35, areas: ['Overview', 'Quotes', 'Win-back', 'New customers'],
+    title: 'Today screen: your day on one page',
+    summary: 'A new first tab called Today. It lists what each person should do next, most important first, so nobody has to check five tabs to plan the morning. This is the first of the bigger upgrades planned for ATAM GO.',
+    changes: ['Pulls together quotes that need you (customer replied and waiting, email with no reply after 3 days, back from parking, gone quiet), Win-back and New customer chase dates that have arrived, late orders and overdue invoices.', 'Defaults to your own list, with a picker to see anyone else\u2019s or everyone\u2019s. Each line shows the money involved and has a button that takes you straight to it (for a quote it opens the quote, with the email box ready).', 'A tick hides a line for the rest of the day on that device. Invoices more than 3 months overdue are grouped into one line, as there are too many to be useful one by one.', 'Still to do: more one-press actions on each line, and phone alerts (a separate upgrade).'],
+    watch: 'The ranking is a simple points system explained at the bottom of the tab. If something important is missing or something unimportant is at the top, tell Oliver what you expected to see.'
+  },
+  {
     v: 'v56', date: '2026-11-03', status: 'live', pr: 52, timeTaken: '3 h', areas: ['Quotes', 'Database'],
     title: 'Reason for closing a quote',
     summary: 'Removing a quote now asks why (converted on another quote, customer bought elsewhere, budget or other), and lost or expired quotes can be given a reason too. The Lost tab has a new report of why quotes are being lost. This was Daniel\u2019s suggestion.',
@@ -412,6 +419,16 @@ window.ATAM_UPDATES = [
 ];
 
 window.ATAM_PLANNED = [
+  { title: 'Phone app with alerts', areas: ['Site'], detail: 'ATAM GO already installs on a phone like an app. Add alerts such as customer replied to a quote, an order is late, or your chase list is ready.' },
+  { title: 'Quote win-chance score', areas: ['Quotes'], detail: 'Every open quote gets a likelihood to win, worked out from our own history and the new closing reasons.' },
+  { title: 'Sales forecast', areas: ['Quotes', 'Overview'], detail: 'Expected sales from open quotes over the next 30 days, weighted by win chance.' },
+  { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
+  { title: 'Product suggestions for each customer', areas: ['Customers', 'Quotes'], detail: 'On the customer panel: what a customer buys, what similar customers buy that they do not.' },
+  { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
+  { title: 'Cash forecast and invoice chasing drafts', areas: ['Invoices'], detail: 'An 8 week view of money owed and supplier orders due, with chasing emails drafted for a person to send. Nothing is sent or posted automatically.' },
+  { title: 'Suggested supplier orders', areas: ['Stock'], detail: 'A draft reorder list from stock levels and open orders, for Steph to approve. Nothing is ordered automatically.' },
+  { title: 'Sales targets and a team board', areas: ['Quotes'], detail: 'Targets per person, progress, a leaderboard and a wall-screen mode for the office.' },
+  { title: 'Monday morning report for Daniel', areas: ['Overview'], detail: 'An automatic one-page summary emailed every Monday: last week against the week before, the pipeline, orders at risk and money owed.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
   { title: 'Guided steps for Quotes and New customers', areas: ['Quotes', 'New customers'], detail: 'The same "Your move" help that Win-back now has, with wording agreed with Daniel and Steph.' },
