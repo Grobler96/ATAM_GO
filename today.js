@@ -3,6 +3,7 @@
 //   Quotes            quotes_board, with the same stage rules as the Quotes tab (window.ATAM_QT.enrich): customer replied and waiting, email
 //                     with no reply after 3 days, back from parking, needs chasing / going cold.
 //   Win-back, New customers   calendar_actions: chase dates that have arrived or passed, and emails with no reply.
+//   Reminders         contact_reminders through reminders.js: reminders people set on the Calendar that are due today or late (Mark done ticks them off).
 //   Orders and money  today_work (sql/today_work_2026-11-03.sql): open orders that are late, and overdue Xero invoices.
 // Ranking is a plain points score (shown in the "How this is ranked" note): what needs a person soonest, then how much money is involved.
 // Adds its own nav button (first in the menu) and page, like quotes.js / calendar.js.
@@ -19,7 +20,8 @@
     winback:      { label: 'Win-back', icon: '📞' },
     newcustomers: { label: 'New customers', icon: '🌱' },
     orders:       { label: 'Orders', icon: '📦' },
-    money:        { label: 'Money owed', icon: '💷' }
+    money:        { label: 'Money owed', icon: '💷' },
+    reminders:    { label: 'Reminders', icon: '🔔' }
   };
   const state = { owner: '', group: '', showAll: false, items: [], me: '', team: [], loaded: false, loading: false, error: null, timer: null, done: new Set(), showDone: false };
 
@@ -96,6 +98,21 @@
     return out;
   }
 
+  // Reminders people set themselves (reminders.js, the Calendar tab): due today or late. Shown with a Mark done button that ticks them off for good
+  // (a repeating one moves to its next date), unlike the tick on the right, which only hides the row on this device until tomorrow.
+  function reminderItems(today) {
+    const R = window.ATAM_REM, out = [];
+    if (!R || !R.state.loaded) return out;
+    R.state.items.forEach(r => {
+      if (r.date > today) return;
+      const lateDays = Math.round((fromYmd(today) - fromYmd(r.date)) / DAY);
+      out.push({ key: 'rem:' + r.id + ':' + r.date, group: 'reminders', icon: R.KINDS[r.kind] ? R.KINDS[r.kind].icon : '🔔', color: '#14b8a6', owner: r.owner || 'Unassigned', label: r.account,
+        sub: r.time ? 'at ' + r.time : '', why: R.describe(Object.assign({}, r, { time: '' })) + ' · ' + (lateDays ? plural(lateDays, 'day') + ' late' : 'due today') + '.',
+        value: 0, score: 82 + Math.min(lateDays, 20) * 2, action: { type: 'reminder', id: r.id }, cta: 'Mark done' });
+    });
+    return out;
+  }
+
   function workItems(rows) {
     const out = [];
     const old = new Map();   // invoices more than 90 days overdue are rolled up per person: too many to be useful one by one
@@ -122,7 +139,8 @@
       const jobs = [
         QT && QT.enrich ? pageAll(() => client().from('quotes_board').select('*').order('order_id', { ascending: false })).then(r => quoteItems(r, now)) : Promise.resolve([]),
         pageAll(() => client().from('calendar_actions').select('*').order('item_date')).then(r => calendarItems(r, today)),
-        pageAll(() => client().from('today_work').select('*').order('ref_id')).then(workItems)
+        pageAll(() => client().from('today_work').select('*').order('ref_id')).then(workItems),
+        window.ATAM_REM ? window.ATAM_REM.load(true).then(() => reminderItems(today)) : Promise.resolve([])
       ];
       const parts = await Promise.allSettled(jobs);
       const failed = parts.filter(p => p.status === 'rejected');
@@ -204,13 +222,18 @@
       ${list.length ? `<ol class="td-list">${list.map((i, k) => rowHtml(i, k + 1, !state.owner)).join('')}</ol>` : '<div class="td-empty">Nothing here. 🎉</div>'}
       ${shown.length > SHOW_FIRST ? `<button type="button" class="td-btn td-more" data-more="1">${state.showAll ? 'Show fewer' : 'Show all ' + shown.length}</button>` : ''}
       ${doneN ? `<div class="td-donebox"><button type="button" class="td-btn" data-showdone="1">${state.showDone ? 'Hide' : 'Show'} ticked off (${doneN})</button>${state.showDone ? `<ol class="td-list">${all.filter(i => state.done.has(i.key)).map((i, k) => rowHtml(i, k + 1, !state.owner)).join('')}</ol>` : ''}</div>` : ''}
-      <details class="td-how"><summary>How this is ranked</summary><p>Each item gets points. Biggest first: a customer who has replied and is waiting (100), a Win-back chase date that has arrived (80), a quote back from parking (85), a new customer follow-up (75), a quote email with no reply after 3 days (70), a late order (60 and up), a quote that has gone quiet (45 and up, more the longer it is quiet), an overdue invoice (50 and up). Money adds extra points so bigger quotes and invoices rise. Invoices more than 3 months overdue are grouped into one line. Ticking something off hides it on this device until tomorrow; it does not change anything in ATAM GO.</p></details>`;
+      <details class="td-how"><summary>How this is ranked</summary><p>Each item gets points. Biggest first: a customer who has replied and is waiting (100), a Win-back chase date that has arrived (80), a quote back from parking (85), a new customer follow-up (75), a quote email with no reply after 3 days (70), a late order (60 and up), a quote that has gone quiet (45 and up, more the longer it is quiet), an overdue invoice (50 and up). A reminder someone set for today or earlier scores 82 and up, because a person chose that date. Mark done on a reminder ticks it off for good (a repeating one moves to its next date). Money adds extra points so bigger quotes and invoices rise. Invoices more than 3 months overdue are grouped into one line. Ticking something off hides it on this device until tomorrow; it does not change anything in ATAM GO.</p></details>`;
   }
 
   function go(key) {
     const i = state.items.find(x => x.key === key);
     if (!i || !i.action) return;
     const a = i.action;
+    if (a.type === 'reminder') {
+      const R = window.ATAM_REM; if (!R) return;
+      R.complete(a.id).then(res => { if (res && res.ok) load(true); else if (res && res.error) window.alert(res.error); });
+      return;
+    }
     if (a.type === 'quote') {
       if (window.ATAM_QT && window.ATAM_QT.openQuote) window.ATAM_QT.openQuote(a.id, i.cta === 'Email' || i.cta === 'Chase again' || i.cta === 'Reply');
       return;
