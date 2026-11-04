@@ -64,16 +64,32 @@
     tab: 'pipeline', period: '90', rep: '', store: '', q: '',
     sort: { key: 'idle', dir: -1 },
     chart: null, timer: null, openId: null, senders: null, composeOpen: false, animate: true, updatedAt: null,
-    removed: [], showRemoved: false, removing: false, reigniting: false, parked: [], parking: false, reasons: [], reasonBusy: false
+    removed: [], showRemoved: false, removing: false, status: '', stageBusy: false, reigniting: false, parked: [], parking: false, reasons: [], reasonBusy: false
   };
 
   // Why a quote was closed. "Needs more time" is not stored as a reason: it sends the person to Park instead. Database: sql/quote_close_reasons_2026-11-03.sql.
   const REASONS = [
     { code: 'converted_other', label: 'Converted on another quote', icon: '🔁' },
     { code: 'bought_elsewhere', label: 'Customer bought elsewhere', icon: '🛒' },
+    { code: 'price', label: 'Price too high', icon: '🏷️' },
     { code: 'budget', label: 'Budget', icon: '💷' },
+    { code: 'project_cancelled', label: 'Project cancelled or no longer needed', icon: '🚫' },
+    { code: 'lead_time', label: 'Lead time too long', icon: '⏱️' },
+    { code: 'went_quiet', label: 'Customer went quiet', icon: '🔇' },
     { code: 'other', label: 'Other', icon: '✏️' }
   ];
+  // What is happening with an open quote (one choice per quote, optional note). Database: sql/quote_stage_status_reasons_2026-11-04.sql.
+  const DEAL_STATUS = [
+    { code: 'deciding', label: 'Waiting on customer to decide', icon: '⏳' },
+    { code: 'revising', label: 'Customer asked for changes (revising)', icon: '✏️' },
+    { code: 'artwork', label: 'Waiting on artwork or logo', icon: '🎨' },
+    { code: 'budget_approval', label: 'Waiting on budget approval', icon: '💷' },
+    { code: 'sample', label: 'Waiting on a sample', icon: '👕' },
+    { code: 'comparing', label: 'Comparing prices', icon: '⚖️' },
+    { code: 'on_hold', label: 'Customer put it on hold', icon: '⏸️' },
+    { code: 'ready_to_order', label: 'Ready to order', icon: '🟢' }
+  ];
+  const statusInfo = code => DEAL_STATUS.find(x => x.code === code) || null;
   const reasonLabel = code => (REASONS.find(x => x.code === code) || {}).label || '';
 
   // remember the last tab / period / salesperson / store on this device
@@ -147,6 +163,15 @@
     else if (idle >= COLD_DAYS) stage = 'cold';
     else if (idle >= FRESH_DAYS) stage = 'chase';
     else stage = 'fresh';
+    // A stage picked by hand holds until something new happens on the quote (customer reply, our email or chase, an edit in DecoNetwork,
+    // re-ignite, back from parking): then the automatic stage takes over again. Approved and cancelled quotes are never moved.
+    const autoStage = stage;
+    const handAt = toDate(r.stage_override_at);
+    let handStage = null, manualLost = false;
+    if (r.stage_override && handAt && !approved && status !== 4 && handAt >= lastTouch) {
+      handStage = r.stage_override; stage = handStage;
+      if (handStage === 'lost') { manualLost = true; closedAt = handAt; lostReason = 'Marked lost by hand'; }
+    }
     // the customer wrote last and nobody has answered yet
     const awaitingUs = !approved && stage !== 'lost' && !!lastFrom && (!lastTo || lastFrom > lastTo) && (!lastChase || lastFrom > lastChase);
     const toClose = approved ? (approved - created) : null;
@@ -155,7 +180,7 @@
     const emailReplied = !!emailSentAt && (!!emailRepliedAt || (!!lastFrom && lastFrom > emailSentAt));
     const open = !approved && stage !== 'lost';
     // Expired = went quiet for 30 days (not cancelled, not approved). These are the ones a customer can come back to.
-    const expired = stage === 'lost' && status !== 4 && !approved;
+    const expired = stage === 'lost' && status !== 4 && !approved && !manualLost;
     const customerLastWord = !!lastFrom && (!lastTo || lastFrom > lastTo);
     const emailWaiting = open && !!emailSentAt && !emailReplied;
     const emailDue = emailWaiting && !!emailDueAt && now >= emailDueAt;
@@ -168,6 +193,8 @@
       created, approved, modified, dueDate: toDate(r.date_due), shippedAt: toDate(r.date_shipped),
       lastTo, lastFrom, toCount: num(r.to_customer_count), fromCount: num(r.from_customer_count), notes: num(r.notes_count),
       lastTouch, idle, status, stage, closedAt, lostReason, awaitingUs, expired, customerLastWord,
+      autoStage, handStage, handAt, handBy: r.stage_override_by || '', manualLost,
+      dealStatus: r.deal_status || '', dealStatusNote: r.deal_status_note || '', dealStatusAt: toDate(r.deal_status_at), dealStatusBy: r.deal_status_by || '',
       revivedAt, revivedBy: r.revived_by || '', revivedTimes: num(r.revived_times),
       parkReturnAt, parkReason: r.park_reason || '', parkedBy: r.parked_by || '',
       chases: num(r.chase_count), lastChaseAt: lastChase, lastChaseBy: r.last_chase_by, lastChaseNote: r.last_chase_note,
@@ -203,7 +230,7 @@
       } catch (e) { /* the chance is simply not shown */ }
       state.rows.forEach(r => { const c = chances.get(r.id); r.winPct = c ? Number(c.win_pct) : null; r.winBasis = c ? Number(c.basis_n) : 0; r.winAge = c ? Number(c.age_days) : null; });
       const byReason = new Map(state.reasons.map(x => [String(x.order_id), x]));
-      state.rows.forEach(r => { const x = byReason.get(r.id); r.closeReason = x ? { code: x.code, note: x.note || '', by: x.set_by || '', at: toDate(x.set_at) } : null; });
+      state.rows.forEach(r => { const x = byReason.get(r.id); r.closeReason = x ? { code: x.code, note: x.note || '', by: x.set_by || '', at: toDate(x.set_at), linkedId: x.linked_order_id ? String(x.linked_order_id) : '', linkedDeco: x.linked_deco_id || '', linkedValue: num(x.linked_value), linkedApproved: !!x.linked_approved_at } : null; });
       state.loaded = true; state.error = null; state.updatedAt = new Date();
       if (state.rep && !state.rows.some(r => (r.rep || '__none') === state.rep)) state.rep = '';
       if (state.store && !state.rows.some(r => r.store === state.store)) state.store = '';
@@ -228,7 +255,7 @@
       && (!state.q || [p.customer_name, p.order_id, p.assigned_to, p.job_name, p.contact_name, p.store_name, p.parked_by, p.reason].join(' ').toLowerCase().includes(state.q)));
   }
   function visible() {
-    return state.rows.filter(r => (!state.rep || (r.rep || '__none') === state.rep) && (!state.store || r.store === state.store) && (!state.q || r.search.includes(state.q)));
+    return state.rows.filter(r => (!state.rep || (r.rep || '__none') === state.rep) && (!state.store || r.store === state.store) && (!state.status || r.dealStatus === state.status) && (!state.q || r.search.includes(state.q)));
   }
 
   function statsFor(rows) {
@@ -386,6 +413,64 @@
     return `<div class="qt-timer" title="Emailed ${esc(fmtDateTime(r.emailSentAt))} from ${esc(r.emailSender)}">✉️ Chase #${r.emailNo} emailed. Waiting for a reply: ${esc(leftText(left))} left</div>`;
   }
 
+  // ----- stage and status dropdowns (cards and drawer) -----
+  function stageSelectHtml(r) {
+    const cur = r.handStage || 'auto';
+    const autoLabel = STAGES[r.autoStage] ? STAGES[r.autoStage].label : '';
+    return `<select class="qt-sel" data-stage-sel="${esc(r.id)}" aria-label="Move to another stage" title="Move this quote to another stage by hand. It goes back to automatic when something new happens on the quote.">
+      <option value="auto"${cur === 'auto' ? ' selected' : ''}>${r.handStage ? '↺ Back to automatic (' + esc(autoLabel) + ')' : 'Stage: ' + esc(STAGES[r.stage].label) + ' (automatic)'}</option>
+      ${['fresh', 'chase', 'cold'].map(k => `<option value="${k}"${cur === k ? ' selected' : ''}>${STAGES[k].icon} ${esc(STAGES[k].label)}</option>`).join('')}
+      <option value="lost"${cur === 'lost' ? ' selected' : ''}>✖ Lost… (say why)</option></select>`;
+  }
+  function statusSelectHtml(r) {
+    return `<select class="qt-sel qt-sel-status${r.dealStatus ? ' set' : ''}" data-status-sel="${esc(r.id)}" aria-label="What is happening with this quote" title="${esc(r.dealStatus && r.dealStatusNote ? r.dealStatusNote : 'What is happening with this quote?')}">
+      <option value="">What is happening?</option>
+      ${DEAL_STATUS.map(o => `<option value="${o.code}"${r.dealStatus === o.code ? ' selected' : ''}>${o.icon} ${esc(o.label)}</option>`).join('')}</select>`;
+  }
+  async function moveStage(id, val) {
+    if (state.stageBusy) return;
+    if (val === 'lost') { openReasonDialog(id, 'lost'); return; }
+    state.stageBusy = true;
+    try {
+      const { error } = val === 'auto' ? await client().rpc('clear_quote_stage', { p_order_id: id }) : await client().rpc('set_quote_stage', { p_order_id: id, p_stage: val });
+      if (error) throw error;
+      toast(val === 'auto' ? 'Back to automatic.' : 'Moved to ' + STAGES[val].label + '. It stays there until something new happens on the quote.');
+      await afterChange(id);
+    } catch (e) {
+      console.error('move stage failed', e);
+      toast('Couldn\'t move it: ' + ((e && e.message) || 'unknown error'), true);
+      renderAll();
+    }
+    state.stageBusy = false;
+  }
+  async function saveStatus(id, code, note) {
+    if (state.stageBusy) return;
+    state.stageBusy = true;
+    try {
+      const { error } = await client().rpc('set_quote_status', { p_order_id: id, p_code: code || '', p_note: note || null });
+      if (error) throw error;
+      toast(code ? 'Status saved.' : 'Status cleared.');
+      await afterChange(id);
+    } catch (e) {
+      console.error('save status failed', e);
+      toast('Couldn\'t save the status: ' + ((e && e.message) || 'unknown error'), true);
+      renderAll();
+    }
+    state.stageBusy = false;
+  }
+  async function afterChange(id) {
+    await load(true);
+    if (state.openId === id) openDrawer(id);
+  }
+  // counts of what is happening across the open quotes in view, clickable to filter the board
+  function statusStripHtml(rows) {
+    const open = rows.filter(r => ['fresh', 'chase', 'cold'].includes(r.stage));
+    const by = new Map();
+    open.forEach(r => { if (r.dealStatus) { const o = by.get(r.dealStatus) || { n: 0, v: 0 }; o.n++; o.v += r.value; by.set(r.dealStatus, o); } });
+    if (!by.size && !state.status) return '';
+    return `<div class="qt-status-strip" role="group" aria-label="What is happening with the open quotes"><span class="qt-dim">What is happening:</span>${DEAL_STATUS.filter(o => by.has(o.code) || state.status === o.code).map(o => { const c = by.get(o.code) || { n: 0, v: 0 }; return `<button type="button" class="qt-chip-btn${state.status === o.code ? ' on' : ''}" data-status-filter="${o.code}">${o.icon} ${esc(o.label)} <b>${c.n}</b><small>${esc(gbp(c.v))}</small></button>`; }).join('')}${state.status ? '<button type="button" class="qt-chip-btn" data-status-filter="">Show all</button>' : ''}</div>`;
+  }
+
   // ----- pipeline board -----
   function cardHtml(r, i) {
     const open = ['fresh', 'chase', 'cold'].includes(r.stage);
@@ -400,6 +485,9 @@
     else if (r.stage === 'won') foot = `<div class="qt-card-foot"><span>Approved ${esc(fmtDate(r.approved))}</span><span>${r.daysToClose != null ? (r.instant ? 'same hour' : r.daysToClose < 1 ? 'same day' : Math.round(r.daysToClose) + 'd to close') : ''}</span></div>`;
     else foot = `<div class="qt-card-foot"><span>${esc(r.lostReason || 'Lost')}</span><span>${esc(fmtDate(r.closedAt))}</span></div>`;
     const parkable = !r.approved && r.status !== 4;
+    const canMove = !r.approved && r.status !== 4 && (open || r.manualLost);
+    const handTag = r.handStage ? `<div class="qt-hand-tag" title="${esc('Moved by ' + (r.handBy || 'someone') + ' on ' + fmtDate(r.handAt) + '. It goes back to automatic when the customer replies, we email them or the quote is edited.')}">✋ Moved by hand${r.handBy ? ' · ' + esc(r.handBy.split(' ')[0]) : ''}</div>` : '';
+    const ctlRow = canMove ? `<div class="qt-ctl-row">${stageSelectHtml(r)}${open ? statusSelectHtml(r) : ''}</div>` : '';
     const lostRow = r.stage === 'lost';
     const reasonTag = lostRow ? (r.closeReason
       ? `<button type="button" class="qt-reason-tag" data-reason="${esc(r.id)}" title="${esc((r.closeReason.note ? r.closeReason.note + ' · ' : '') + 'Click to change')}">${esc(reasonLabel(r.closeReason.code))}</button>`
@@ -410,6 +498,7 @@
       ${r.job ? `<div class="qt-card-job">${esc(r.job)}</div>` : ''}
       <div class="qt-card-mid">${avatar(r.rep)}<span class="qt-card-rep">${esc(repName(r.rep))}</span><span class="qt-card-id">#${esc(r.id)}</span>${winChip(r)}</div>
       ${r.awaitingUs ? '<div class="qt-reply">💬 Customer replied, waiting on you</div>' : ''}
+      ${handTag}${ctlRow}
       ${backFromParking(r) ? `<div class="qt-revived-tag" title="${esc(r.parkReason || 'Came back from parking')}">💤 Back from parking${r.parkReason ? ': ' + esc(r.parkReason.length > 40 ? r.parkReason.slice(0, 40) + '…' : r.parkReason) : ''}</div>` : ''}
       ${r.revivedAt && open ? `<div class="qt-revived-tag" title="Re-ignited from Expired">🔥 Re-ignited ${esc(fmtDate(r.revivedAt))}${r.revivedBy ? ' by ' + esc(r.revivedBy) : ''}</div>` : ''}
       ${foot}${reasonTag}${removeBtn}</article>`;
@@ -437,6 +526,7 @@
       return { k, items, total: items.reduce((s, r) => s + r.value, 0) };
     });
 
+    const statusStrip = statusStripHtml(rows);
     // where the open money is sitting
     const openCols = cols.slice(0, 3);
     const openTotal = openCols.reduce((s, c) => s + c.total, 0);
@@ -454,7 +544,7 @@
         <div class="qt-first-meta">${avatar(r.rep)}<span>${esc(repName(r.rep))}</span><b>${esc(quiet(r.idle))} quiet</b></div>
         <button type="button" class="qt-quick" data-quick="${esc(r.id)}">📞 Mark chased</button></article>`).join('')}</div></section>` : '';
 
-    return first + funnel + `<div class="qt-board">${cols.map(c => {
+    return first + funnel + statusStrip + `<div class="qt-board">${cols.map(c => {
       const st = STAGES[c.k];
       return `<section class="qt-col" style="--c:${st.color}">
         <header class="qt-col-h"><div><span class="qt-col-t">${st.icon} ${esc(st.label)}</span><span class="qt-col-n">${c.items.length}</span></div>
@@ -659,10 +749,10 @@
     if (!r || state.removing) return;
     openReasonDialog(id, 'remove');
   }
-  async function doRemove(id, code, note) {
+  async function doRemove(id, code, note, link) {
     state.removing = true;
     try {
-      const sr = await client().rpc('set_quote_close_reason', { p_order_id: id, p_code: code, p_note: note || null });
+      const sr = await client().rpc('set_quote_close_reason', { p_order_id: id, p_code: code, p_note: note || null, p_linked: link || null });
       if (sr.error) throw sr.error;
       const { error } = await client().rpc('remove_quote', { p_order_id: id, p_reason: reasonLabel(code) + (note ? ': ' + note : '') });
       if (error) throw error;
@@ -680,9 +770,9 @@
     state.removing = false;
     return true;
   }
-  async function saveReason(id, code, note) {
+  async function saveReason(id, code, note, link) {
     try {
-      const { error } = await client().rpc('set_quote_close_reason', { p_order_id: id, p_code: code, p_note: note || null });
+      const { error } = await client().rpc('set_quote_close_reason', { p_order_id: id, p_code: code, p_note: note || null, p_linked: link || null });
       if (error) throw error;
       toast('Reason saved.');
       await load(true);
@@ -691,6 +781,23 @@
     } catch (e) {
       console.error('save reason failed', e);
       toast('Couldn\'t save the reason: ' + ((e && e.message) || 'unknown error'), true);
+      return false;
+    }
+  }
+  // Move to Lost by hand with the reason in one go: the stage is set first, then the reason. It stays Lost until something new happens on the quote.
+  async function doLost(id, code, note, link) {
+    try {
+      const a = await client().rpc('set_quote_stage', { p_order_id: id, p_stage: 'lost' });
+      if (a.error) throw a.error;
+      const b = await client().rpc('set_quote_close_reason', { p_order_id: id, p_code: code, p_note: note || null, p_linked: link || null });
+      if (b.error) throw b.error;
+      toast('Marked as lost. It is in the Lost tab.');
+      await load(true);
+      if (state.openId === id) openDrawer(id);
+      return true;
+    } catch (e) {
+      console.error('mark lost failed', e);
+      toast('Couldn\'t mark it lost: ' + ((e && e.message) || 'unknown error'), true);
       return false;
     }
   }
@@ -726,11 +833,12 @@
     const m = document.createElement('div');
     m.id = 'qtReasonModal'; m.className = 'qt-modal';
     m.innerHTML = `<div class="qt-modal-box" role="dialog" aria-modal="true" aria-labelledby="qtRsnTitle">
-      <h3 id="qtRsnTitle">${mode === 'remove' ? 'Remove this quote' : 'Why was this quote lost?'}</h3>
+      <h3 id="qtRsnTitle">${mode === 'remove' ? 'Remove this quote' : mode === 'lost' ? 'Mark this quote as lost' : 'Why was this quote lost?'}</h3>
       <p class="qt-dim">${esc(r.customer)}${r.job ? ' · ' + esc(r.job) : ''} · #${esc(r.id)} · ${gbp(r.value)}</p>
       ${mode === 'remove' ? '<p class="qt-dim">It will disappear from the board, the counts and DAN. It is not deleted from DecoNetwork, and you can bring it back from "Removed quotes" at the bottom of this page.</p>' : ''}
       <form id="qtRsnForm"><div class="qt-rsn-list">${opts}</div>
         <label class="qt-rsn-note">Note <span class="qt-dim" id="qtRsnNoteHint">(optional)</span><input type="text" id="qtRsnNote" maxlength="300" value="${esc(cur ? cur.note : '')}" placeholder="A few words, if useful"></label>
+        <label class="qt-rsn-note" id="qtRsnLinkRow" hidden>The new quote number <span class="qt-dim">(optional, but it lets us track requotes)</span><input type="text" id="qtRsnLink" maxlength="30" value="${esc(cur && cur.linkedId ? cur.linkedId : '')}" placeholder="e.g. 636733"></label>
         <div class="qt-rsn-err" id="qtRsnErr" role="alert" hidden></div>
         <div class="qt-rsn-btns">${cur && mode === 'set' ? '<button type="button" class="qt-btn" id="qtRsnClear">Clear reason</button>' : ''}<span style="flex:1"></span><button type="button" class="qt-btn" id="qtRsnCancel">Cancel</button><button type="submit" class="qt-btn ${mode === 'remove' ? 'qt-danger' : 'qt-primary'}" id="qtRsnGo">${mode === 'remove' ? '🗑 Remove quote' : 'Save reason'}</button></div>
       </form></div>`;
@@ -741,7 +849,8 @@
     const sync = () => {
       const v = picked();
       $('qtRsnNoteHint').textContent = v === 'other' ? '(required for Other)' : '(optional)';
-      go.textContent = v === 'wait' ? '💤 Choose a date to bring it back' : (mode === 'remove' ? '🗑 Remove quote' : 'Save reason');
+      $('qtRsnLinkRow').hidden = v !== 'converted_other';
+      go.textContent = v === 'wait' ? '💤 Choose a date to bring it back' : (mode === 'remove' ? '🗑 Remove quote' : mode === 'lost' ? '✖ Mark as lost' : 'Save reason');
       go.className = 'qt-btn ' + (v === 'wait' ? 'qt-primary' : mode === 'remove' ? 'qt-danger' : 'qt-primary');
       err.hidden = true;
     };
@@ -763,7 +872,8 @@
       }
       if (v === 'other' && txt.length < 3) { err.textContent = 'Please add a few words for "Other".'; err.hidden = false; note.focus(); return; }
       go.disabled = true;
-      const ok = mode === 'remove' ? await doRemove(id, v, txt) : await saveReason(id, v, txt);
+      const link = v === 'converted_other' ? ($('qtRsnLink').value || '').trim() : '';
+      const ok = mode === 'remove' ? await doRemove(id, v, txt, link) : mode === 'lost' ? await doLost(id, v, txt, link) : await saveReason(id, v, txt, link);
       if (ok) closeReasonDialog(); else go.disabled = false;
     });
     const first = form.querySelector('input[name="qtRsn"]:checked') || form.querySelector('input[name="qtRsn"]');
@@ -793,7 +903,10 @@
     });
     const all = items.length, given = all - tot.get('').n;
     const reps = Array.from(byRep.keys()).sort((a, b) => Array.from(byRep.get(b).values()).reduce((x, y) => x + y, 0) - Array.from(byRep.get(a).values()).reduce((x, y) => x + y, 0));
-    return `<section class="qt-rsn-report"><h4>Why quotes are being lost <span class="qt-dim">${given} of ${all} have a reason</span></h4>
+    const rq = (state.reasons || []).filter(x => x.code === 'converted_other' && inPeriod(toDate(x.set_at)) && (!state.rep || (x.assigned_to || '__none') === state.rep));
+    const rqLinked = rq.filter(x => x.linked_order_id);
+    const requoteLine = rq.length ? `<p class="qt-dim">🔁 ${plural(rq.length, 'quote')} in this period ${rq.length === 1 ? 'was' : 'were'} replaced by a new quote${rqLinked.length ? `. For ${rqLinked.length} we know the new quote: together worth ${esc(gbp(rqLinked.reduce((t, x) => t + (Number(x.linked_value) || 0), 0)))}, ${rqLinked.filter(x => x.linked_approved_at).length} already approved` : ''}.</p>` : '';
+    return `<section class="qt-rsn-report"><h4>Why quotes are being lost <span class="qt-dim">${given} of ${all} have a reason</span></h4>${requoteLine}
       <div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Reason</th><th class="r">Quotes</th><th class="r">Value</th><th class="r">Share</th></tr></thead><tbody>${cols.map(c => { const t = tot.get(c); return `<tr${c ? '' : ' class="qt-dim"'}><td>${esc(label(c))}</td><td class="r">${t.n}</td><td class="r">${gbp(t.v)}</td><td class="r">${all ? Math.round(t.n / all * 100) : 0}%</td></tr>`; }).join('')}</tbody></table></div>
       <div class="qt-tablewrap"><table class="qt-table"><thead><tr><th>Salesperson</th>${cols.map(c => `<th class="r">${esc(label(c))}</th>`).join('')}</tr></thead><tbody>${reps.map(k => `<tr><td>${esc(k === '__none' ? 'Unassigned' : repName(k))}</td>${cols.map(c => `<td class="r">${byRep.get(k).get(c) || '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`;
   }
@@ -998,6 +1111,16 @@
     if ($('qtChaseNote') && form.n) $('qtChaseNote').value = form.n;
   }
 
+  function handBoxHtml(r) {
+    const open = ['fresh', 'chase', 'cold'].includes(r.stage);
+    return `<section class="qt-hand-box"><h4>Stage and what is happening</h4>
+      <div class="qt-hand-row"><label>Stage</label>${stageSelectHtml(r)}</div>
+      <p class="qt-dim qt-hand-help">${r.handStage ? '✋ Moved by hand' + (r.handBy ? ' by ' + esc(r.handBy) : '') + ' on ' + esc(fmtDate(r.handAt)) + '. It goes back to automatic when the customer replies, we email them or the quote is edited.' : 'The stage works itself out from how long the quote has been quiet. Pick another to move it by hand: it holds until something new happens on the quote. Converted only happens when the customer approves it in DecoNetwork.'}</p>
+      ${open ? `<div class="qt-hand-row"><label>Happening</label>${statusSelectHtml(r)}</div>
+      <div class="qt-hand-row"><label>Note</label><input type="text" id="qtStNote" maxlength="200" value="${esc(r.dealStatusNote)}" placeholder="Optional, e.g. adding 10 hoodies, back to us Friday"><button type="button" class="qt-btn" data-act="save-status" data-for="${esc(r.id)}">Save status</button></div>
+      ${r.dealStatus ? `<p class="qt-dim qt-hand-help">Set${r.dealStatusBy ? ' by ' + esc(r.dealStatusBy) : ''}${r.dealStatusAt ? ' on ' + esc(fmtDate(r.dealStatusAt)) : ''}.</p>` : ''}` : ''}</section>`;
+  }
+
   function drawerHtml(r, timelineHtml) {
     const st = STAGES[r.stage];
     const open = ['fresh', 'chase', 'cold'].includes(r.stage);
@@ -1034,7 +1157,8 @@
         ${fact('Customer replies', String(r.fromCount))}
         ${fact('Chases logged', String(r.chases))}
       </div>
-      ${r.stage === 'lost' ? `<div class="qt-why-box"><b>Why was it lost?</b> ${r.closeReason ? `${esc(reasonLabel(r.closeReason.code))}${r.closeReason.note ? ': ' + esc(r.closeReason.note) : ''} <span class="qt-dim">(${esc(r.closeReason.by || '')}${r.closeReason.at ? ', ' + esc(fmtDate(r.closeReason.at)) : ''})</span>` : '<span class="qt-dim">No reason given yet.</span>'} <button type="button" class="qt-btn" data-reason="${esc(r.id)}">${r.closeReason ? 'Change' : 'Add a reason'}</button></div>` : ''}
+      ${r.stage === 'lost' ? `<div class="qt-why-box"><b>Why was it lost?</b> ${r.closeReason ? `${esc(reasonLabel(r.closeReason.code))}${r.closeReason.note ? ': ' + esc(r.closeReason.note) : ''}${r.closeReason.linkedId ? ` · replaced by quote <button type="button" class="qt-linkbtn" data-hist-open="${esc(r.closeReason.linkedId)}" title="Open the new quote">#${esc(r.closeReason.linkedId)}</button> (${esc(gbp(r.closeReason.linkedValue))}${r.closeReason.linkedApproved ? ', approved ✅' : ', not approved yet'})` : ''} <span class="qt-dim">(${esc(r.closeReason.by || '')}${r.closeReason.at ? ', ' + esc(fmtDate(r.closeReason.at)) : ''})</span>` : '<span class="qt-dim">No reason given yet.</span>'} <button type="button" class="qt-btn" data-reason="${esc(r.id)}">${r.closeReason ? 'Change' : 'Add a reason'}</button></div>` : ''}
+      ${!r.approved && r.status !== 4 && (open || r.manualLost) ? handBoxHtml(r) : ''}
       ${(open || r.expired) ? parkFormHtml(r) : ''}
       ${r.approved ? '' : `<div class="qt-remove-row lg"><button type="button" class="qt-btn qt-danger" data-remove="${esc(r.id)}">🗑 Remove this quote from the list</button><span class="qt-dim">For old quotes that are never going to happen. You can bring it back later.</span></div>`}
       ${open || r.expired ? `<div class="qt-email-wrap">${emailTimerHtml(r)}<button type="button" class="qt-btn ${r.expired ? '' : 'qt-primary '}qt-mailbtn" data-act="compose" data-for="${esc(r.id)}">✉️ ${r.expired ? 'Email the customer about this expired quote' : r.emailNo ? 'Email chase #' + (r.emailNo + 1) : 'Email the customer'}</button><div id="qtCompose"></div></div>` : ''}
@@ -1799,6 +1923,21 @@ body.qt-lock { overflow:hidden; }
 .qt-rsn-opt:hover { border-color:#38bdf8; }
 .qt-rsn-opt.wait { border-style:dashed; }
 .qt-rsn-opt em { color:#94a3b8; font-style:normal; font-size:12px; }
+.qt-rsn-note[hidden] { display:none; }
+.qt-ctl-row { display:grid; gap:6px; margin-top:8px; }
+.qt-sel { width:100%; box-sizing:border-box; padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#0f172a; color:#e2e8f0; font-size:12.5px; cursor:pointer; }
+.qt-sel:hover { border-color:#38bdf8; } .qt-sel-status.set { border-color:rgba(34,197,94,.5); color:#bbf7d0; }
+.qt-hand-tag { margin-top:6px; padding:3px 8px; border-radius:6px; background:rgba(167,139,250,.14); color:#ddd6fe; font-size:12px; }
+.qt-hand-box { margin:14px 0; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:rgba(15,23,42,.55); }
+.qt-hand-box h4 { margin:0 0 8px; font-size:14px; }
+.qt-hand-row { display:grid; grid-template-columns:84px 1fr auto; gap:8px; align-items:center; margin-bottom:8px; }
+.qt-hand-row label { font-size:12px; color:#94a3b8; } .qt-hand-row input { padding:7px 9px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#020617; color:#e2e8f0; font-size:13px; }
+.qt-hand-row .qt-sel { grid-column:2 / 4; }
+.qt-hand-help { margin:0 0 10px; font-size:12px; line-height:1.4; }
+.qt-linkbtn { background:none; border:0; padding:0; color:#7dd3fc; cursor:pointer; text-decoration:underline; font:inherit; }
+.qt-status-strip { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 14px; }
+.qt-chip-btn { display:inline-flex; gap:6px; align-items:baseline; padding:6px 11px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:transparent; color:#cbd5e1; font-size:12.5px; cursor:pointer; }
+.qt-chip-btn.on { background:rgba(56,189,248,.16); border-color:#38bdf8; color:#fff; } .qt-chip-btn small { color:#64748b; }
 .qt-rsn-note { display:grid; gap:4px; font-size:12.5px; }
 .qt-rsn-note input { padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:#020617; color:#e2e8f0; font-size:13px; }
 .qt-rsn-err { margin-top:8px; color:#fca5a5; font-size:12.5px; }
@@ -1963,6 +2102,9 @@ body.qt-lock { overflow:hidden; }
 
     // page events
     sec.addEventListener('click', e => {
+      if (e.target.closest('select.qt-sel')) { e.stopPropagation(); return; }
+      const sf = e.target.closest('[data-status-filter]');
+      if (sf) { state.status = state.status === sf.dataset.statusFilter ? '' : sf.dataset.statusFilter; renderAll(); return; }
       const fire = e.target.closest('[data-reignite]');
       if (fire) { e.stopPropagation(); reigniteQuote(fire.dataset.reignite); return; }
       const prk = e.target.closest('[data-park]');
@@ -2004,17 +2146,30 @@ body.qt-lock { overflow:hidden; }
     });
     sec.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-reason], [data-restore], [data-reignite], [data-park], [data-unpark], [data-park-move], input')) return;
+      if (e.target.closest('[data-quick], [data-email], [data-remove], [data-reason], [data-restore], [data-reignite], [data-park], [data-unpark], [data-park-move], input, select')) return;
       const item = e.target.closest('.qt-card[data-id], .qt-first-card[data-id], tr[data-id]');
       if (item) { e.preventDefault(); openDrawer(item.dataset.id); return; }
       const repCard = e.target.closest('.qt-rep-card');
       if (repCard) { e.preventDefault(); repCard.click(); }
     });
+    const onCtlChange = e => {
+      const ss = e.target.closest && e.target.closest('[data-stage-sel]');
+      if (ss) { moveStage(ss.dataset.stageSel, ss.value); return; }
+      const st = e.target.closest && e.target.closest('[data-status-sel]');
+      if (st) {
+        const note = $('qtStNote') && state.openId === st.dataset.statusSel ? $('qtStNote').value.trim() : '';
+        saveStatus(st.dataset.statusSel, st.value, st.value ? note : '');
+      }
+    };
+    sec.addEventListener('change', onCtlChange);
     $('qtRep').addEventListener('change', e => { state.rep = e.target.value; renderAll(); });
     $('qtStore').addEventListener('change', e => { state.store = e.target.value; renderAll(); });
     $('qtSearch').addEventListener('input', e => { state.q = e.target.value.trim().toLowerCase(); renderKpis(); renderControls(); renderBody(); });
 
+    drawer.addEventListener('change', onCtlChange);
     drawer.addEventListener('click', e => {
+      const sv = e.target.closest('[data-act="save-status"]');
+      if (sv) { const sel = document.querySelector('#qtSheet [data-status-sel]'); saveStatus(sv.dataset.for, sel ? sel.value : '', ($('qtStNote') || {}).value ? $('qtStNote').value.trim() : ''); return; }
       const fire = e.target.closest('[data-reignite]');
       if (fire) { reigniteQuote(fire.dataset.reignite); return; }
       const und = e.target.closest('[data-undo-reignite]');
