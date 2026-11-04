@@ -11,11 +11,11 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v66', date: '2026-11-04', status: 'partly', pr: 63, areas: ['DAN', 'Calendar'],
+    v: 'v66', date: '2026-11-04', status: 'live', pr: 63, areas: ['DAN', 'Calendar'],
     title: 'DAN can set reminders',
     summary: 'You can now ask DAN, by typing or on the phone, to set a reminder or appointment to contact someone, tick it off, or move it to another date. It does the same as the Calendar tab.',
     changes: ['For example: \u201cRemind me to ring Alloy Bodies for a catch-up on Friday\u201d or \u201cvisit Smith Builders on the 20th at 2:30, then every 3 months\u201d. DAN works out the date, reads back the customer, what, date, time and repeat, and only saves it after you say yes.', 'It is a reminder for you unless you ask for someone else, and only Daniel and Oliver can set one for another person. If anyone else asks, DAN says so and offers to set it for them instead.', 'DAN can also tick a reminder off or snooze it, and can tell you what reminders are already set.', 'On the phone, DAN only does this after the call has been verified with the passphrase, the same as its other actions.', 'It is for general reminders. Quote chases and Win-back follow-ups still have their own places.'],
-    watch: 'This only works once the new version of DAN is put on Cloudflare, which Oliver does by hand. Until then DAN will say it cannot do it. If DAN sets the wrong date, say the date back to it in full, or fix it on the Calendar tab with Edit.'
+    watch: 'If DAN says it cannot set reminders, the newest version of DAN may not be on Cloudflare (Oliver puts it there by hand; the health page should say v17). If DAN sets the wrong date, say the date back to it in full, or fix it on the Calendar tab with Edit.'
   },
   {
     v: 'v65', date: '2026-11-04', status: 'live', pr: 62, areas: ['Calendar', 'Customers', 'Overview'],
