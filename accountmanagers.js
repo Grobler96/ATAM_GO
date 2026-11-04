@@ -84,6 +84,7 @@
     state.loading = true;
     if (!silent && !state.loaded) { state.error = null; render(); }
     try {
+      if (window.ATAM_REM) window.ATAM_REM.load(true);
       const [acc, quotesRes, mapRes, histRes] = await Promise.all([
         client().rpc('get_account_managers'),
         QT() ? pageAll(() => client().from('quotes_board').select('*').order('order_id', { ascending: false })).then(r => ({ rows: r }), e => ({ error: e })) : Promise.resolve({ error: { message: 'The Quotes tab did not load' } }),
@@ -371,6 +372,20 @@
     }).join('')}<text x="0" y="${H + 12}" class="am-axis">${esc(label(0))}</text><text x="${W}" y="${H + 12}" class="am-axis" text-anchor="end">${esc(label(m.length - 1))}</text></svg>`;
   }
 
+  // Reminders for this account (set on the Calendar tab or here; reminders.js). Matched by name, including the accounts inside a group.
+  function remindersBox(a) {
+    const R = window.ATAM_REM;
+    if (!R) return '';
+    const n = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const names = [a.name].concat((a.children || []).map(c => c.name)).map(n);
+    const list = R.state.loaded ? R.state.items.filter(i => names.includes(n(i.account))) : [];
+    const d0 = new Date(), today = d0.getFullYear() + '-' + String(d0.getMonth() + 1).padStart(2, '0') + '-' + String(d0.getDate()).padStart(2, '0');
+    return `<section class="am-own"><h4>Reminders to contact them</h4>
+      ${!R.state.loaded ? '<p class="am-dim">Loading…</p>' : list.length ? list.map(i => `<div class="am-rem"><div><b>${esc(new Date(i.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }))}</b>${i.date < today ? ' <span class="am-late">late</span>' : ''} · ${esc(R.describe(i))} <span class="am-dim">(${esc(i.owner)})</span></div>
+        <span><button type="button" class="am-btn" data-rem-done="${esc(i.id)}">✓ Done</button> <button type="button" class="am-btn" data-rem-edit="${esc(i.id)}">Edit</button></span></div>`).join('') : '<p class="am-dim">No reminders set for this account.</p>'}
+      <div class="am-own-actions"><button type="button" class="am-btn pri" data-rem-add="${esc(a.name)}">+ Remind us to contact them</button></div></section>`;
+  }
+
   function drawer(P) {
     const a = state.openKey && P.byKey[state.openKey];
     if (!a) return '';
@@ -409,6 +424,8 @@
             ${state.msg && state.openKey ? `<span class="am-msg ${state.msg.type}" role="status">${esc(state.msg.text)}</span>` : ''}</div>
           ${hist.length ? `<details class="am-hist"><summary>Change history</summary>${hist.map(h => `<div>${esc(fmtDate(h.changed_at))}: ${h.manager ? 'given to <b>' + esc(h.manager) + '</b>' : 'put back to automatic'} by ${esc(h.changed_by || 'someone')}${h.note ? ' (“' + esc(h.note) + '”)' : ''}</div>`).join('')}</details>` : ''}
         </section>
+
+        ${remindersBox(a)}
 
         <div class="am-tiles small">
           <div class="am-tile"><span class="am-k">Revenue</span><b>${gbp(a.rev)}</b><span class="am-sub">${changeHtml(a.rev, a.prev)}</span></div>
@@ -618,6 +635,8 @@
 #accountmanagers .am-ext { color:#7dd3fc; margin-left:8px; }
 #accountmanagers .am-foot { margin-top:30px; color:#7d8da6; font-size:12.5px; max-width:820px; line-height:1.55; }
 #accountmanagers .am-overlay { position:fixed; inset:0; background:rgba(2,6,23,.62); z-index:1499; }
+#accountmanagers .am-rem { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; padding:8px 0; border-top:1px solid rgba(255,255,255,.08); font-size:13px; }
+#accountmanagers .am-late { color:#fb923c; font-weight:600; }
 #accountmanagers .am-drawer { position:fixed; top:0; right:0; bottom:0; width:min(620px, 100vw); z-index:1500; background:#0b1222; border-left:1px solid rgba(255,255,255,.14); display:flex; flex-direction:column; box-shadow:-18px 0 50px rgba(0,0,0,.45); }
 #accountmanagers .am-d-head { display:flex; justify-content:space-between; gap:12px; padding:18px 22px 14px; border-bottom:1px solid rgba(255,255,255,.1); }
 #accountmanagers .am-d-head h3 { margin:2px 0 6px; font-size:22px; overflow-wrap:anywhere; }
@@ -686,6 +705,7 @@
       if (other && other !== btn) { btn.classList.remove('active'); sec.classList.remove('active'); clearInterval(state.timer); state.openKey = null; }
     }, true);
 
+    window.addEventListener('atam-reminders-changed', () => { if (sec.classList.contains('active') && state.loaded && state.openKey) render(); });
     sec.addEventListener('click', e => {
       const t = e.target;
       const per = t.closest('[data-period]');
@@ -694,6 +714,12 @@
       const mg = t.closest('[data-mgr]');
       if (mg) { goManager(mg.dataset.mgr); return; }
       if (t.closest('[data-back]')) { goManager(null); return; }
+      const ra = t.closest('[data-rem-add]');
+      if (ra && window.ATAM_REM) { window.ATAM_REM.openForm({ account: ra.dataset.remAdd }); return; }
+      const rd = t.closest('[data-rem-done]');
+      if (rd && window.ATAM_REM) { rd.disabled = true; window.ATAM_REM.complete(rd.dataset.remDone).then(r => { if (r && !r.ok) { window.alert(r.error); render(); } }); return; }
+      const re = t.closest('[data-rem-edit]');
+      if (re && window.ATAM_REM) { window.ATAM_REM.openForm({ id: re.dataset.remEdit }); return; }
       const ac = t.closest('[data-acct]');
       if (ac) { openAccount(ac.dataset.acct); return; }
       if (t.closest('[data-close]')) { closeDrawer(); return; }
