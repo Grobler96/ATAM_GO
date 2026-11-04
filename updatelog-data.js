@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v67', date: '2026-11-04', status: 'built', areas: ['Quotes'],
+    title: 'Quotes: move a quote by hand, say what is happening, and more reasons for losing one',
+    summary: 'Every open quote card now has two dropdowns: one to move it to another stage by hand, and one to say what is happening with it. Lost quotes have more reasons, and a quote that was replaced by a new one can be linked to the new quote, so we can start to see why quotes are lost.',
+    changes: ['Stage dropdown on each open quote (and in the quote\u2019s side panel): Hot, Needs chasing, Going cold, or Lost. A quote you move stays there, marked \u201cMoved by hand\u201d, until something new happens on it: the customer replies, we email or chase them, or the quote is edited. Then it goes back to working itself out. You can also choose Back to automatic.', 'Choosing Lost asks why, then moves the quote to the Lost tab. Converted cannot be chosen by hand: that only happens when the customer approves the quote.', 'What is happening dropdown: Waiting on customer to decide, Customer asked for changes (revising), Waiting on artwork or logo, Waiting on budget approval, Waiting on a sample, Comparing prices, Customer put it on hold, Ready to order. The side panel also has a short note. Above the board, a row of buttons counts the open quotes in each status and filters the board when pressed.', 'Four new reasons for losing a quote: Price too high, Project cancelled or no longer needed, Lead time too long, Customer went quiet. They sit alongside Converted on another quote, Customer bought elsewhere, Budget and Other.', 'Converted on another quote now asks for the new quote number (optional). The lost quote shows a link to the new one, with its value and whether it has been approved, and the report on the Lost tab counts how many were replaced and what the new quotes are worth.', 'The Lost tab report now includes the new reasons automatically, by reason and by salesperson.'],
+    watch: 'Quotes moved by hand only affect the Quotes tab, Today and Account managers. The Monday report, the Team board and DAN work out stages on their own and ignore a hand-set stage. Statuses and notes stay until someone changes them. If a quote jumps back to its old stage, check whether the customer replied or someone emailed them since it was moved.'
+  },
+  {
     v: 'v66', date: '2026-11-04', status: 'live', pr: 63, areas: ['DAN', 'Calendar'],
     title: 'DAN can set reminders',
     summary: 'You can now ask DAN, by typing or on the phone, to set a reminder or appointment to contact someone, tick it off, or move it to another date. It does the same as the Calendar tab.',
