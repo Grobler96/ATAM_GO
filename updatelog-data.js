@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v67', date: '2026-11-05', status: 'live', areas: ['Purchase orders'],
+    title: 'Backing sheets no longer clutter Purchase Order Review',
+    summary: 'WCMA emails carry the real invoice and a "Monthly Calloff Archive" summary (a number like MC0276). The summary was turning up as a second item to check. It is now sent straight to Rejected.',
+    changes: ['When an email has a real invoice and a backing sheet with an MC number, the backing sheet goes to Rejected with a note saying why. It works whichever of the two is read first.', 'If an MC document arrives with no real invoice in the same email, it stays in Needs review so nothing is lost.', 'The three backing sheets already waiting (MC0276, MC0340, MC0023) were cleared. Nothing is approved or posted to Xero.'],
+    watch: 'If a real invoice is missing from Needs review, check the Rejected tab for an item marked as a backing sheet. Tell Oliver if one was wrongly rejected; it can be put back.'
+  },
+  {
     v: 'v66', date: '2026-11-03', status: 'in_progress', areas: ['Customers', 'Overview', 'Automation'],
     title: 'Job profit: what each job really made',
     summary: 'A new Job profit tab shows, for jobs that have shipped, the price charged, what the garments cost, and an estimate of how long the decoration took from its stitch count and number of items. It uses the order data already coming from DecoNetwork.',
