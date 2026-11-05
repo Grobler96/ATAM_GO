@@ -11,6 +11,34 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v71', date: '2026-11-05', status: 'live', pr: 60, areas: ['Purchase orders', 'Xero'],
+    title: 'Clean matches go straight into Xero as Authorised',
+    summary: 'Supplier bills that match their purchase order cleanly no longer wait for someone to check them. They are approved automatically and go into Xero as Authorised instead of Draft. Steph asked for this after checking them for over a week and finding them always right.',
+    changes: ['Only a clean match qualifies: high confidence, supplier already set up with its nominal code, an invoice number and date, a matched purchase order, a total above zero, and not already approved or posted before. There is no amount limit.', 'Everything else still waits in Needs review: price differences, supplier mismatches, no purchase order, suspected duplicates, lower confidence and new suppliers.', 'They are marked "Auto: clean match" on the Approved and Posted tabs. They post at the usual 5pm run, so there is still time to press Undo approve before then.', 'If Xero refuses one or the supplier cannot be found, it goes back to Needs review and a person approves it as normal (as a Draft).'],
+    watch: 'This is the first time bills reach Xero without a person approving them. If one is wrong, void it in Xero and tell Oliver. The automatic approval can be switched off in one place without changing the site.'
+  },
+  {
+    v: 'v70', date: '2026-11-05', status: 'live', pr: 60, areas: ['Purchase orders'],
+    title: 'Backing sheets no longer clutter Purchase Order Review',
+    summary: 'WCMA emails carry the real invoice and a "Monthly Calloff Archive" summary (a number like MC0276). The summary was turning up as a second item to check. It is now sent straight to Rejected.',
+    changes: ['When an email has a real invoice and a backing sheet with an MC number, the backing sheet goes to Rejected with a note saying why. It works whichever of the two is read first.', 'If an MC document arrives with no real invoice in the same email, it stays in Needs review so nothing is lost.', 'The three backing sheets already waiting (MC0276, MC0340, MC0023) were cleared. Nothing is approved or posted to Xero.'],
+    watch: 'If a real invoice is missing from Needs review, check the Rejected tab for an item marked as a backing sheet. Tell Oliver if one was wrongly rejected; it can be put back.'
+  },
+  {
+    v: 'v69', date: '2026-11-03', status: 'live', pr: 60, areas: ['Customers', 'Overview', 'Automation'],
+    title: 'Job profit: what each job really made',
+    summary: 'A new Job profit tab shows, for jobs that have shipped, the price charged, what the garments cost, and an estimate of how long the decoration took from its stitch count and number of items. It uses the order data already coming from DecoNetwork.',
+    changes: ['The data (price, quantity, each size\u2019s garment cost and each design\u2019s stitch count) is now saved with every order the production capture reads, and about four months of past orders were filled in.', 'Top figures for the last 30, 60 or 90 days: jobs shipped, revenue, garment cost, profit after garments, estimated production hours and stitches.', 'Every job is listed lowest margin first, so loss-making jobs stand out. A question mark means a garment had no cost in DecoNetwork, so that job\u2019s profit is overstated. There are also tables by salesperson and for the biggest customers.', 'Production time uses 3 minutes per item (Daniel\u2019s rough guide) plus stitches at 700 a minute. Daniel or Oliver can change these and enter the cost of an hour of production. Until a cost per hour is entered the page only shows profit after garments and does not guess a production cost.'],
+    watch: 'Revenue and garment costs come from DecoNetwork, so they are only as good as the costs set up there; about one job in six currently has a garment with no cost. Time is worked out one machine at a time. If the page looks wrong or empty, tell Oliver. The Automation health box shows whether the order capture is running.'
+  },
+  {
+    v: 'v68', date: '2026-11-03', status: 'live', pr: 60, areas: ['Stock'],
+    title: 'Suggested reorder list on the Stock tab',
+    summary: 'The Stock tab now has a Suggested reorder section: the garments we keep in stock that are out or running low, how many to buy to get back to about six weeks of cover, and a rough cost. It is a draft for Steph to check. Nothing is ordered from it.',
+    changes: ['It only looks at garments we really keep in stock. ATAM mostly buys garments for each job, so most items used on orders are not stocked and are not suggested.', 'Usage comes from the last ten weeks of orders. Each line shows what is on hand, how many were used and on how many orders, and anything already set aside for open jobs.', 'There is a Copy the list button to paste the list into an email or a supplier order.', 'It does not know supplier minimums, pack sizes or prices, or what is already on order, so check it before ordering.'],
+    watch: 'If a suggestion looks silly (an item we have stopped stocking, or a one-off big job pushing the numbers up), tell Oliver which item. Because the pace comes from only ten weeks of orders, one large order can make an item look busier than it is.'
+  },
+  {
     v: 'v67', date: '2026-11-04', status: 'live', pr: 64, areas: ['Quotes'],
     title: 'Quotes: move a quote by hand, say what is happening, and more reasons for losing one',
     summary: 'Every open quote card now has two dropdowns: one to move it to another stage by hand, and one to say what is happening with it. Lost quotes have more reasons, and a quote that was replaced by a new one can be linked to the new quote, so we can start to see why quotes are lost.',
@@ -489,9 +517,7 @@ window.ATAM_UPDATES = [
 ];
 
 window.ATAM_PLANNED = [
-  { title: 'Real job profit', areas: ['Customers'], detail: 'Profit per job, customer and salesperson including decoration costs. Needs the decoration cost data to be found or entered first.' },
   { title: 'Production capacity warnings', areas: ['Dispatch'], detail: 'Compare the next two weeks of booked work against machine capacity and flag promised dates that are unrealistic.' },
-  { title: 'Suggested supplier orders', areas: ['Stock'], detail: 'A draft reorder list from stock levels and open orders, for Steph to approve. Nothing is ordered automatically.' },
   { title: 'Finish the DAN phone line', areas: ['DAN'], detail: 'Create the "phone" Supabase user, run sql/dan_voice.sql, set the Cloudflare settings and Cron Triggers, check the VAPI inbound assistant is "Danbot Live", then one test call to Daniel.' },
   { title: 'Replace the old shared token on the invoice webhook', areas: ['Security'], detail: 'The invoice checker still accepts an old shared token, and only the Microsoft 365 invoice intake sends it now that Gmail is switched off. Replace it with a proper stored credential on both sides together.' },
   { title: 'Guided steps for Quotes and New customers', areas: ['Quotes', 'New customers'], detail: 'The same "Your move" help that Win-back now has, with wording agreed with Daniel and Steph.' },
