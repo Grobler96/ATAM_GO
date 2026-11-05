@@ -11,6 +11,20 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v73', date: '2026-11-05', status: 'live', areas: ['Automation'],
+    title: 'DecoNetwork login stored in one place',
+    summary: 'The login the automations use to read DecoNetwork was typed into each automation. It is now one saved login, so it can be changed in one place.',
+    changes: ['Eight automations now use the saved login: the production capture, upcoming orders, order revenue, quotes, purchase orders, stock levels, working stock and the nightly customer data. Each was test-run and brought back orders as before.', 'Next step for Oliver: change the DecoNetwork password for that user, then update the saved login. The old password is still in the history of those automations until it is changed.'],
+    watch: 'If orders, quotes, stock or purchase orders stop updating after a password change, the saved login probably has the wrong password. The Automation health box on this tab shows which data has stopped.'
+  },
+  {
+    v: 'v72', date: '2026-11-05', status: 'live', areas: ['Purchase orders', 'Xero'],
+    title: 'Clean-match supplier bills go into Xero as Authorised (corrects v71)',
+    summary: 'Supplier bills that match their purchase order cleanly have been approved automatically since 22 September, and went into Xero as Draft. They now go in as Authorised, so nobody has to approve them in Xero. v71 described the automatic approval as new; it was not, only the Authorised part is new.',
+    changes: ['Applies to a clean match with high confidence from a supplier that is already set up. There is no amount limit.', 'Everything else is unchanged: price differences, supplier mismatches, no purchase order, suspected duplicates, lower confidence and new suppliers still wait in Needs review, and bills a person approves still go in as Draft.', 'Bills go in at the 5pm run. Until then they show on the Approved tab and can be undone.', 'If Xero refuses one or the supplier cannot be found, it goes back to Needs review.'],
+    watch: 'The first Authorised bills go in at 5pm on 5 November: check them in Xero. If one is wrong, void it in Xero and tell Oliver; it can be switched back to Draft.'
+  },
+  {
     v: 'v71', date: '2026-11-05', status: 'live', pr: 60, areas: ['Purchase orders', 'Xero'],
     title: 'Clean matches go straight into Xero as Authorised',
     summary: 'Supplier bills that match their purchase order cleanly no longer wait for someone to check them. They are approved automatically and go into Xero as Authorised instead of Draft. Steph asked for this after checking them for over a week and finding them always right.',

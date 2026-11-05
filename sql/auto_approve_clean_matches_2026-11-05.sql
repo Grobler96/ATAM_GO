@@ -1,3 +1,6 @@
+-- NOTE (5 Nov 2026, later the same day): this turned out to be REDUNDANT. The invoice-reading n8n workflow has auto-approved clean matches (high confidence)
+-- since 22 Sept 2026, so rows arrive already 'approved' and this trigger never fires for them. It is switched OFF (invoice_auto_settings.enabled = false) and kept only
+-- for reference. What actually makes clean matches go to Xero as AUTHORISED is the 'Create Xero Bill' node of 'Post Approved Invoices to Xero'.
 -- Clean matches go straight in: approved without a person, and posted to Xero as AUTHORISED instead of DRAFT. Re-runnable.
 -- Agreed with Oliver 5 Nov 2026 (Steph has checked these bills for over a week and they were always right). No amount cap.
 --
