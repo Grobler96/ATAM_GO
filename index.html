@@ -1114,6 +1114,7 @@
           <button type="button" class="rev-tab" data-tab="approved" role="tab">Approved, waiting to post <span class="rev-tab-n" id="revTabN-approved">0</span></button>
           <button type="button" class="rev-tab" data-tab="rejected" role="tab">Rejected <span class="rev-tab-n" id="revTabN-rejected">0</span></button>
           <button type="button" class="rev-tab" data-tab="posted" role="tab">Posted to Xero <span class="rev-tab-n" id="revTabN-posted">0</span></button>
+          <button type="button" class="rev-tab" data-tab="other" role="tab">Credit notes and other documents <span class="rev-tab-n" id="revTabN-other">0</span></button>
         </div></div>
 
         <div class="rev-pane" data-pane="review">
@@ -1143,9 +1144,15 @@
 
         <div class="rev-pane" data-pane="posted" hidden>
           <p class="muted" style="margin-bottom:14px;font-size:12px">
-            Posted to Xero as draft bills: <span id="revPostedCount" style="color:#94a3b8;font-weight:600">0</span>. Newest first, the latest 50 shown. These have reached Xero as drafts and can't be changed or undone here. A person still approves each bill in Xero.
+            Posted to Xero: <span id="revPostedCount" style="color:#94a3b8;font-weight:600">0</span>. Newest first, the latest 50 shown. These have reached Xero and can't be changed or undone here. Bills a person approved here go in as drafts; clean matches the system approved itself go in as Authorised.
           </p>
           <div id="postedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
+        </div>
+        <div class="rev-pane" data-pane="other" hidden>
+          <p class="muted" style="margin-bottom:14px;font-size:12px">
+            Credit notes and other documents the invoice reader would not treat as an invoice: <span id="revOtherCount" style="color:#94a3b8;font-weight:600">0</span> not yet ticked off (<span id="revOtherAttn" style="color:#94a3b8;font-weight:600">0</span> need a look: credit notes, statements and anything unusual). They never come into Needs review. Nothing here is posted to Xero, and credit notes are not applied automatically: enter them in Xero by hand, then tick them off.
+          </p>
+          <div id="otherList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
         </div>
       </section>
 

@@ -24,6 +24,7 @@
   let inReviewRows = [];
   let postedRows = [];
   let postedTotal = 0;
+  let otherRows = [];
 
   async function getSb() {
     if (window._atamSb) return window._atamSb;
@@ -90,6 +91,7 @@
     await loadRejected();
     await loadInReview();
     await loadPosted();
+    await loadOther();
     syncTabCounts();
 
     if (openIds.length) {
@@ -185,7 +187,7 @@
           <div class="rev-case-main">
             <div class="rev-case-ref">Invoice ${escHtml(row.extracted_invoice_number || 'unknown')} \u00b7 ${escHtml(by)}</div>
             <div class="rev-case-title">${escHtml(row.final_vendor || row.extracted_vendor || 'Unknown vendor')}</div>
-            <div class="rev-case-sub">${escHtml(row.final_po_reference ? 'PO ' + row.final_po_reference : 'No PO reference')} \u00b7 Posted to Xero as a draft bill at ${fmtDate(row.posted_at)}</div>
+            <div class="rev-case-sub">${escHtml(row.final_po_reference ? 'PO ' + row.final_po_reference : 'No PO reference')} \u00b7 Posted to Xero at ${fmtDate(row.posted_at)}</div>
           </div>
           <div class="rev-case-meta">
             <span class="rev-amt">${fmtMoney(amt)}</span>
@@ -1105,7 +1107,7 @@
             <button type="button" class="rev-btn" data-action="snooze">🔖 Move to In Review</button>
             <button type="button" class="rev-btn primary" data-action="approve">Approve, ready to post</button>
           </div>
-          <div class="rev-post-note">Approved invoices are posted to Xero as draft bills at 5pm. Moving to In Review uses whatever's in the Review notes field as the tag note, and takes it out of this list until you resume it from the In Review section below.</div>
+          <div class="rev-post-note">Approved invoices are posted to Xero as draft bills at 5pm (clean matches the system approved itself go in as Authorised). Moving to In Review uses whatever's in the Review notes field as the tag note, and takes it out of this list until you resume it from the In Review section below.</div>
         </div>
       </div>`;
   }
@@ -1226,16 +1228,162 @@
     await loadPending();
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Credit notes and other documents (5 Nov 2026). The invoice reader files anything that is not a normal
+  // supplier invoice (credit notes, delivery notes, statements, terms and conditions) in unmatched_documents.
+  // This tab shows that list. It is read only apart from "Dealt with" / "Put back", which only tick the row.
+  // Nothing here is posted to Xero and credit notes are not applied automatically.
+  // ---------------------------------------------------------------------------
+  const OTHER_KINDS = {
+    credit_note:   { label: 'Credit note',         stamp: 'CN', cls: 'vendor' },
+    statement:     { label: 'Statement',           stamp: 'S',  cls: 'nomatch' },
+    other:         { label: 'Other document',      stamp: '?',  cls: 'nomatch' },
+    delivery_note: { label: 'Delivery note',       stamp: 'D',  cls: 'nomatch' },
+    terms:         { label: 'Terms and conditions', stamp: 'T', cls: 'nomatch' },
+    old_supplier:  { label: 'Supplier not set up (old)', stamp: '!', cls: 'nomatch' }
+  };
+  const OTHER_ATTENTION = ['credit_note', 'statement', 'other'];
+
+  function otherAttention() {
+    return otherRows.filter(r => !r.reviewed && OTHER_ATTENTION.indexOf(r.kind) >= 0).length;
+  }
+
+  async function loadOther() {
+    const container = document.getElementById('otherList');
+    if (!container) return;
+    const sb = await getSb();
+    const { data, error } = await sb
+      .from('unmatched_documents_board')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) {
+      console.error('[Review] load other documents error', error);
+      container.innerHTML = '<div class="rev-empty" style="padding:24px 20px">Could not load these documents. Check the console.</div>';
+      return;
+    }
+    otherRows = data || [];
+    renderOtherList();
+  }
+
+  function otherReasonText(r) {
+    let t = String(r.reason || '');
+    if (/^vendor_not_in_supplier_mapping/i.test(t)) return 'The supplier was not set up when this invoice came in, so it was held back. It was loaded in one go on 13 August.';
+    t = t.replace(/^Not identified as a supplier invoice:\s*/i, '');
+    return t.length > 330 ? t.slice(0, 330).replace(/\s+\S*$/, '') + '…' : t;
+  }
+
+  function otherCard(r) {
+    const k = OTHER_KINDS[r.kind] || OTHER_KINDS.other;
+    const amt = (r.total_amount != null && r.total_amount !== '') ? fmtMoney(r.total_amount).replace('£-', '-£') : '';
+    const docDate = r.document_date ? new Date(r.document_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+    const doneLine = r.reviewed
+      ? '<div class="rev-case-sub" style="margin-top:4px">Dealt with by ' + escHtml(r.reviewed_by || 'someone') + (r.reviewed_at ? ' on ' + escHtml(fmtDate(r.reviewed_at)) : '') + (r.review_notes ? ' · ' + escHtml(r.review_notes) : '') + '</div>'
+      : '';
+    return `
+      <div class="rev-case" style="cursor:default">
+        <div class="rev-case-head" style="cursor:default">
+          <div class="rev-stamp ${k.cls}">${escHtml(k.stamp)}</div>
+          <div class="rev-case-main">
+            <div class="rev-case-ref">${escHtml(k.label)} · received ${escHtml(fmtDate(r.created_at))}${docDate ? ' · dated ' + escHtml(docDate) : ''}</div>
+            <div class="rev-case-title">${escHtml(r.vendor_name || 'Unknown supplier')}</div>
+            <div class="rev-case-sub">${escHtml(otherReasonText(r))}</div>
+            ${doneLine}
+          </div>
+          <div class="rev-case-meta" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+            ${amt ? '<span class="rev-amt">' + escHtml(amt) + '</span>' : ''}
+            <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              ${r.pdf_url ? '<button type="button" class="rev-btn" data-oaction="pdf" data-path="' + escHtml(r.pdf_url) + '">📄 View PDF</button>' : ''}
+              ${r.reviewed
+                ? '<button type="button" class="rev-btn" data-oaction="undo" data-id="' + escHtml(r.id) + '">Put back</button>'
+                : '<button type="button" class="rev-btn primary" data-oaction="done" data-id="' + escHtml(r.id) + '">✓ Dealt with</button>'}
+            </span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function otherGroup(title, note, rows, opts) {
+    if (!rows.length) return '';
+    const bulk = (opts && opts.bulk)
+      ? '<div style="margin:0 0 10px"><button type="button" class="rev-btn" data-oaction="bulk" data-kind="' + escHtml(opts.bulk) + '">✓ Mark all ' + rows.length + ' as dealt with</button></div>'
+      : '';
+    const head = '<div style="font-weight:600;color:#e2e8f0">' + escHtml(title) + ' <span style="color:#94a3b8;font-weight:500">(' + rows.length + ')</span></div>'
+      + (note ? '<div class="muted" style="font-size:12px;margin:2px 0 10px">' + escHtml(note) + '</div>' : '');
+    if (opts && opts.collapsed) {
+      return '<details style="margin:18px 0"><summary style="cursor:pointer;list-style:revert">' + head + '</summary><div style="margin-top:10px">' + bulk + rows.map(otherCard).join('') + '</div></details>';
+    }
+    return '<div style="margin:0 0 18px">' + head + bulk + rows.map(otherCard).join('') + '</div>';
+  }
+
+  function renderOtherList() {
+    const container = document.getElementById('otherList');
+    if (!container) return;
+    const open = otherRows.filter(r => !r.reviewed);
+    const done = otherRows.filter(r => r.reviewed);
+    const by = k => open.filter(r => r.kind === k);
+    const cn = by('credit_note');
+    const countEl = document.getElementById('revOtherCount');
+    if (countEl) countEl.textContent = open.length;
+    const attnEl = document.getElementById('revOtherAttn');
+    if (attnEl) attnEl.textContent = otherAttention();
+    if (!otherRows.length) {
+      container.innerHTML = '<div class="rev-empty" style="padding:24px 20px">Nothing here.</div>';
+      return;
+    }
+    const oldDoneNote = done.length > 40 ? 'The latest 40 of ' + done.length + ' are shown.' : '';
+    container.innerHTML =
+      (cn.length ? otherGroup('Credit notes', 'Money owed back to us. These are not applied automatically: enter each one in Xero by hand, then press Dealt with.', cn) : '<div class="rev-empty" style="padding:14px 20px;margin-bottom:14px">No credit notes waiting.</div>')
+      + otherGroup('Statements and other documents', 'Not invoices. Have a look and tick them off.', by('statement').concat(by('other')))
+      + otherGroup('Delivery notes', 'No prices on these, so nothing to pay. Safe to tick off in one go.', by('delivery_note'), { collapsed: true, bulk: 'delivery_note' })
+      + otherGroup('Terms and conditions', 'Supplier terms that came with an email. Safe to tick off in one go.', by('terms'), { collapsed: true, bulk: 'terms' })
+      + otherGroup('Old: supplier was not set up', 'Invoices from June held back because the supplier was not set up then (no PDF kept). Check Xero for these if you have not already.', by('old_supplier'), { collapsed: true, bulk: 'old_supplier' })
+      + otherGroup('Already dealt with', oldDoneNote, done.slice(0, 40), { collapsed: true });
+  }
+
+  async function otherAction(btn) {
+    const act = btn.dataset.oaction;
+    if (act === 'pdf') { await viewInvoicePdf(btn.dataset.path, btn); return; }
+    const sb = await getSb();
+    let error = null;
+    if (act === 'done') {
+      ({ error } = await sb.rpc('mark_unmatched_reviewed', { p_ids: [btn.dataset.id], p_note: null }));
+    } else if (act === 'undo') {
+      ({ error } = await sb.rpc('unmark_unmatched_reviewed', { p_id: btn.dataset.id }));
+    } else if (act === 'bulk') {
+      const ids = otherRows.filter(r => !r.reviewed && r.kind === btn.dataset.kind).map(r => r.id);
+      if (!ids.length) return;
+      if (!confirm('Mark all ' + ids.length + ' as dealt with? This only ticks them off. Nothing is posted or deleted, and you can put any of them back.')) return;
+      ({ error } = await sb.rpc('mark_unmatched_reviewed', { p_ids: ids.slice(0, 500), p_note: 'Ticked off in bulk' }));
+    }
+    if (error) { console.error('[Review] other documents action error', error); alert('Could not save that. Check the console.'); return; }
+    await loadOther();
+    syncTabCounts();
+  }
+
+  function initOtherTab() {
+    const root = document.getElementById('otherList');
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = '1';
+    root.addEventListener('click', e => {
+      const b = e.target.closest('[data-oaction]');
+      if (b) { e.preventDefault(); otherAction(b); }
+    });
+  }
+
   // Tabs across the top of the page (same look as the Sales Invoices tab): the four
   // lists live on this one page and only one is shown at a time.
   function syncTabCounts() {
-    const counts = { review: allRows.length, inreview: inReviewRows.length, approved: approvedRows.length, rejected: rejectedRows.length, posted: postedTotal };
+    const counts = { review: allRows.length, inreview: inReviewRows.length, approved: approvedRows.length, rejected: rejectedRows.length, posted: postedTotal, other: otherAttention() };
     Object.keys(counts).forEach(k => {
       const el = document.getElementById('revTabN-' + k);
       if (el) el.textContent = counts[k];
     });
     const attn = document.querySelector('#revTabs .rev-tab[data-tab="review"]');
     if (attn) attn.classList.toggle('rev-tab-attn', counts.review > 0);
+    const oa = document.querySelector('#revTabs .rev-tab[data-tab="other"]');
+    if (oa) oa.classList.toggle('rev-tab-attn', counts.other > 0);
   }
 
   function showReviewTab(key) {
@@ -1266,6 +1414,7 @@
 
   function initWhenVisible() {
     initTabs();
+    initOtherTab();
     loadPending();
   }
 
