@@ -1,6 +1,8 @@
 // Calendar tab: everything that is due on a date, across Win-back, Quotes and New customers, for the whole team or one person.
-// Data: the read-only view calendar_actions (sql/calendar_actions_2026-10-26.sql). Nothing is written from here: to deal with an
-// item you open it in its own tab, so the calendar can never double-book or lose anything.
+// Data: the read-only view calendar_actions (sql/calendar_actions_2026-10-26.sql). Win-back, quote and New customer items are not written
+// from here: to deal with one you open it in its own tab, so the calendar can never double-book or lose anything.
+// Reminders and appointments that people add themselves come from reminders.js (table contact_reminders) and are added, edited, ticked off,
+// snoozed and deleted here.
 // Adds its own nav button and page (app.js binds the nav once, same as quotes.js / winback.js).
 (function () {
   'use strict';
@@ -14,8 +16,10 @@
     quote_reply:      { icon: '🧾', label: 'Quote email: no reply yet', color: '#38bdf8', page: 'quotes', where: 'Quotes' },
     quote_return:     { icon: '💤', label: 'Parked quote comes back', color: '#a78bfa', page: 'quotes', where: 'Quotes' },
     nc_followup:      { icon: '🌱', label: 'New customer: follow up', color: '#22c55e', page: 'newcustomers', where: 'New customers' },
-    nc_reply:         { icon: '✉️', label: 'New customer email: no reply yet', color: '#a78bfa', page: 'newcustomers', where: 'New customers' }
+    nc_reply:         { icon: '✉️', label: 'New customer email: no reply yet', color: '#a78bfa', page: 'newcustomers', where: 'New customers' },
+    reminder:         { icon: '🔔', label: 'Reminder', color: '#14b8a6', page: null, where: '' }   // added by people (reminders.js), not derived from another tab
   };
+  const REM = () => window.ATAM_REM;
   const OUTCOME_TEXT = { left_message: 'last time: left a message', no_answer: 'last time: no answer', spoke: 'last time: spoke to them', ring_back: 'they asked us to ring back', replied: 'they replied', quote_requested: 'they asked for a quote' };
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -61,6 +65,7 @@
     try {
       const rows = await pageAll(() => client().from('calendar_actions').select('*').order('item_date'));
       state.items = rows.filter(r => r.item_date && KINDS[r.kind]).map(r => ({ date: String(r.item_date).slice(0, 10), kind: r.kind, owner: r.owner || 'Unassigned', label: r.label || '', ref: String(r.ref_id || ''), detail: r.detail || '' }));
+      if (REM()) await REM().load(true);
       if (!state.me) {
         try {
           const u = await client().auth.getUser();
@@ -68,7 +73,7 @@
           if (id) {
             const p = await client().from('profiles').select('full_name').eq('id', id).maybeSingle();
             state.me = (p && p.data && p.data.full_name) || '';
-            if (!state.loaded && state.me && state.items.some(i => i.owner === state.me)) state.owner = state.me;
+            if (!state.loaded && state.me && allItems().some(i => i.owner === state.me)) state.owner = state.me;
           }
         } catch (e) { /* "Me" just stays unavailable */ }
       }
@@ -86,7 +91,14 @@
     render();
   }
 
-  const visible = () => state.items.filter(i => !state.owner || i.owner === state.owner);
+  // Reminders come from reminders.js (people add them here); everything else is derived from the other tabs.
+  const reminderItems = () => {
+    const R = REM();
+    return R && R.state.loaded ? R.state.items.map(r => ({ date: r.date, kind: 'reminder', owner: r.owner, label: r.account, ref: r.id, detail: '', rem: r })) : [];
+  };
+  const allItems = () => state.items.concat(reminderItems());
+  const iconOf = i => (i.rem && REM() && REM().KINDS[i.rem.kind] ? REM().KINDS[i.rem.kind].icon : KINDS[i.kind].icon);
+  const visible = () => allItems().filter(i => !state.owner || i.owner === state.owner);
   const onDay = (list, d) => list.filter(i => i.date === d);
 
   function detailText(i) {
@@ -98,6 +110,18 @@
     const late = i.date < today;
     const lateDays = late ? Math.round((fromIso(today) - fromIso(i.date)) / 86400000) : 0;
     const dt = detailText(i);
+    if (i.kind === 'reminder' && i.rem) {
+      const R = REM(), r = i.rem;
+      return `<div class="cal-item${late ? ' late' : ''}" style="--c:${k.color}">
+      <span class="cal-ic">${iconOf(i)}</span>
+      <div class="cal-main"><b>${esc(i.label)}</b>${r.known ? '' : ' <span class="cal-dim">(not an account)</span>'}
+        <div class="cal-sub">${esc(R.describe(r))}${late ? ` · <span class="cal-late">${lateDays} day${lateDays === 1 ? '' : 's'} late</span>` : ''}${r.by && r.by !== r.owner ? ' · set by ' + esc(r.by) : ''}</div></div>
+      ${showOwner ? avatar(i.owner) : ''}
+      <span class="cal-racts"><button type="button" class="cal-btn cal-ok" data-rdone="${esc(i.ref)}">✓ Done</button>
+        <select class="cal-snz" data-rsnooze="${esc(i.ref)}" aria-label="Snooze">${R.snoozeOptions()}</select>
+        <button type="button" class="cal-btn" data-redit="${esc(i.ref)}">Edit</button>
+        <button type="button" class="cal-btn" data-rdel="${esc(i.ref)}" title="Delete this reminder">🗑</button></span></div>`;
+    }
     return `<div class="cal-item${late ? ' late' : ''}" style="--c:${k.color}">
       <span class="cal-ic">${k.icon}</span>
       <div class="cal-main"><b>${esc(i.label)}</b>
@@ -105,7 +129,7 @@
       ${showOwner ? avatar(i.owner) : ''}
       <button type="button" class="cal-btn" data-open="${esc(i.kind)}" data-ref="${esc(i.ref)}">Open in ${esc(k.where)}</button></div>`;
   }
-  const chip = (i, today) => `<div class="cal-chip${i.date < today ? ' late' : ''}" style="--c:${KINDS[i.kind].color}" title="${esc(KINDS[i.kind].label)} · ${esc(i.owner)}" data-open="${esc(i.kind)}" data-ref="${esc(i.ref)}">${KINDS[i.kind].icon} ${esc(i.label)}</div>`;
+  const chip = (i, today) => `<div class="cal-chip${i.date < today ? ' late' : ''}" style="--c:${KINDS[i.kind].color}" title="${esc(KINDS[i.kind].label)} · ${esc(i.owner)}" data-open="${esc(i.kind)}" data-ref="${esc(i.ref)}">${iconOf(i)} ${esc(i.label)}</div>`;
 
   function head() {
     const a = state.anchor;
@@ -113,13 +137,14 @@
     if (state.view === 'day') title = (iso(a) === todayIso() ? 'Today · ' : '') + longDay(a) + ' ' + a.getFullYear();
     else if (state.view === 'week') { const s = startOfWeek(a), e = addDays(s, 6); title = longDay(s) + ' to ' + longDay(e); }
     else title = MONTHS[a.getMonth()] + ' ' + a.getFullYear();
-    const owners = Array.from(new Set(state.team.concat(state.items.map(i => i.owner)).concat(state.me ? [state.me] : []))).sort();
+    const owners = Array.from(new Set(state.team.concat(allItems().map(i => i.owner)).concat(state.me ? [state.me] : []))).sort();
     return `<div class="cal-bar">
       <div class="cal-seg" role="group" aria-label="View">${['day', 'week', 'month'].map(v => `<button type="button" data-view="${v}" class="${state.view === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div>
       <div class="cal-nav"><button type="button" class="cal-btn" data-step="-1" aria-label="Previous">‹</button><button type="button" class="cal-btn" data-today="1">Today</button><button type="button" class="cal-btn" data-step="1" aria-label="Next">›</button></div>
       <h3 class="cal-title">${esc(title)}</h3>
       <select id="calOwner" aria-label="Whose actions"><option value="">Everyone</option>${owners.map(o => `<option value="${esc(o)}"${o === state.owner ? ' selected' : ''}>${esc(o === state.me ? o + ' (me)' : o)}</option>`).join('')}</select>
-      <button type="button" class="cal-btn" data-reload="1">Refresh</button></div>`;
+      <button type="button" class="cal-btn" data-reload="1">Refresh</button>
+      <button type="button" class="cal-btn cal-add" data-radd="1">+ Add reminder</button></div>`;
   }
 
   function teamStrip(list, today) {
@@ -176,12 +201,13 @@
       const cls = 'cal-cell' + (d.getMonth() !== a.getMonth() ? ' other' : '') + (id === today ? ' today' : '') + (id === state.sel ? ' sel' : '') + (dow >= 5 ? ' wkend' : '') + (its.length ? ' has' : '');
       cells.push(`<div class="${cls}" data-selday="${id}" role="button" tabindex="0" aria-label="${esc(longDay(d))}, ${its.length} to do">
         <div class="cal-top"><span class="cal-d">${d.getDate()}</span>${its.length ? `<span class="cal-count">${its.length}</span>` : ''}</div>
-        <div class="cal-chips">${its.slice(0, 3).map(i => `<span class="cal-mini${i.date < today ? ' late' : ''}" style="--c:${KINDS[i.kind].color}">${KINDS[i.kind].icon} ${esc(i.label)}</span>`).join('')}${its.length > 3 ? `<span class="cal-more-n">+${its.length - 3} more</span>` : ''}</div>
+        <div class="cal-chips">${its.slice(0, 3).map(i => `<span class="cal-mini${i.date < today ? ' late' : ''}" style="--c:${KINDS[i.kind].color}">${iconOf(i)} ${esc(i.label)}</span>`).join('')}${its.length > 3 ? `<span class="cal-more-n">+${its.length - 3} more</span>` : ''}</div>
         <div class="cal-dots">${its.slice(0, 5).map(i => `<i style="background:${KINDS[i.kind].color}"></i>`).join('')}</div></div>`);
     }
     const selDate = fromIso(state.sel), selItems = onDay(list, state.sel);
     const panel = `<div class="cal-daypanel"><h4>${state.sel === today ? 'Today · ' : ''}${esc(longDay(selDate))} <span class="cal-dim">${selItems.length ? selItems.length + ' to do' : 'nothing due'}</span></h4>` +
-      (selItems.length ? selItems.map(i => itemHtml(i, today, !state.owner)).join('') : '<div class="cal-empty">Nothing due on this day.</div>') + '</div>';
+      (selItems.length ? selItems.map(i => itemHtml(i, today, !state.owner)).join('') : '<div class="cal-empty">Nothing due on this day.</div>') +
+      (state.sel >= today ? `<button type="button" class="cal-btn cal-add" data-radd="${esc(state.sel)}" style="margin-top:8px">+ Add a reminder on this day</button>` : '') + '</div>';
     return `<div class="cal-month"><div class="cal-dows">${DOW.map((x, n) => `<span class="${n >= 5 ? 'wk' : ''}">${x}</span>`).join('')}</div><div class="cal-grid">${cells.join('')}</div></div>${legendHtml()}${panel}`;
   }
 
@@ -192,9 +218,16 @@
     if (state.error) { el.innerHTML = `<div class="cal-empty">Couldn't load the calendar: ${esc(state.error)}<br><button type="button" class="cal-btn" data-reload="1">Try again</button></div>`; return; }
     if (!state.loaded) { el.innerHTML = '<div class="cal-empty">Loading…</div>'; return; }
     const today = todayIso(), list = visible();
-    el.innerHTML = head() + teamStrip(state.items, today) +
+    el.innerHTML = head() + teamStrip(allItems(), today) +
       '<div class="cal-view">' + (state.view === 'day' ? dayView(list, today) : state.view === 'week' ? weekView(list, today) : monthView(list, today)) + '</div>' +
-      '<p class="cal-foot">This calendar shows the dates people have set (“chase again on…”) and the end of the 3-day wait after an email we sent. It is read-only: open an item to deal with it, and it disappears from here once it is done. Nothing is added to Outlook.</p>';
+      '<p class="cal-foot">This calendar shows the dates people have set (“chase again on…”), the end of the 3-day wait after an email we sent, and the reminders and appointments people add here with <b>+ Add reminder</b> (for a customer or anyone else, one-off or repeating). Win-back, quote and new-customer items are dealt with in their own tabs and disappear from here once done; reminders are ticked off here. Anyone can set reminders for themselves; only Daniel or Oliver can set them for other people. Nothing is added to Outlook.</p>';
+  }
+
+  // run a reminder action, show a problem if there is one (a success redraws the page through the "changed" event)
+  async function remAct(promise, el) {
+    if (el) el.disabled = true;
+    const res = await promise;
+    if (res && !res.ok && res.error) { window.alert(res.error); if (el) el.disabled = false; render(); }
   }
 
   function step(n) {
@@ -290,6 +323,10 @@
 #calendar .cal-daypanel { margin-top:6px; padding:14px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.1); background:rgba(15,23,42,.6); }
 #calendar .cal-daypanel h4 { margin:0 0 10px; font-size:15px; }
 @media (max-width: 760px) { #calendar .cal-cell { min-height:56px; padding:4px; } #calendar .cal-chips { display:none; } #calendar .cal-dots { display:flex; } #calendar .cal-count { display:none; } }
+#calendar .cal-racts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:flex-end; }
+#calendar .cal-ok { border-color:rgba(34,197,94,.5); color:#86efac; }
+#calendar .cal-add { border-color:rgba(20,184,166,.6); color:#5eead4; }
+#calendar .cal-snz { padding:6px 8px; font-size:12.5px; }
 #calendar .cal-foot { margin-top:18px; color:#64748b; font-size:12px; max-width:760px; line-height:1.5; }
 @media (max-width: 760px) { `;
     document.head.appendChild(s);
@@ -313,7 +350,7 @@
     sec.id = PAGE_ID;
     sec.className = 'dashboard-page';
     sec.innerHTML = `<div class="cal-headbox"><p class="eyebrow">Sales</p><h2>Calendar</h2>
-      <p>Everything the team has to chase, on one page: Win-back chase dates, quote emails still waiting for a reply, and new customers to follow up. Pick Day, Week or Month, and Everyone or one person.</p></div>
+      <p>Everything the team has to chase, on one page: Win-back chase dates, quote emails still waiting for a reply, new customers to follow up, and your own reminders and appointments (a catch-up call, a visit, anything you add with Add reminder). Pick Day, Week or Month, and Everyone or one person.</p></div>
       <div id="calBody"><div class="cal-empty">Loading…</div></div>`;
     anchorPage.parentElement.appendChild(sec);
 
@@ -346,11 +383,24 @@
       if (gd) { state.anchor = fromIso(gd.dataset.goday); state.view = 'day'; render(); return; }
       const pe = e.target.closest('[data-person]');
       if (pe) { state.owner = state.owner === pe.dataset.person ? '' : pe.dataset.person; render(); return; }
+      const ra = e.target.closest('[data-radd]');
+      if (ra) { REM().openForm({ date: ra.dataset.radd !== '1' ? ra.dataset.radd : (state.view === 'day' ? iso(state.anchor) : null), owner: state.owner || undefined }); return; }
+      const rd = e.target.closest('[data-rdone]');
+      if (rd) { remAct(REM().complete(rd.dataset.rdone), rd); return; }
+      const re = e.target.closest('[data-redit]');
+      if (re) { REM().openForm({ id: re.dataset.redit }); return; }
+      const rx = e.target.closest('[data-rdel]');
+      if (rx) { if (window.confirm('Delete this reminder? This cannot be undone. (To just move it, use Snooze or Edit.)')) remAct(REM().remove(rx.dataset.rdel), rx); return; }
       const op = e.target.closest('[data-open]');
-      if (op) { go(op.dataset.open, op.dataset.ref); return; }
+      if (op) { if (op.dataset.open === 'reminder') { REM().openForm({ id: op.dataset.ref }); return; } go(op.dataset.open, op.dataset.ref); return; }
     });
     sec.addEventListener('keydown', e => { const c = e.target.closest && e.target.closest('[data-selday]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
-    sec.addEventListener('change', e => { if (e.target.id === 'calOwner') { state.owner = e.target.value; render(); } });
+    sec.addEventListener('change', e => {
+      if (e.target.id === 'calOwner') { state.owner = e.target.value; render(); return; }
+      const sn = e.target.closest && e.target.closest('[data-rsnooze]');
+      if (sn && sn.value) remAct(REM().snoozeBy(sn.dataset.rsnooze, sn.value), sn);
+    });
+    window.addEventListener('atam-reminders-changed', () => { if (sec.classList.contains('active') && state.loaded) render(); });
     return true;
   }
 
