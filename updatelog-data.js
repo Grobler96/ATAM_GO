@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v74', date: '2026-11-05', status: 'built', areas: ['Purchase orders'],
+    v: 'v74', date: '2026-11-05', status: 'live', pr: 66, areas: ['Purchase orders'],
     title: 'Credit notes and other documents now show on Purchase Order Review',
     summary: 'When the invoice reader gets a PDF that is not a normal invoice (a credit note, delivery note, statement, terms and conditions) it never put it in front of anyone. Those documents now have their own tab on Purchase Order Review.',
     changes: ['The new tab is called Credit notes and other documents. Credit notes are listed first, with the supplier, amount, date and a button to open the PDF. Statements and anything unusual come next.', 'Delivery notes, terms and conditions and 68 old invoices from June (held back because the supplier was not set up then) are tucked away below, each with a button to tick them all off at once.', 'Press Dealt with once you have dealt with one; Put back undoes it. This only ticks it off. Nothing is posted to Xero, nothing is deleted, and credit notes are still not applied automatically: they must be entered in Xero by hand.', 'There are four credit notes waiting, including Portwest 000804501 (-£22.08, received 6 October), which is the one Steph asked about. Please check those four in Xero.', 'The page notes now say that clean matches go into Xero as Authorised.'],
