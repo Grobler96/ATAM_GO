@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v68', date: '2026-11-05', status: 'live', areas: ['Purchase orders', 'Xero'],
+    title: 'Clean matches go straight into Xero as Authorised',
+    summary: 'Supplier bills that match their purchase order cleanly no longer wait for someone to check them. They are approved automatically and go into Xero as Authorised instead of Draft. Steph asked for this after checking them for over a week and finding them always right.',
+    changes: ['Only a clean match qualifies: high confidence, supplier already set up with its nominal code, an invoice number and date, a matched purchase order, a total above zero, and not already approved or posted before. There is no amount limit.', 'Everything else still waits in Needs review: price differences, supplier mismatches, no purchase order, suspected duplicates, lower confidence and new suppliers.', 'They are marked "Auto: clean match" on the Approved and Posted tabs. They post at the usual 5pm run, so there is still time to press Undo approve before then.', 'If Xero refuses one or the supplier cannot be found, it goes back to Needs review and a person approves it as normal (as a Draft).'],
+    watch: 'This is the first time bills reach Xero without a person approving them. If one is wrong, void it in Xero and tell Oliver. The automatic approval can be switched off in one place without changing the site.'
+  },
+  {
     v: 'v67', date: '2026-11-05', status: 'live', areas: ['Purchase orders'],
     title: 'Backing sheets no longer clutter Purchase Order Review',
     summary: 'WCMA emails carry the real invoice and a "Monthly Calloff Archive" summary (a number like MC0276). The summary was turning up as a second item to check. It is now sent straight to Rejected.',
