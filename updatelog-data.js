@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v76', date: '2026-11-06', status: 'built', areas: ['Sales invoices', 'Xero'],
+    title: 'Sales invoices: a warning when an order would be billed for more than it is worth',
+    summary: 'Order 636616 (GXO) came through as a new invoice 636616-3 for one vest, after Steph had already deleted the wrong 636616-2. The order was already fully invoiced. GO now flags any draft that would take the total invoiced above the DecoNetwork order total.',
+    changes: ['What happened: DecoNetwork\u2019s production record said 11 Medium vests were needed (9 made), while the sales line still said 10 Medium and 30 in total at £226.80. GO bills from the production record, so it saw one more than it had invoiced and drafted 636616-3 (£7.56 plus VAT, £9.07). Nothing more was actually ordered.', 'New check: if the invoices already posted or approved for an order, plus the new draft, come to more than the DecoNetwork order total before VAT, the draft is marked Over invoiced? and always waits for a person. A normal part invoice is not affected. It was checked against all 320 invoiced orders: only 636616 would have been flagged (and 636528, which is £3.00 over, for Steph to look at).', '636616-3 is already in Xero as a draft and should be deleted there by hand, like 636616-2. Order 636616 is fully invoiced by 636616 alone.'],
+    watch: 'If a draft shows Over invoiced? choose Ignore unless the customer really ordered more. Tell Oliver if a good invoice gets flagged.'
+  },
+  {
     v: 'v75', date: '2026-11-06', status: 'live', pr: 67, areas: ['Sales invoices', 'Xero'],
     title: 'Sales invoice drafts now zero rate the lines DecoNetwork charged no VAT on',
     summary: 'Order 636730 had adult and kids T shirts. DecoNetwork charged VAT on the adult shirts only (£350.32), but the Xero invoice put 20% on everything (£579.84). Drafts now follow DecoNetwork line by line.',

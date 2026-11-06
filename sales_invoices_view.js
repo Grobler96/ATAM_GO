@@ -93,6 +93,14 @@
       why: () => 'The order has nothing to invoice.',
       fix: ['Choose Ignore, or add the lines below.']
     },
+    over_invoiced: {
+      chip: 'Over invoiced?', cls: 'si-chip-red',
+      title: 'This would bill more than the order',
+      why: () => 'The invoices already raised for this order, plus this one, come to more than the order total on DecoNetwork (before VAT). The order may already be fully invoiced, for example when production adds a spare garment to an item (an extra size made) without anything more being sold.',
+      fix: ['Compare the order total on DecoNetwork with the invoices already raised for it.',
+            'If the order is already fully invoiced, choose Ignore. Do not approve this one.',
+            'If the customer really did order more, check the quantity on the DecoNetwork sales line, then approve.']
+    },
     mixed_vat: {
       chip: 'Mixed VAT', cls: 'si-chip-amber',
       title: 'Some lines are zero rated',
