@@ -93,6 +93,14 @@
       why: () => 'The order has nothing to invoice.',
       fix: ['Choose Ignore, or add the lines below.']
     },
+    mixed_vat: {
+      chip: 'Mixed VAT', cls: 'si-chip-amber',
+      title: 'Some lines are zero rated',
+      why: () => 'DecoNetwork charged VAT on this order but not on some of its lines (for example children’s clothing), so those lines have been set to zero rated (0%) and the rest are 20%.',
+      fix: ['Check the VAT on each line below matches DecoNetwork: the lines marked Zero rated should be the ones with no VAT on the DecoNetwork order.',
+            'The VAT total in Xero should then match the VAT on the DecoNetwork order. If it does, approve it.',
+            'If you are unsure, choose Hold and ask the accountant.']
+    },
     vat_check: {
       chip: 'Check VAT', cls: 'si-chip-amber',
       title: 'VAT needs checking',

@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v75', date: '2026-11-06', status: 'built', areas: ['Sales invoices', 'Xero'],
+    title: 'Sales invoice drafts now zero rate the lines DecoNetwork charged no VAT on',
+    summary: 'Order 636730 had adult and kids T shirts. DecoNetwork charged VAT on the adult shirts only (£350.32), but the Xero invoice put 20% on everything (£579.84). Drafts now follow DecoNetwork line by line.',
+    changes: ['DecoNetwork records the VAT it charged on every order line. The hourly order capture now saves that, and the draft invoice builder sets any line with no VAT (on an order that did have VAT) to zero rated.', 'Those invoices are marked Mixed VAT and always wait for a person to check them before they go to Xero. They are never approved automatically.', 'The "above the DecoNetwork total" warning no longer fires wrongly on these orders: that warning was the only sign on 636730 and it did not mention VAT.', 'Invoice 636730 itself is already in Xero as a draft with 20% on the kids lines. It must be corrected by hand in Xero (set the three Kids cool T lines to zero rated). The other fully invoiced orders were checked and none had the same problem, but orders invoiced in several parts cannot be checked this way.'],
+    watch: 'Only drafts built from now on are affected, and only when DecoNetwork sent line VAT data. If a draft shows Mixed VAT and you disagree, change the VAT on the lines in the draft before approving. Tell Oliver if a line was zero rated that should have had VAT.'
+  },
+  {
     v: 'v74', date: '2026-11-05', status: 'live', pr: 66, areas: ['Purchase orders'],
     title: 'Credit notes and other documents now show on Purchase Order Review',
     summary: 'When the invoice reader gets a PDF that is not a normal invoice (a credit note, delivery note, statement, terms and conditions) it never put it in front of anyone. Those documents now have their own tab on Purchase Order Review.',
