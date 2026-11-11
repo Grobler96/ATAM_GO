@@ -101,6 +101,14 @@
             'The VAT total in Xero should then match the VAT on the DecoNetwork order. If it does, approve it.',
             'If you are unsure, choose Hold and ask the accountant.']
     },
+    extras_check: {
+      chip: 'Check extras', cls: 'si-chip-amber',
+      title: 'Extra items need checking',
+      why: () => 'This invoice has extra priced items (not normal order lines). They are always put on the first invoice, even if they have not shipped yet, and DecoNetwork does not tell us whether they have.',
+      fix: ['Open the order in DecoNetwork and check each extra item below has shipped.',
+            'Delete any extra line that has not shipped yet, then approve. It will need adding by hand to a later invoice when it ships.',
+            'If every extra has shipped, approve it.']
+    },
     vat_check: {
       chip: 'Check VAT', cls: 'si-chip-amber',
       title: 'VAT needs checking',
