@@ -101,6 +101,14 @@
             'The VAT total in Xero should then match the VAT on the DecoNetwork order. If it does, approve it.',
             'If you are unsure, choose Hold and ask the accountant.']
     },
+    own_account: {
+      chip: 'Own account needed', cls: 'si-chip-amber',
+      title: 'This buyer needs their own Xero account',
+      why: () => 'This order came from a shop where people pay when they order. The name on it could match the head office account, so GO has not picked one. The buyer’s own name and email from DecoNetwork are filled in below.',
+      fix: ['Open “Not in Xero? Create the account” below. Check the name and email, then press Create in Xero.',
+            'If they already have an account in Xero, choose it from the list instead.',
+            'Then approve the invoice. It will go to the buyer, not to head office.']
+    },
     extras_check: {
       chip: 'Check extras', cls: 'si-chip-amber',
       title: 'Extra items need checking',
@@ -520,11 +528,11 @@
           <input type="text" data-role="contact-q" placeholder="Search Xero by name" value="${esc(row.customer_name || '')}">
           <button type="button" class="si-btn" data-action="search-contact">Search Xero</button>
         </div>
-        <details class="si-create">
+        <details class="si-create"${row.buyer_email ? ' open' : ''}>
           <summary>Not in Xero? Create the account</summary>
           <div class="si-inline">
-            <input type="text" data-role="create-name" placeholder="Customer name" value="${esc(row.customer_name || '')}">
-            <input type="email" data-role="create-email" placeholder="Email (optional)">
+            <input type="text" data-role="create-name" placeholder="Customer name" value="${esc(row.buyer_name || row.customer_name || '')}">
+            <input type="email" data-role="create-email" placeholder="Email (optional)" value="${esc(row.buyer_email || '')}">
             <button type="button" class="si-btn" data-action="create-contact">Create in Xero</button>
           </div>
           <div class="si-hint">This only creates the customer in Xero. It is safe to use even if you are unsure, because Xero refuses a duplicate name.</div>

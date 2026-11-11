@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v77', date: '2026-11-11', status: 'live', pr: 70, areas: ['Sales invoices', 'Xero'],
+    title: 'People who pay up front in the AWR and Bill Plant shops get their own Xero account',
+    summary: 'In the AWR, All Weather Roofline and Bill Plant Driving School shops, individuals pay when they order. Their invoices were going to the head office account in Xero. They now wait for a person to create the buyer’s own account, with the name and email already filled in.',
+    changes: ['Orders in the AWR shop, the Bill Plant shop and the Bill Plant Instructor shop that are not on account no longer pick the head office Xero account. They wait in Needs review, marked Own account needed.', 'The buyer’s name and email come from DecoNetwork and are filled into the Create in Xero box. Press Create in Xero, then approve, and Xero sends the invoice to the buyer.', 'Orders on account in these shops, and buyers who already have their own Xero account, are not changed.', 'To add another shop that works this way, add its DecoNetwork shop name to the list of shops (a database change). Soroptimist (60 buyers) and the main Atam Workwear shop work like this too but were not included.', 'The delivery address is not saved on the new Xero account, only the name and email. It is still on the invoice. Invoices already waiting in Needs review are not changed: use Rebuild from DecoNetwork on one that has not been approved.'],
+    watch: 'Only invoices built from now on are affected. If an AWR or Bill Plant invoice you expect to go straight through is waiting with Own account needed, that is this change. If a buyer’s invoice still goes to head office, tell me the order number.'
+  },
+  {
     v: 'v76', date: '2026-11-11', status: 'live', pr: 69, areas: ['Sales invoices', 'Xero'],
     title: 'Sales invoices with extra items now wait for a check',
     summary: 'Order 636643 (PPG) was billed for Portwest Vehicle Kit 8 while it was still on back order. Invoices with priced extra items are now held for a person instead of being approved automatically.',
