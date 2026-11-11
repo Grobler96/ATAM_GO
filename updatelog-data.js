@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v76', date: '2026-11-11', status: 'live', pr: 69, areas: ['Sales invoices', 'Xero'],
+    title: 'Sales invoices with extra items now wait for a check',
+    summary: 'Order 636643 (PPG) was billed for Portwest Vehicle Kit 8 while it was still on back order. Invoices with priced extra items are now held for a person instead of being approved automatically.',
+    changes: ['Extra items on an order (such as a kit or sticker added on top of the normal lines) were always put on the first invoice, whether or not they had shipped. DecoNetwork does not tell us if an extra has shipped.', 'Any draft with a priced extra item is now marked Check extras and waits in Needs review. The note says to check the extras in DecoNetwork and delete any that have not shipped.', 'Invoice 636643 is already in Xero with the £8.45 kit line on it. It must be corrected by hand in Xero. When the kit ships it also has to be invoiced by hand, because later invoices for the same order never include extras.', 'Four other posted invoices have extras: 636231 (sticker, fully shipped), 636286 and 636629 (Squad T-Shirt, £21.65), 636660 (a boot, £12.71). All their other lines have shipped, but whether the extras had shipped on the day cannot be seen, so they are worth a look in Xero.'],
+    watch: 'Only drafts built from now on are affected. If a draft you expect to be approved automatically is waiting with Check extras, an extra item is on the order. Check it in DecoNetwork and approve it.'
+  },
+  {
     v: 'v75', date: '2026-11-06', status: 'live', pr: 67, areas: ['Sales invoices', 'Xero'],
     title: 'Sales invoice drafts now zero rate the lines DecoNetwork charged no VAT on',
     summary: 'Order 636730 had adult and kids T shirts. DecoNetwork charged VAT on the adult shirts only (£350.32), but the Xero invoice put 20% on everything (£579.84). Drafts now follow DecoNetwork line by line.',
