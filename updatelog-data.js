@@ -11,6 +11,27 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v80', date: '2026-11-12', status: 'live', pr: 71, areas: ['Sales invoices', 'Xero'],
+    title: 'Goods shipped before the 5pm post now go on one invoice',
+    summary: 'Order 636681 shipped 3 items at 12:57 and the other 6 lines at 13:10, but became two invoices (£9.37, then £3,485 + VAT) because GO built the first one seven seconds before the second shipment was recorded. Same-day shipments now stay together.',
+    changes: ['When an invoice has been approved automatically but has not started posting, and more of the same order ships, GO now adds the new items to that invoice instead of waiting for the 5pm post and making a "-2".', 'An invoice that a person approved or edited is never changed. Later shipments for that order still go on a separate invoice.', 'If the combined invoice now needs a check (for example it is above the order total), it goes back to Needs review.', 'GO also builds invoices at 4:55pm (Monday to Saturday) as well as 10 minutes past each hour, so shipments up to 4:55pm are on the invoice that posts at 5pm. Before, the last run was at 4:10pm.', 'Goods shipped after 4:55pm, or after an invoice has started posting, still go on the next invoice (-2). Invoices already in Xero are not changed.'],
+    watch: 'If you see two invoices for an order whose goods shipped the same day before 4:55pm, tell me the order number. If an invoice you already looked at changes before 5pm, a later shipment was added to it: the lines on it will be the full set of what has shipped.'
+  },
+  {
+    v: 'v79', date: '2026-11-12', status: 'live', pr: 71, areas: ['Sales invoices', 'Xero', 'Automation'],
+    title: 'Slower posting to Xero, and a correct "failed to post" alert',
+    summary: 'At 5pm on 11 Nov, 26 approved sales invoices were posted in one go. Xero asked us to slow down, so the last 3 failed. The next morning\'s data check email wrongly said they would not retry.',
+    changes: ['The posting step now sends Xero one request every 6 seconds instead of one every 2.6 seconds. A big batch takes about 5 minutes, not 2.', 'Invoices that fail once or twice are tried again automatically at the next 5pm post. The data check email now only warns about invoices that have failed 3 times, because those really will not retry.', 'The three invoices from yesterday (636613, 636738 and 636730-2) will try again at 5pm today. 636730-2 should not post: it needs to be undone and rejected first (see v78).'],
+    watch: 'If an approved invoice has still not reached Xero after the 5pm post, check the Posted to Xero list and the data check email. An invoice that has failed 3 times needs someone to look at it: the reason is shown on its card.'
+  },
+  {
+    v: 'v78', date: '2026-11-12', status: 'live', pr: 71, areas: ['Sales invoices', 'Xero'],
+    title: 'A second invoice that takes an order above its total now waits for a check',
+    summary: 'Order 636730 was already invoiced in full. Someone then changed one shirt on the order without changing the price, and GO made a second invoice for £12.08 and approved it by itself. Second and later invoices are now checked against everything already invoiced for the order.',
+    changes: ['GO used to check each invoice on its own against the order total. A small second invoice always passed, even when the order was already fully billed.', 'It now adds up the other invoices for the order (approved, in review or posted). If they plus the new one come to more than the order total in DecoNetwork, the invoice waits in Needs review, marked Above order total. It is never approved automatically.', 'Normal part shipments, where the invoices add up to no more than the order, are not affected. Tested on a real part shipment (636629-2).', 'Invoice 636730-2 already exists and is waiting to post to Xero. It must be undone and rejected by hand (Undo approve, then Reject) before the 5pm post. This change only affects invoices built from now on.'],
+    watch: 'If a second invoice you expect to go straight through is waiting with Above order total, the order and its invoices do not add up. Check the order in DecoNetwork. If an order is wrongly flagged, tell me the order number.'
+  },
+  {
     v: 'v77', date: '2026-11-11', status: 'live', pr: 70, areas: ['Sales invoices', 'Xero'],
     title: 'People who pay up front in the AWR and Bill Plant shops get their own Xero account',
     summary: 'In the AWR, All Weather Roofline and Bill Plant Driving School shops, individuals pay when they order. Their invoices were going to the head office account in Xero. They now wait for a person to create the buyer’s own account, with the name and email already filled in.',

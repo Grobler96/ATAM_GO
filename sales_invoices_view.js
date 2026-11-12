@@ -101,6 +101,14 @@
             'The VAT total in Xero should then match the VAT on the DecoNetwork order. If it does, approve it.',
             'If you are unsure, choose Hold and ask the accountant.']
     },
+    over_billed: {
+      chip: 'Above order total', cls: 'si-chip-red',
+      title: 'Invoices for this order add up to more than the order',
+      why: () => 'The invoices already made for this order, plus this one, come to more than the order total in DecoNetwork. This often happens when an order is edited after it was invoiced and the price did not change.',
+      fix: ['Open the order in DecoNetwork and check whether the extra items were meant to be charged.',
+            'If they were not, choose Reject. If they were, fix the price in DecoNetwork first, then rebuild this invoice.',
+            'If you are unsure, choose Hold and ask Daniel.']
+    },
     own_account: {
       chip: 'Own account needed', cls: 'si-chip-amber',
       title: 'This buyer needs their own Xero account',
