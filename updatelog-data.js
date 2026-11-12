@@ -11,6 +11,27 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v84', date: '2026-11-12', status: 'live', pr: 73, areas: ['Sales invoices', 'Automation'],
+    title: 'Order data is refreshed at 4:50pm so the 5pm checks see recent changes',
+    summary: 'GO copies its order data from DecoNetwork once an hour, at the top of the hour. That meant the 4:55pm invoice run and the 5pm order-total check only saw changes up to 4:00pm. The order data is now also refreshed at 4:50pm.',
+    changes: ['Monday to Saturday, GO now also refreshes the orders and order lines from DecoNetwork at 4:50pm, on top of the hourly refresh.', 'The 4:55pm invoice run and the 5pm check that holds an invoice when the order total has changed now see everything up to about 4:50pm, instead of 4:00pm.', 'The 5pm post to Xero has not moved. Changes made in the last 10 minutes before 5pm can still be missed, so the rule for admin still stands: make price changes before marking goods shipped.'],
+    watch: 'If the order data looks stale at the end of the day, or an invoice is built or held on out-of-date prices, tell me the order number and the time of the change.'
+  },
+  {
+    v: 'v83', date: '2026-11-12', status: 'live', pr: 73, areas: ['Purchase orders', 'Xero'],
+    title: 'Supplier bills are posted to Xero more gently, and retried if Xero says wait',
+    summary: 'At 5pm on 11 Nov, 15 supplier bills were posted. 9 went through and 6 failed with "Try spacing your requests out". Xero only allows about 60 requests a minute, and the sales invoices were being posted at the same moment. The message is Xero asking us to slow down, not a problem with the bills.',
+    changes: ['The posting step now sends Xero one request every 3 seconds (it was every 1.1 seconds), and if Xero says to slow down it waits and tries again, up to 4 times, before giving up.', 'Nothing about which bills are posted, or whether they go in as Draft or Authorised, has changed.', 'The bills that failed (Ralawise OP/I160679, Portwest 006397967, Prestige Leisure SI2574610 and ORN INV-00408908) are back in Needs review. Each one needs to be approved again, and it will then post at the next 5pm run. The Ralawise one was approved by the system, so it now needs a person to approve it.'],
+    watch: 'If a bill is back in Needs review with "AUTO-POST FAILED" after 5pm, open it and re-approve it. If the same message keeps coming back on the same bill, tell me the invoice number.'
+  },
+  {
+    v: 'v82', date: '2026-11-12', status: 'live', pr: 73, areas: ['Sales invoices', 'Xero'],
+    title: 'An invoice is held if the order total changes before it is posted to Xero',
+    summary: 'Order 636645 (PPG) had a £0.48 discount added in DecoNetwork after GO built the invoice. The old amount still went to Xero at 5pm. GO now checks the order total again at 5pm and holds the invoice if it has changed.',
+    changes: ['When GO builds an invoice it now remembers the order total. At 5pm, before posting, it compares that with the current order total. If they are different, the invoice goes back to Needs review, marked Order changed, and is not posted.', 'It is rebuilt from the latest prices and is never approved automatically. Someone checks it and approves it. After that it posts at the next 5pm, and it is not held a second time.', 'This also applies to an invoice a person has already approved, because they approved the old amount.', 'GO refreshes the order data from DecoNetwork at the top of each hour, so a change made in the last hour before 5pm may not be seen in time. The safest rule is still to make price changes before marking goods shipped.', 'Invoices already posted are not changed. The 6 invoices waiting now are checked from today.'],
+    watch: 'If an invoice you expected to go to Xero at 5pm is back in Needs review as Order changed, the order was edited after the invoice was built. Check the prices, then approve it. If it is wrongly held, tell me the order number.'
+  },
+  {
     v: 'v81', date: '2026-11-12', status: 'live', pr: 72, areas: ['Purchase orders', 'Xero'],
     title: 'Supplier invoices whose delivery is already on the purchase order now match',
     summary: 'Ralawise invoice OP/I157045 for PO 876934 was £29.69, the same as the PO. GO still flagged a £9.95 difference, because the PO already had the delivery on it and GO took the delivery off the invoice before comparing.',
