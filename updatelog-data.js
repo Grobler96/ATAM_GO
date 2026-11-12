@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v79', date: '2026-11-12', status: 'built', pr: 71, areas: ['Sales invoices', 'Xero', 'Automation'],
+    title: 'Slower posting to Xero, and a correct "failed to post" alert',
+    summary: 'At 5pm on 11 Nov, 26 approved sales invoices were posted in one go. Xero asked us to slow down, so the last 3 failed. The next morning\'s data check email wrongly said they would not retry.',
+    changes: ['The posting step now sends Xero one request every 6 seconds instead of one every 2.6 seconds. A big batch takes about 5 minutes, not 2.', 'Invoices that fail once or twice are tried again automatically at the next 5pm post. The data check email now only warns about invoices that have failed 3 times, because those really will not retry.', 'The three invoices from yesterday (636613, 636738 and 636730-2) will try again at 5pm today. 636730-2 should not post: it needs to be undone and rejected first (see v78).'],
+    watch: 'If an approved invoice has still not reached Xero after the 5pm post, check the Posted to Xero list and the data check email. An invoice that has failed 3 times needs someone to look at it: the reason is shown on its card.'
+  },
+  {
     v: 'v78', date: '2026-11-12', status: 'built', areas: ['Sales invoices', 'Xero'],
     title: 'A second invoice that takes an order above its total now waits for a check',
     summary: 'Order 636730 was already invoiced in full. Someone then changed one shirt on the order without changing the price, and GO made a second invoice for £12.08 and approved it by itself. Second and later invoices are now checked against everything already invoiced for the order.',
