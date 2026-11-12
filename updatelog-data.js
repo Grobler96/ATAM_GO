@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v78', date: '2026-11-12', status: 'built', areas: ['Sales invoices', 'Xero'],
+    title: 'A second invoice that takes an order above its total now waits for a check',
+    summary: 'Order 636730 was already invoiced in full. Someone then changed one shirt on the order without changing the price, and GO made a second invoice for £12.08 and approved it by itself. Second and later invoices are now checked against everything already invoiced for the order.',
+    changes: ['GO used to check each invoice on its own against the order total. A small second invoice always passed, even when the order was already fully billed.', 'It now adds up the other invoices for the order (approved, in review or posted). If they plus the new one come to more than the order total in DecoNetwork, the invoice waits in Needs review, marked Above order total. It is never approved automatically.', 'Normal part shipments, where the invoices add up to no more than the order, are not affected. Tested on a real part shipment (636629-2).', 'Invoice 636730-2 already exists and is waiting to post to Xero. It must be undone and rejected by hand (Undo approve, then Reject) before the 5pm post. This change only affects invoices built from now on.'],
+    watch: 'If a second invoice you expect to go straight through is waiting with Above order total, the order and its invoices do not add up. Check the order in DecoNetwork. If an order is wrongly flagged, tell me the order number.'
+  },
+  {
     v: 'v77', date: '2026-11-11', status: 'live', pr: 70, areas: ['Sales invoices', 'Xero'],
     title: 'People who pay up front in the AWR and Bill Plant shops get their own Xero account',
     summary: 'In the AWR, All Weather Roofline and Bill Plant Driving School shops, individuals pay when they order. Their invoices were going to the head office account in Xero. They now wait for a person to create the buyer’s own account, with the name and email already filled in.',
