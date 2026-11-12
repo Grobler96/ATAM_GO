@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v80', date: '2026-11-12', status: 'built', pr: 71, areas: ['Sales invoices', 'Xero'],
+    title: 'Goods shipped before the 5pm post now go on one invoice',
+    summary: 'Order 636681 shipped 3 items at 12:57 and the other 6 lines at 13:10, but became two invoices (£9.37, then £3,485 + VAT) because GO built the first one seven seconds before the second shipment was recorded. Same-day shipments now stay together.',
+    changes: ['When an invoice has been approved automatically but has not started posting, and more of the same order ships, GO now adds the new items to that invoice instead of waiting for the 5pm post and making a "-2".', 'An invoice that a person approved or edited is never changed. Later shipments for that order still go on a separate invoice.', 'If the combined invoice now needs a check (for example it is above the order total), it goes back to Needs review.', 'GO also builds invoices at 4:55pm (Monday to Saturday) as well as 10 minutes past each hour, so shipments up to 4:55pm are on the invoice that posts at 5pm. Before, the last run was at 4:10pm.', 'Goods shipped after 4:55pm, or after an invoice has started posting, still go on the next invoice (-2). Invoices already in Xero are not changed.'],
+    watch: 'If you see two invoices for an order whose goods shipped the same day before 4:55pm, tell me the order number. If an invoice you already looked at changes before 5pm, a later shipment was added to it: the lines on it will be the full set of what has shipped.'
+  },
+  {
     v: 'v79', date: '2026-11-12', status: 'built', pr: 71, areas: ['Sales invoices', 'Xero', 'Automation'],
     title: 'Slower posting to Xero, and a correct "failed to post" alert',
     summary: 'At 5pm on 11 Nov, 26 approved sales invoices were posted in one go. Xero asked us to slow down, so the last 3 failed. The next morning\'s data check email wrongly said they would not retry.',
