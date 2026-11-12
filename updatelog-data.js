@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v84', date: '2026-11-12', status: 'built', pr: 73, areas: ['Sales invoices', 'Automation'],
+    title: 'Order data is refreshed at 4:50pm so the 5pm checks see recent changes',
+    summary: 'GO copies its order data from DecoNetwork once an hour, at the top of the hour. That meant the 4:55pm invoice run and the 5pm order-total check only saw changes up to 4:00pm. The order data is now also refreshed at 4:50pm.',
+    changes: ['Monday to Saturday, GO now also refreshes the orders and order lines from DecoNetwork at 4:50pm, on top of the hourly refresh.', 'The 4:55pm invoice run and the 5pm check that holds an invoice when the order total has changed now see everything up to about 4:50pm, instead of 4:00pm.', 'The 5pm post to Xero has not moved. Changes made in the last 10 minutes before 5pm can still be missed, so the rule for admin still stands: make price changes before marking goods shipped.'],
+    watch: 'If the order data looks stale at the end of the day, or an invoice is built or held on out-of-date prices, tell me the order number and the time of the change.'
+  },
+  {
     v: 'v83', date: '2026-11-12', status: 'built', pr: 73, areas: ['Purchase orders', 'Xero'],
     title: 'Supplier bills are posted to Xero more gently, and retried if Xero says wait',
     summary: 'At 5pm on 11 Nov, 15 supplier bills were posted. 9 went through and 6 failed with "Try spacing your requests out". Xero only allows about 60 requests a minute, and the sales invoices were being posted at the same moment. The message is Xero asking us to slow down, not a problem with the bills.',
