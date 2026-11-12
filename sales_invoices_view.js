@@ -101,6 +101,14 @@
             'The VAT total in Xero should then match the VAT on the DecoNetwork order. If it does, approve it.',
             'If you are unsure, choose Hold and ask the accountant.']
     },
+    order_changed: {
+      chip: 'Order changed', cls: 'si-chip-red',
+      title: 'The order changed after this invoice was built',
+      why: () => 'The order total in DecoNetwork is no longer the same as when this invoice was first built (for example a discount or a price was changed). It was taken back from the 5pm post so the old amount does not go to Xero. It has been rebuilt from the latest prices.',
+      fix: ['Open the order in DecoNetwork and check the prices and total.',
+            'Check the lines below match the order, then approve.',
+            'If the lines below still look wrong, choose Rebuild from DecoNetwork, or Hold and ask Daniel.']
+    },
     over_billed: {
       chip: 'Above order total', cls: 'si-chip-red',
       title: 'Invoices for this order add up to more than the order',

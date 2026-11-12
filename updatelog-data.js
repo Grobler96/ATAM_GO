@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v82', date: '2026-11-12', status: 'built', areas: ['Sales invoices', 'Xero'],
+    title: 'An invoice is held if the order total changes before it is posted to Xero',
+    summary: 'Order 636645 (PPG) had a £0.48 discount added in DecoNetwork after GO built the invoice. The old amount still went to Xero at 5pm. GO now checks the order total again at 5pm and holds the invoice if it has changed.',
+    changes: ['When GO builds an invoice it now remembers the order total. At 5pm, before posting, it compares that with the current order total. If they are different, the invoice goes back to Needs review, marked Order changed, and is not posted.', 'It is rebuilt from the latest prices and is never approved automatically. Someone checks it and approves it. After that it posts at the next 5pm, and it is not held a second time.', 'This also applies to an invoice a person has already approved, because they approved the old amount.', 'GO refreshes the order data from DecoNetwork at the top of each hour, so a change made in the last hour before 5pm may not be seen in time. The safest rule is still to make price changes before marking goods shipped.', 'Invoices already posted are not changed. The 6 invoices waiting now are checked from today.'],
+    watch: 'If an invoice you expected to go to Xero at 5pm is back in Needs review as Order changed, the order was edited after the invoice was built. Check the prices, then approve it. If it is wrongly held, tell me the order number.'
+  },
+  {
     v: 'v81', date: '2026-11-12', status: 'live', pr: 72, areas: ['Purchase orders', 'Xero'],
     title: 'Supplier invoices whose delivery is already on the purchase order now match',
     summary: 'Ralawise invoice OP/I157045 for PO 876934 was £29.69, the same as the PO. GO still flagged a £9.95 difference, because the PO already had the delivery on it and GO took the delivery off the invoice before comparing.',
