@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v83', date: '2026-11-12', status: 'built', pr: 73, areas: ['Purchase orders', 'Xero'],
+    title: 'Supplier bills are posted to Xero more gently, and retried if Xero says wait',
+    summary: 'At 5pm on 11 Nov, 15 supplier bills were posted. 9 went through and 6 failed with "Try spacing your requests out". Xero only allows about 60 requests a minute, and the sales invoices were being posted at the same moment. The message is Xero asking us to slow down, not a problem with the bills.',
+    changes: ['The posting step now sends Xero one request every 3 seconds (it was every 1.1 seconds), and if Xero says to slow down it waits and tries again, up to 4 times, before giving up.', 'Nothing about which bills are posted, or whether they go in as Draft or Authorised, has changed.', 'The bills that failed (Ralawise OP/I160679, Portwest 006397967, Prestige Leisure SI2574610 and ORN INV-00408908) are back in Needs review. Each one needs to be approved again, and it will then post at the next 5pm run. The Ralawise one was approved by the system, so it now needs a person to approve it.'],
+    watch: 'If a bill is back in Needs review with "AUTO-POST FAILED" after 5pm, open it and re-approve it. If the same message keeps coming back on the same bill, tell me the invoice number.'
+  },
+  {
     v: 'v82', date: '2026-11-12', status: 'built', areas: ['Sales invoices', 'Xero'],
     title: 'An invoice is held if the order total changes before it is posted to Xero',
     summary: 'Order 636645 (PPG) had a £0.48 discount added in DecoNetwork after GO built the invoice. The old amount still went to Xero at 5pm. GO now checks the order total again at 5pm and holds the invoice if it has changed.',
