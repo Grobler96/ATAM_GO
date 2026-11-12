@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v85', date: '2026-11-12', status: 'built', areas: ['Sales invoices', 'ATAM FLOW', 'Automation'],
+    title: 'Wasted items are no longer invoiced, and DecoNetwork wastage shows in ATAM FLOW',
+    summary: 'On order 636730 a Cool T was marked as wasted in DecoNetwork. DecoNetwork added a replacement to the order, and GO billed the replacement as an extra shirt. GO now reads the wasted quantity and does not bill it. The same wastage is now suggested on the ATAM FLOW Wastage page.',
+    changes: ['DecoNetwork records how many of each item were wasted. GO now saves that number every hour with the rest of the order data.', 'For orders paid in full, GO now bills the required quantity minus the wasted quantity. The replacement shirt is not invoiced. Orders that are billed on what has shipped were not affected, because the wasted shirt never ships.', 'ATAM FLOW: each wasted item now appears on the Wastage page as a suggestion for someone to confirm or dismiss. About 25 appear the first time (about £173), for orders from the last month. If more is wasted later, only the extra is added, and nothing is counted twice.', 'DecoNetwork does not say why, or when, an item was wasted. The suggestion shows the cause as Other and the time GO first saw it. The real time, person and reason are in the order history in DecoNetwork, so whoever confirms it should set the cause.', 'Already billed: invoice 636616-3 (5 Nov) charged one Pro hi-vis executive vest Medium (£7.56 + VAT) that was the replacement for a wasted one. It needs correcting by hand in Xero. Invoice 636730-2 is the other one and still needs to be rejected.'],
+    watch: 'If a paid order is invoiced for fewer items than were shipped and something was wasted, tell me the order number. If the Wastage page in ATAM FLOW looks wrong, tell me what you see.'
+  },
+  {
     v: 'v84', date: '2026-11-12', status: 'live', pr: 73, areas: ['Sales invoices', 'Automation'],
     title: 'Order data is refreshed at 4:50pm so the 5pm checks see recent changes',
     summary: 'GO copies its order data from DecoNetwork once an hour, at the top of the hour. That meant the 4:55pm invoice run and the 5pm order-total check only saw changes up to 4:00pm. The order data is now also refreshed at 4:50pm.',
