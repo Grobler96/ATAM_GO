@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v81', date: '2026-11-12', status: 'built', areas: ['Purchase orders', 'Xero'],
+    v: 'v81', date: '2026-11-12', status: 'live', pr: 72, areas: ['Purchase orders', 'Xero'],
     title: 'Supplier invoices whose delivery is already on the purchase order now match',
     summary: 'Ralawise invoice OP/I157045 for PO 876934 was £29.69, the same as the PO. GO still flagged a £9.95 difference, because the PO already had the delivery on it and GO took the delivery off the invoice before comparing.',
     changes: ['When an invoice is flagged as a difference only because of its delivery charge, GO now also compares the invoice total with the PO as it stands. If that matches, it counts as a clean match, the same as any other.', 'The delivery is then recorded as £0 so the Review page no longer adds the £9.95 a second time.', 'A clean match with high confidence is approved automatically, like any other. For suppliers set up in GO (Ralawise is) the bill then goes to Xero as Authorised.', 'The Retry Match button uses the same rule. ORN invoices are left alone because they have their own price check.', 'In the last 60 days, 5 Ralawise invoices had this pattern. Invoices already in the system are not changed.'],
