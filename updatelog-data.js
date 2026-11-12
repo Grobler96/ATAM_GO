@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v86', date: '2026-11-12', status: 'built', areas: ['Email', 'Automation'],
+    v: 'v86', date: '2026-11-12', status: 'live', pr: 75, areas: ['Email', 'Automation'],
     title: 'The email reply checker no longer stops when Microsoft is slow for one mailbox',
     summary: 'At 6:13pm on 12 Nov the reply checker failed because Microsoft took more than 20 seconds to answer for one mailbox. Nothing was lost: it checks again 30 minutes later. It now tries again and carries on instead of stopping.',
     changes: ['The part that checks Win-back and New customers emails for replies now retries once if Microsoft does not answer, and carries on to the next email if it still does not. The Quotes part already worked this way.', 'A missed check only delays a reply showing up by 30 minutes. No data was lost and nothing was sent.'],
