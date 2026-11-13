@@ -14,7 +14,7 @@ window.ATAM_UPDATES = [
     v: 'v87', date: '2026-11-13', status: 'built', areas: ['Purchase orders', 'Automation'],
     title: 'The invoice reader no longer fails when it meets a document it has already saved',
     summary: 'On 13 Nov the invoice reader failed with "Your request is invalid". A Prestige Leisure Terms and Conditions email, already saved the night before, was being read again every 5 minutes and refused each time, so the email never cleared. Documents already saved are now skipped quietly.',
-    changes: ['When the invoice reader meets a document it has already saved, it now skips it instead of failing. The email can then move out of the inbox and the repeats stop.', 'New documents are still saved as before.', 'The workflow still needs two small changes in n8n: a more precise "ignore duplicates" setting on the save step, and a new name that does not mention the AI tool. These are waiting for n8n to be reachable again.'],
+    changes: ['When the invoice reader meets a document it has already saved, it now skips it instead of failing. The email can then move out of the inbox and the repeats stop.', 'New documents are still saved as before.', 'The workflow is renamed "Invoice Reader and PO Matching (staging)" so it no longer names the AI tool, and its two save steps now ignore a repeat properly instead of failing.'],
     watch: 'If you get another failure email from the invoice reading workflow, tell me the time and the step it failed at. Check that the Prestige Leisure Terms and Conditions email has left the shared inbox.'
   },
   {
