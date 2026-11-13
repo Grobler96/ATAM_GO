@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v87', date: '2026-11-13', status: 'live', pr: 76, areas: ['Purchase orders', 'Automation'],
+    title: 'The invoice reader no longer fails when it meets a document it has already saved',
+    summary: 'On 13 Nov the invoice reader failed with "Your request is invalid". A Prestige Leisure Terms and Conditions email, already saved the night before, was being read again every 5 minutes and refused each time, so the email never cleared. Documents already saved are now skipped quietly.',
+    changes: ['When the invoice reader meets a document it has already saved, it now skips it instead of failing. The email can then move out of the inbox and the repeats stop.', 'New documents are still saved as before.', 'The workflow is renamed "Invoice Reader and PO Matching (staging)" so it no longer names the AI tool, and its two save steps now ignore a repeat properly instead of failing.'],
+    watch: 'If you get another failure email from the invoice reading workflow, tell me the time and the step it failed at. Check that the Prestige Leisure Terms and Conditions email has left the shared inbox.'
+  },
+  {
     v: 'v86', date: '2026-11-12', status: 'live', pr: 75, areas: ['Email', 'Automation'],
     title: 'The email reply checker no longer stops when Microsoft is slow for one mailbox',
     summary: 'At 6:13pm on 12 Nov the reply checker failed because Microsoft took more than 20 seconds to answer for one mailbox. Nothing was lost: it checks again 30 minutes later. It now tries again and carries on instead of stopping.',
