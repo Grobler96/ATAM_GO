@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v88', date: '2026-11-14', status: 'built', areas: ['Stock', 'Automation'],
+    title: 'The stock levels refresh is gentler on DecoNetwork, so it stops being refused',
+    summary: 'At 6:10am on 14 Nov the stock levels refresh failed because DecoNetwork said too many requests were coming at once. Every run before it worked, so nothing was lost: stock levels were just 3 hours older until the next run. The refresh now asks for the stock list more slowly.',
+    changes: ['The stock levels refresh used to ask DecoNetwork for 5 pages at the same time. It now asks for 2 at a time, with a short gap, and tries up to 5 times if DecoNetwork still says no.', 'It takes a little longer (under a minute). The data it saves is the same.'],
+    watch: 'If you get another failure email for the stock levels refresh, tell me the time. The Stock tab shows when it was last updated.'
+  },
+  {
     v: 'v87', date: '2026-11-13', status: 'live', pr: 76, areas: ['Purchase orders', 'Automation'],
     title: 'The invoice reader no longer fails when it meets a document it has already saved',
     summary: 'On 13 Nov the invoice reader failed with "Your request is invalid". A Prestige Leisure Terms and Conditions email, already saved the night before, was being read again every 5 minutes and refused each time, so the email never cleared. Documents already saved are now skipped quietly.',
