@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v89', date: '2026-11-16', status: 'built', areas: ['Sales invoices', 'Xero'],
+    v: 'v89', date: '2026-11-16', status: 'live', pr: 78, areas: ['Sales invoices', 'Xero'],
     title: 'Soroptimist and the main Atam Workwear shop get their own Xero accounts, and the delivery address is saved too',
     summary: 'Steph said yes to both questions about the "Own account needed" change. Paid orders from the Soroptimist shop and the main Atam Workwear shop now wait in Needs review with the buyer\'s name and email filled in, like AWR, All Weather Roofline and Bill Plant. When Create in Xero is pressed, the delivery address from the order is saved on the new Xero account.',
     changes: ['Soroptimist and the main Atam Workwear shop are added to the shops that need their own account. A paid order from them waits in Needs review as "Own account needed", unless the Xero customer already has the buyer\'s email, in which case it carries on as before.', 'The Atam Workwear Order Portal is not included: only 6 of its last 52 invoices were paid up front, the rest are on account.', 'The Create in Xero box now has a Delivery address box, filled in from the order. You can correct it before pressing the button. It is saved on the new Xero account as its street address. If it is empty or looks odd, the account is still created.', 'Invoices already waiting are not changed. Use Rebuild from DecoNetwork on an unapproved one if you want it to follow the new rule.'],
