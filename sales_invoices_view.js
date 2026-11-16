@@ -551,7 +551,8 @@
             <input type="email" data-role="create-email" placeholder="Email (optional)" value="${esc(row.buyer_email || '')}">
             <button type="button" class="si-btn" data-action="create-contact">Create in Xero</button>
           </div>
-          <div class="si-hint">This only creates the customer in Xero. It is safe to use even if you are unsure, because Xero refuses a duplicate name.</div>
+          <textarea data-role="create-address" rows="2" placeholder="Delivery address (optional, saved on the Xero account)" style="width:100%;margin-top:6px;">${esc(row.shipping_address || '')}</textarea>
+          <div class="si-hint">This only creates the customer in Xero, with the delivery address above if there is one. It is safe to use even if you are unsure, because Xero refuses a duplicate name.</div>
         </details>
       </div>
 
@@ -780,7 +781,9 @@
           const email = card.querySelector('[data-role="create-email"]').value.trim();
           if (name.length < 3) { toast('Enter the customer name first.', 'error'); return; }
           if (!confirm(`Create "${name}" as a new customer in Xero?`)) return;
-          const { data } = await callHook('create-xero-customer', { name: name, email: email });
+          const addrEl = card.querySelector('[data-role="create-address"]');
+          const address = addrEl ? addrEl.value.trim() : '';
+          const { data } = await callHook('create-xero-customer', { name: name, email: email, address: address });
           if (!data || data.ok !== true) { toast((data && data.error) || 'Xero did not create the customer.', 'error'); return; }
           setContact(card, data.ContactID, data.Name);
           toast(`Created "${data.Name}" in Xero and selected it. Now approve the invoice.`);

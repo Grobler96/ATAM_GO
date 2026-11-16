@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v89', date: '2026-11-16', status: 'built', areas: ['Sales invoices', 'Xero'],
+    title: 'Soroptimist and the main Atam Workwear shop get their own Xero accounts, and the delivery address is saved too',
+    summary: 'Steph said yes to both questions about the "Own account needed" change. Paid orders from the Soroptimist shop and the main Atam Workwear shop now wait in Needs review with the buyer\'s name and email filled in, like AWR, All Weather Roofline and Bill Plant. When Create in Xero is pressed, the delivery address from the order is saved on the new Xero account.',
+    changes: ['Soroptimist and the main Atam Workwear shop are added to the shops that need their own account. A paid order from them waits in Needs review as "Own account needed", unless the Xero customer already has the buyer\'s email, in which case it carries on as before.', 'The Atam Workwear Order Portal is not included: only 6 of its last 52 invoices were paid up front, the rest are on account.', 'The Create in Xero box now has a Delivery address box, filled in from the order. You can correct it before pressing the button. It is saved on the new Xero account as its street address. If it is empty or looks odd, the account is still created.', 'Invoices already waiting are not changed. Use Rebuild from DecoNetwork on an unapproved one if you want it to follow the new rule.'],
+    watch: 'Check the first new Xero account made this way: the name, email and address on the Xero contact. If the address looks cut up wrongly, tell me the order number. If paid orders from the main shop that should have gone through on their own are now waiting, tell me the order numbers.'
+  },
+  {
     v: 'v88', date: '2026-11-14', status: 'live', pr: 77, areas: ['Stock', 'Automation'],
     title: 'The stock levels refresh is gentler on DecoNetwork, so it stops being refused',
     summary: 'At 6:10am on 14 Nov the stock levels refresh failed because DecoNetwork said too many requests were coming at once. Every run before it worked, so nothing was lost: stock levels were just 3 hours older until the next run. The refresh now asks for the stock list more slowly.',
