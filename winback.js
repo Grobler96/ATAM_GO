@@ -1304,7 +1304,7 @@ body.wb-lock { overflow:hidden; }
       <details class="wb-how" id="wbHow"><summary>New here? How Win-back works (a two-minute read)</summary>
         <p>A customer appears here when they have gone past their usual reorder time. Each one sits in a column. <b>Open a customer, read “Your move”, do it, then log what happened.</b> The card moves along by itself.</p>
         <div class="wb-how-steps">${BOARD.map(k => `<div style="--c:${STAGES[k].color}"><b>${STAGES[k].icon} ${esc(STAGES[k].label)}</b><span>${esc(STAGES[k].blurb)}</span><em>${esc(GUIDE[k].say)}</em></div>`).join('')}</div>
-        <ul><li><b>Always log what happened</b> (even “no answer”), so the next person knows.</li><li><b>Always pick a “chase again” date.</b> It then appears in the Calendar tab and in the morning email.</li><li>Asked to be left alone, or closed down? Use Park or Mark lost, and add the reason.</li><li>Stuck on anything? Ask DAN (the robot button).</li></ul></details>
+        <ul><li><b>Always log what happened</b> (even “no answer”), so the next person knows.</li><li><b>Always pick a “chase again” date.</b> It then appears in the Calendar tab and in the morning email.</li><li>Asked to be left alone, or closed down? Use Park or Mark lost, and add the reason.</li><li>Stuck on anything? Ask the Bot (the robot button).</li></ul></details>
       <p class="wb-value-line" id="wbValue"></p>
       <div class="wb-kpis" id="wbKpis"></div>
       <div class="wb-toolbar"><div class="wb-tabs" id="wbTabs" role="tablist"></div></div>
