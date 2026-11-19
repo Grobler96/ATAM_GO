@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v93', date: '2026-11-19', status: 'built', areas: ['Purchase orders'],
+    title: 'Purchase Order Review now adds VAT on the carriage when it works out the PO total',
+    summary: 'Steph spotted that on invoices with a delivery charge that is not on the PO, the PO side of the Review screen added the carriage after the VAT, so the PO total was short by the VAT on the carriage: £1.39 out on PO 876991 and £1.72 out on PO 876997. It now adds the carriage and the VAT on it.',
+    changes: ['The PO box on the Review screen has a new line, VAT on carriage, and its Total now includes it. For PO 876991 it shows 34.45 against the invoice\'s 34.46, and for PO 876997 it shows 34.73 against 34.72.', 'The "What\'s wrong" sentence for an amount difference now takes the carriage and its VAT off the invoice, so it no longer shows a gap that is really just the VAT on the carriage.', 'This only changes what is shown on the screen. Nothing was posted differently and no invoice was approved or changed.'],
+    watch: 'Look at a few invoices with a carriage charge. The two totals should now be within a few pence. If a PO that has no VAT at all looks wrong, tell me the PO number.'
+  },
+  {
     v: 'v92', date: '2026-11-19', status: 'live', pr: 81, areas: ['Sales invoices', 'Xero'],
     title: 'The buyer\'s email is now filled in when you create a Xero customer, for every invoice',
     summary: 'Steph noticed that the Create in Xero box had the delivery address filled in but not the email, so she had to type it, and Xero needs it to send the invoice. The email only reached GO overnight, so on the day an order shipped it was still unknown. It now arrives with the hourly order refresh.',
