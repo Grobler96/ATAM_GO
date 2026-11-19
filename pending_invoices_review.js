@@ -1412,14 +1412,62 @@
     showReviewTab(first);
   }
 
+  // Keeping the page up to date (19 Nov 2026, v91). The lists used to be loaded once, when the page opened, and never again, so a tab left open
+  // all day missed every invoice that arrived after it (Steph: 6 emails sent to GO, nothing to review until Ctrl+Shift+R). Now it reloads
+  // when you come back to the tab, every 2 minutes while this page is showing, and from the Refresh buttons. Automatic reloads are skipped
+  // while a card is open or someone is typing, because a reload redraws the cards and would lose what they have typed.
+  let lastLoad = Date.now();
+  let loading = false;
+  function reviewPageShowing() {
+    const sec = document.getElementById('review');
+    return !!(sec && sec.classList.contains('active')) && !document.hidden;
+  }
+  function personIsWorking() {
+    if (document.querySelector('#review .rev-case.open')) return true;
+    const a = document.activeElement;
+    return !!(a && a.closest && a.closest('#review') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  }
+  function stampText() {
+    const el = document.getElementById('revUpdatedAt');
+    if (el) el.textContent = 'Updated ' + new Date(lastLoad).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+  async function reloadReview(manual) {
+    if (loading) return;
+    if (!manual && (!reviewPageShowing() || personIsWorking())) return;
+    loading = true;
+    const btn = document.getElementById('revRefreshBtn');
+    if (btn) btn.disabled = true;
+    try { await loadPending(); lastLoad = Date.now(); stampText(); }
+    catch (e) { console.error('[Review] refresh failed', e); }
+    finally { loading = false; if (btn) btn.disabled = false; }
+  }
+  function initAutoRefresh() {
+    const bar = document.querySelector('#review .rev-toolbar');
+    if (bar && !document.getElementById('revRefreshBtn')) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:10px;margin:8px 0 0 0';
+      wrap.innerHTML = '<button type="button" class="rev-btn" id="revRefreshBtn">Refresh</button><span class="muted" id="revUpdatedAt" style="font-size:12px"></span>';
+      bar.appendChild(wrap);
+      document.getElementById('revRefreshBtn').addEventListener('click', () => reloadReview(true));
+    }
+    const top = document.getElementById('refreshBtn');
+    if (top) top.addEventListener('click', () => { if (reviewPageShowing()) reloadReview(true); });
+    setInterval(() => { if (Date.now() - lastLoad > 110000) reloadReview(false); }, 30000);
+    const back = () => { if (Date.now() - lastLoad > 60000) reloadReview(false); };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) back(); });
+    window.addEventListener('focus', back);
+    document.addEventListener('click', (e) => { const n = e.target.closest && e.target.closest('.nav-link'); if (n && n.dataset && n.dataset.page === 'review') setTimeout(back, 50); });
+    stampText();
+  }
+
   function initWhenVisible() {
     initTabs();
     initOtherTab();
-    loadPending();
+    loadPending().then(() => { lastLoad = Date.now(); initAutoRefresh(); });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initWhenVisible);
   else initWhenVisible();
 
-  window.reviewRefresh = loadPending;
+  window.reviewRefresh = () => reloadReview(true);
 })();
