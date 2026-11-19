@@ -67,6 +67,17 @@
     const d = Number(row.identified_delivery_charge) || 0;
     return d > 0 ? Math.round(d * carriageVatRate(row) * 100) / 100 : 0;
   }
+  // Carriage already on the PO (19 Nov 2026, v96, Steph: BTC 203549328). Some DecoNetwork POs already carry a delivery line (this one: sub total 25.95 includes a 4.95
+  // delivery line). The invoice total then equals the PO as it stands, and adding the carriage to the PO side again made it look 4.95 + VAT out. When the invoice
+  // total is within GBP 1 or 2% of the PO as it stands, but NOT within that of the PO plus carriage and its VAT, the carriage is treated as already on the PO.
+  function carriageAlreadyOnPo(row) {
+    const d = Number(row.identified_delivery_charge) || 0;
+    if (!(d > 0)) return false;
+    const poAsIs = (Number(row.matched_po_sub_total) || 0) + (Number(row.matched_po_tax) || 0);
+    const inv = (Number(row.extracted_goods) || 0) + (Number(row.extracted_vat) || 0);
+    const near = (a, b) => { const diff = Math.abs(a - b); return diff <= 1 || (b !== 0 && diff / Math.abs(b) <= 0.02); };
+    return near(inv, poAsIs) && !near(inv, poAsIs + d + carriageVat(row));
+  }
   // For the editable <input type="date">, which needs YYYY-MM-DD with no time
   // component - extracted_invoice_date is already stored as a plain date, but
   // this guards against it ever arriving as a full timestamp string instead.
@@ -895,11 +906,13 @@
       // wrong (e.g. shows a "£36 over" gap that's actually just carriage) even when the
       // real match underneath was already correct.
       const invCombinedRaw = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
-      const carVat = carriageVat(row);
-      const invCombined = invCombinedRaw - deliveryCharge - carVat;
+      const onPo = carriageAlreadyOnPo(row);
+      const carVat = onPo ? 0 : carriageVat(row);
+      const invCombined = onPo ? invCombinedRaw : invCombinedRaw - deliveryCharge - carVat;
       const diff = (invCombined - poCombined).toFixed(2);
       const deliveryNote = deliveryCharge > 0
-        ? ` (${fmtMoney(deliveryCharge)} identified delivery/carriage charge${carVat > 0 ? ' and its ' + fmtMoney(carVat) + ' VAT' : ''} already netted out of this comparison)`
+        ? (onPo ? ` (the ${fmtMoney(deliveryCharge)} delivery on the invoice is already on the PO, so it is compared as it stands)`
+                : ` (${fmtMoney(deliveryCharge)} identified delivery/carriage charge${carVat > 0 ? ' and its ' + fmtMoney(carVat) + ' VAT' : ''} already netted out of this comparison)`)
         : '';
       whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total${deliveryNote} (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${escHtml(row.matched_po_number)}'s value (${fmtMoney(poCombined)}), outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
@@ -944,8 +957,11 @@
     // the comparison box are visibly accounting for it rather than it only showing up
     // buried in a sentence under clean-match cases.
     const deliveryCharge = Number(row.identified_delivery_charge) || 0;
+    const carriageOnPo = carriageAlreadyOnPo(row);
     const deliveryChargeRow = deliveryCharge > 0
-      ? `<div class="rev-ct-row"><span>Carriage (identified, not on PO)</span><b>${fmtMoney(deliveryCharge)}</b></div>`
+      ? (carriageOnPo
+          ? `<div class="rev-ct-row"><span>Delivery on the invoice (already on the PO)</span><b>${fmtMoney(deliveryCharge)}</b></div>`
+          : `<div class="rev-ct-row"><span>Carriage (identified, not on PO)</span><b>${fmtMoney(deliveryCharge)}</b></div>`)
       : '';
 
     // Totals for each side, so the two cards can be compared at a glance rather than
@@ -953,11 +969,11 @@
     // includes the identified carriage charge even though it isn't actually on the
     // PO itself - that's what makes it directly comparable to the invoice total,
     // which already has carriage baked into the Goods figure from extraction.
-    const carriageVatAmt = carriageVat(row);
+    const carriageVatAmt = carriageOnPo ? 0 : carriageVat(row);
     const carriageVatRow = carriageVatAmt > 0
       ? `<div class="rev-ct-row"><span>VAT on carriage</span><b>${fmtMoney(carriageVatAmt)}</b></div>`
       : '';
-    const poTotal = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + deliveryCharge + carriageVatAmt;
+    const poTotal = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + (carriageOnPo ? 0 : deliveryCharge) + carriageVatAmt;
     const invTotal = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
     const poTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(poTotal)}</b></div>`;
     const invTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(invTotal)}</b></div>`;
