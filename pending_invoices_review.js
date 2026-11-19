@@ -285,6 +285,13 @@
       const retryBtn = el.querySelector('[data-action="retry-match"]');
       const createSupplierBtn = el.querySelector('[data-action="create-xero-supplier"]');
       const correctDateBtn = el.querySelector('[data-action="correct-date"]');
+      const saveNoteBtn = el.querySelector('[data-action="save-note"]');
+      const notesTa = document.getElementById('notes-' + row.id);
+      if (saveNoteBtn) saveNoteBtn.addEventListener('click', (e) => { e.stopPropagation(); saveNote(row.id, true); });
+      if (notesTa) {
+        notesTa.addEventListener('click', (e) => e.stopPropagation());
+        notesTa.addEventListener('blur', () => saveNote(row.id, false));
+      }
       if (approveBtn) approveBtn.addEventListener('click', (e) => { e.stopPropagation(); approveRow(row.id); });
       if (rejectBtn) rejectBtn.addEventListener('click', (e) => { e.stopPropagation(); rejectRow(row.id); });
       if (snoozeBtn) snoozeBtn.addEventListener('click', (e) => { e.stopPropagation(); snoozeRow(row.id, snoozeBtn); });
@@ -1047,7 +1054,8 @@
           <div class="rev-case-main">
             <div class="rev-case-ref">Invoice ${escHtml(row.extracted_invoice_number || 'unknown')} · Received ${fmtDate(row.received_at)}</div>
             <div class="rev-case-title">${escHtml(row.extracted_vendor || 'Unknown vendor')} · ${bouncedBack ? 'Bounced back from Xero' : meta.label}</div>
-            <div class="rev-case-sub">${escHtml(row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet')} ${confBadge}${keptNote(row) ? ' <span class="rev-badge-mini" title="' + escHtml(keptNote(row)) + '">📝 note</span>' : ''}</div>
+            <div class="rev-case-sub">${escHtml(row.matched_po_number ? 'Matched to PO ' + row.matched_po_number : 'No PO matched yet')} ${confBadge}</div>
+            <div class="rev-note-line" id="noteline-${row.id}" style="${keptNote(row) ? '' : 'display:none;'}margin-top:4px;font-size:12px;color:#bae6fd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%" title="${escHtml(keptNote(row))}">📝 ${escHtml(keptNote(row))}</div>
           </div>
           <button type="button" class="rev-btn ask-dan-btn" data-ask-dan="supplier_invoice" data-id="${escHtml(row.id)}" data-label="${escHtml('supplier invoice ' + (row.extracted_invoice_number || '') + ' from ' + (row.extracted_vendor || 'a supplier'))}" style="padding:5px 10px;font-size:11px;white-space:nowrap" title="Stuck? Ask the Bot to walk you through this invoice">🤖 Ask the Bot</button>
           <div class="rev-case-meta">
@@ -1062,7 +1070,6 @@
           ${bounceHtml}
           ${whyHtml}
           ${row.extraction_notes ? `<div class="rev-notes-flag">📝 ${escHtml(row.extraction_notes)}</div>` : ''}
-          ${keptNote(row) ? `<div class="rev-notes-flag" style="background:rgba(56,189,248,0.08);border-left-color:#38bdf8;color:#bae6fd"><b>Your note on this invoice:</b> ${escHtml(keptNote(row)).replace(/\n/g, '<br>')}</div>` : ''}
 
           <div class="rev-compare">
             <div class="rev-compare-card">
@@ -1138,6 +1145,7 @@
           <div class="rev-x-field" style="margin-top:14px">
             <label>Review notes <span class="rev-x-opt">(kept with the invoice, including after Move to In Review and Resume)</span></label>
             <textarea id="notes-${row.id}" placeholder="Optional note before approving or rejecting...">${escHtml(keptNote(row))}</textarea>
+            <div style="margin-top:6px;display:flex;align-items:center;gap:10px"><button type="button" class="rev-btn" data-action="save-note" style="padding:5px 12px;font-size:12px">Save note</button><span id="notestat-${row.id}" style="font-size:12px;opacity:.8"></span></div>
           </div>
 
           <div class="rev-actions">
@@ -1250,6 +1258,35 @@
     });
     if (error) { console.error(error); alert('Could not approve. Check the console.'); return; }
     await loadPending();
+  }
+
+  // Save a review note on its own (19 Nov 2026, v97). Before, a note typed in the box was only kept by Approve, Reject or Move to In Review,
+  // so it was lost on any reload. Saved by the Save note button, and automatically when the box is left. Nothing else on the invoice changes.
+  async function saveNote(id, manual) {
+    const ta = document.getElementById('notes-' + id);
+    const stat = document.getElementById('notestat-' + id);
+    if (!ta) return;
+    const row = (allRows || []).find(r => String(r.id) === String(id));
+    const text = ta.value;
+    if (!manual && row && text.trim() === keptNote(row).trim()) return;
+    if (stat) { stat.textContent = 'Saving…'; stat.style.color = ''; }
+    try {
+      const sb = await getSb();
+      const { error } = await sb.rpc('save_invoice_note', { p_id: id, p_note: text });
+      if (error) throw error;
+      if (row) row.review_notes = text.trim() ? text.trim().slice(0, 1000) : (String(row.review_notes || '').startsWith('AUTO-POST') ? row.review_notes : null);
+      const line = document.getElementById('noteline-' + id);
+      if (line) {
+        const k = row ? keptNote(row) : text.trim();
+        line.textContent = '📝 ' + k;
+        line.title = k;
+        line.style.display = k ? '' : 'none';
+      }
+      if (stat) { stat.textContent = '✓ Saved'; stat.style.color = '#4ade80'; }
+    } catch (e) {
+      console.error('[Review] save note error', e);
+      if (stat) { stat.textContent = 'Could not save. Try again.'; stat.style.color = '#f87171'; }
+    }
   }
 
   async function rejectRow(id) {

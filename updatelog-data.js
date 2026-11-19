@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v97', date: '2026-11-19', status: 'built', areas: ['Purchase orders'],
+    title: 'Review notes on supplier invoices now save, and show on the closed card',
+    summary: 'Steph found that a note typed in the Review notes box did not stay: it was only kept when the invoice was approved, rejected or moved to In Review, so any reload lost it. Notes now save on their own and show on the card without opening it.',
+    changes: ['A Save note button under the Review notes box, and the note also saves by itself when you click out of the box. It says Saved when it worked, or tells you if it could not.', 'The note now shows on the closed invoice card, under the PO line, so you can see at a glance what was said without opening it.', 'Saving a note changes nothing else on the invoice: it is not approved, rejected or moved.'],
+    watch: 'Type a note, click outside the box, then press Refresh: the note should still be there and show on the closed card. If a note disappears, tell me the invoice number.'
+  },
+  {
     v: 'v96', date: '2026-11-19', status: 'live', pr: 85, areas: ['Purchase orders', 'Automation'],
     title: 'Delivery already on the PO is no longer added a second time on the Review screen',
     summary: 'Steph spotted BTC invoice 203549328 (PO 877008): the PO already had the 4.95 delivery line, but the Review screen added 4.95 (and its VAT) on the PO side again, so the two sides looked 5.94 apart when they really matched. This is now fixed on the screen and in the invoice checks.',
