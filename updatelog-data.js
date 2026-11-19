@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v98', date: '2026-11-19', status: 'built', areas: ['Purchase orders', 'Automation'],
+    v: 'v98', date: '2026-11-19', status: 'live', pr: 87, areas: ['Purchase orders', 'Automation'],
     title: 'Retry Match now re-reads the purchase order from DecoNetwork first',
     summary: 'Steph corrected the supplier on PO 876997 in DecoNetwork and pressed Retry Match, but it still showed the old supplier, because GO only copies purchase orders from DecoNetwork every 3 hours and her press came just before the next copy. Retry Match now refreshes the recent purchase orders first, so a change made in DecoNetwork shows straight away.',
     changes: ['Pressing Retry Match first re-reads the purchase orders raised in the last 30 days from DecoNetwork, then matches. It takes a few seconds longer.', 'If DecoNetwork does not answer, Retry Match carries on with the copy GO already has, as before.', 'A purchase order raised more than 30 days ago is still only updated by the 3 hourly copy.'],
