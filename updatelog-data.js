@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v96', date: '2026-11-19', status: 'built', areas: ['Purchase orders', 'Automation'],
+    v: 'v96', date: '2026-11-19', status: 'live', pr: 85, areas: ['Purchase orders', 'Automation'],
     title: 'Delivery already on the PO is no longer added a second time on the Review screen',
     summary: 'Steph spotted BTC invoice 203549328 (PO 877008): the PO already had the 4.95 delivery line, but the Review screen added 4.95 (and its VAT) on the PO side again, so the two sides looked 5.94 apart when they really matched. This is now fixed on the screen and in the invoice checks.',
     changes: ['The Review screen now spots when the invoice total already matches the PO as it stands, and in that case does not add the delivery again. The delivery line is labelled as already on the PO.', 'The invoice reader and the Retry Match button now also do this for invoices marked Vendor mismatch, for example a new supplier that is not set up yet. The status stays Vendor mismatch and nothing is approved automatically, because a person still has to set up the supplier.', 'Invoices already marked Amount variance for this reason behave as before: they become a clean match.'],
