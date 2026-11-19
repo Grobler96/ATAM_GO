@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v98', date: '2026-11-19', status: 'built', areas: ['Purchase orders', 'Automation'],
+    title: 'Retry Match now re-reads the purchase order from DecoNetwork first',
+    summary: 'Steph corrected the supplier on PO 876997 in DecoNetwork and pressed Retry Match, but it still showed the old supplier, because GO only copies purchase orders from DecoNetwork every 3 hours and her press came just before the next copy. Retry Match now refreshes the recent purchase orders first, so a change made in DecoNetwork shows straight away.',
+    changes: ['Pressing Retry Match first re-reads the purchase orders raised in the last 30 days from DecoNetwork, then matches. It takes a few seconds longer.', 'If DecoNetwork does not answer, Retry Match carries on with the copy GO already has, as before.', 'A purchase order raised more than 30 days ago is still only updated by the 3 hourly copy.'],
+    watch: 'Change a supplier or price on a recent PO in DecoNetwork and press Retry Match straight away: it should show the new details. If Retry Match now fails or is much slower, tell me the time.'
+  },
+  {
     v: 'v97', date: '2026-11-19', status: 'live', pr: 86, areas: ['Purchase orders'],
     title: 'Review notes on supplier invoices now save, and show on the closed card',
     summary: 'Steph found that a note typed in the Review notes box did not stay: it was only kept when the invoice was approved, rejected or moved to In Review, so any reload lost it. Notes now save on their own and show on the card without opening it.',
