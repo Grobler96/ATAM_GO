@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v99', date: '2026-11-19', status: 'live', pr: 88, areas: ['Sales invoices', 'Xero'],
+    title: 'HH orders are now invoiced once, in full, when everything has shipped',
+    summary: 'HH Associates need one full invoice per order, because Bethan uploads each invoice into HH\'s own system and it only accepts an invoice that matches their order. Until now GO made an invoice for whatever had shipped, so one HH order (636431) became two invoices, 3.98 and then 2,084.75. GO now waits and builds a single invoice once the whole order has shipped.',
+    changes: ['An HH Associates order is held back from invoicing until every line has been fully shipped. Then GO builds one invoice for all of it, which goes through the usual review and the 5pm post.', 'An order that DecoNetwork has marked as shipped, with nothing sent for 2 days, is let through as it stands, so an order that was closed short (10 ordered, 5 sent) does not wait for ever.', 'The list of customers treated this way is a small table, so another customer can be added later, and the same list can be used when job management arrives.'],
+    watch: 'Look at the next HH order that ships in two parts: no invoice should appear after the first part, and one full invoice should appear after the last. If an HH order is stuck and never invoices, tell me the order number.'
+  },
+  {
     v: 'v98', date: '2026-11-19', status: 'live', pr: 87, areas: ['Purchase orders', 'Automation'],
     title: 'Retry Match now re-reads the purchase order from DecoNetwork first',
     summary: 'Steph corrected the supplier on PO 876997 in DecoNetwork and pressed Retry Match, but it still showed the old supplier, because GO only copies purchase orders from DecoNetwork every 3 hours and her press came just before the next copy. Retry Match now refreshes the recent purchase orders first, so a change made in DecoNetwork shows straight away.',
