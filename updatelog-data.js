@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v94', date: '2026-11-19', status: 'built', areas: ['Purchase orders', 'Automation'],
+    title: 'ORN carriage lines are no longer counted as goods, and a misread invoice date is corrected',
+    summary: 'Two things Steph\'s invoices showed. ORN invoice 876991 was marked Amount variance only because its carriage line has a product-style code (DCP2day) and was counted as goods. And on invoice 876997 the date 16/11/26 was read as 26 Nov 2016. Both are fixed for new invoices and for the Retry Match button.',
+    changes: ['On ORN invoices, a carriage or delivery line whose code is not on the price list (like DCP2day) is now treated like the Minimum Order Charge line, not as a product. 876991 would now be a clean match. A real product that is not on the price list, or a product that is on it, is still checked as before.', 'A date read the wrong way round, such as 16/11/26 read as 2016-11-26, is now turned back into 16 Nov 2026 when the result is a real date within the last two months. It stays at low confidence, so a person still checks it, and nothing is approved because of it.', 'The Retry Match button uses the same carriage rule, so it agrees with the invoice reader.', 'Invoices already in the list are not changed. For 876991, press Retry Match to re-check it. For 876997, correct the date by hand.'],
+    watch: 'Look at the next ORN invoice with a carriage line: it should not say Amount variance just because of the carriage. If an invoice with a wrong date still shows the old year, tell me the invoice number.'
+  },
+  {
     v: 'v93', date: '2026-11-19', status: 'live', pr: 82, areas: ['Purchase orders'],
     title: 'Purchase Order Review now adds VAT on the carriage when it works out the PO total',
     summary: 'Steph spotted that on invoices with a delivery charge that is not on the PO, the PO side of the Review screen added the carriage after the VAT, so the PO total was short by the VAT on the carriage: £1.39 out on PO 876991 and £1.72 out on PO 876997. It now adds the carriage and the VAT on it.',
