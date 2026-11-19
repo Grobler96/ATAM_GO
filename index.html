@@ -256,12 +256,12 @@
   </style>
 
   <!-- DAN BOT HTML -->
-  <button id="dan-fab" onclick="danToggle()" title="Ask DAN">🤖<span id="dan-badge" hidden></span></button>
+  <button id="dan-fab" onclick="danToggle()" title="Ask the Bot">🤖<span id="dan-badge" hidden></span></button>
   <div id="dan-panel">
     <div id="dan-header">
       <div class="dan-avatar">🤖</div>
       <div class="dan-title-wrap">
-        <div class="dan-name">DAN</div>
+        <div class="dan-name">ATAM Bot</div>
         <div class="dan-subtitle"><span class="dan-live-dot"></span>Analysing your production data</div>
       </div>
       <button id="dan-voice-toggle" onclick="danToggleVoice()" title="Toggle spoken replies">🔊</button>
@@ -272,8 +272,8 @@
     <div id="dan-messages"></div>
     <div id="dan-focus" aria-live="polite"></div>
     <div id="dan-input-row">
-      <input id="dan-input" type="text" placeholder="Ask DAN anything about the business…" onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
-      <button id="dan-mic" onclick="danToggleListening()" title="Speak to DAN">🎤</button>
+      <input id="dan-input" type="text" placeholder="Ask the Bot anything about the business…" onkeydown="if(event.key==='Enter')danSend()" autocomplete="off" />
+      <button id="dan-mic" onclick="danToggleListening()" title="Speak to the Bot">🎤</button>
       <button id="dan-send" onclick="danSend()">➤</button>
     </div>
   </div>
@@ -346,7 +346,7 @@
       recognition.onend = () => {
         isListening = false;
         document.getElementById('dan-mic')?.classList.remove('listening');
-        document.getElementById('dan-input').placeholder = 'Ask DAN anything about the business…';
+        document.getElementById('dan-input').placeholder = 'Ask the Bot anything about the business…';
       };
       recognition.start();
     }
@@ -376,7 +376,7 @@
       const insights = [];
       if (risk.length > 0) {
         const worst = risk[0];
-        insights.push({ type: 'urgent', icon: '🚨', text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` + (worst ? `Order <strong>#${atamEsc(worst.order_id)}</strong> for <strong>${atamEsc(worst.customer_name || 'Unknown')}</strong> needs attention now.` : ''), hint: 'Tap to ask DAN what to do', prompt: `What should I do about the ${risk.length} late or at-risk orders?` });
+        insights.push({ type: 'urgent', icon: '🚨', text: `<strong>${risk.length} order${risk.length > 1 ? 's are' : ' is'} late or at risk.</strong> ` + (worst ? `Order <strong>#${atamEsc(worst.order_id)}</strong> for <strong>${atamEsc(worst.customer_name || 'Unknown')}</strong> needs attention now.` : ''), hint: 'Tap to ask the Bot what to do', prompt: `What should I do about the ${risk.length} late or at-risk orders?` });
       }
       if (ready.length > 0) {
         const totalQty = ready.reduce((sum, r) => sum + Number(r.total_quantity || 0), 0);
@@ -435,7 +435,7 @@
         card.className = `dan-insight-card ${ins.type}`;
         card.style.animationDelay = `${i * 50}ms`;
         card.innerHTML = `<div class="dan-ic-icon">${ins.icon}</div><div><div class="dan-ic-text">${ins.text}</div></div>`;
-        card.title = (card.querySelector('.dan-ic-text').textContent || '') + ' (tap to ask DAN)';
+        card.title = (card.querySelector('.dan-ic-text').textContent || '') + ' (tap to ask the Bot)';
         card.onclick = () => danSendText(ins.prompt);
         container.appendChild(card);
       });
@@ -461,7 +461,7 @@
         danRemoveTyping();
         console.error('[DAN BOT] briefing', e);
         const hour = new Date().getHours();
-        danAppendBot(`${hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'}! I'm <strong>DAN</strong>. I couldn't pull your briefing just now, but ask me anything and I'll look it up.`, true);
+        danAppendBot(`${hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'}! I'm the <strong>ATAM Bot</strong>. I couldn't pull your briefing just now, but ask me anything and I'll look it up.`, true);
       }
     }
 
@@ -489,7 +489,7 @@
     }
     function serverInsights() {
       if (!danAlerts || !danAlerts.length) return null;
-      return danAlerts.slice(0, 6).map(a => ({ type: a.level === 'warn' ? 'warning' : a.level, icon: a.icon, text: `<strong>${atamEsc(a.title)}</strong> ${atamEsc(a.detail || '')}`, hint: 'Tap to ask DAN', prompt: a.ask }));
+      return danAlerts.slice(0, 6).map(a => ({ type: a.level === 'warn' ? 'warning' : a.level, icon: a.icon, text: `<strong>${atamEsc(a.title)}</strong> ${atamEsc(a.detail || '')}`, hint: 'Tap to ask the Bot', prompt: a.ask }));
     }
     setTimeout(loadAlerts, 5000);
     setInterval(() => { if (!document.hidden) loadAlerts(); }, 5 * 60 * 1000);
@@ -528,7 +528,7 @@
       return el;
     }
 
-    function danAppendTyping() { const el = document.createElement('div'); el.className = 'dan-msg bot typing'; el.id = 'dan-typing'; el.innerHTML = 'DAN is thinking<span class="dan-typing-dots"><span></span><span></span><span></span></span>'; document.getElementById('dan-messages').appendChild(el); danScroll(); }
+    function danAppendTyping() { const el = document.createElement('div'); el.className = 'dan-msg bot typing'; el.id = 'dan-typing'; el.innerHTML = 'The Bot is thinking<span class="dan-typing-dots"><span></span><span></span><span></span></span>'; document.getElementById('dan-messages').appendChild(el); danScroll(); }
     function danRemoveTyping() { const el = document.getElementById('dan-typing'); if (el) el.remove(); }
     function danScroll() { const msgs = document.getElementById('dan-messages'); msgs.scrollTop = msgs.scrollHeight; }
 
@@ -558,7 +558,7 @@
         loadAlerts();
       } catch (err) {
         danRemoveTyping();
-        danAppendBot('⚠️ I couldn\'t reach my brain just now. Try again in a moment. If it keeps happening, tell Oli the DAN worker needs a look.', false);
+        danAppendBot('⚠️ I couldn\'t reach my brain just now. Try again in a moment. If it keeps happening, tell Oli the Bot needs a look.', false);
         console.error('[DAN BOT]', err);
       } finally {
         isBusy = false;

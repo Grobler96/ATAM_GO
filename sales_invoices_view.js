@@ -420,7 +420,7 @@
             <div class="si-case-title">${esc(row.customer_name || 'Unknown customer')}</div>
             <div class="si-case-sub">${sub} ${chips}${holdNote}</div>
           </div>
-          ${(row.status === 'awaiting_review' || row.status === 'in_review') ? `<button type="button" class="si-btn ask-dan-btn" data-ask-dan="sales_invoice" data-id="${esc(row.id)}" data-label="${esc('sales invoice for order #' + row.order_id)}" style="padding:5px 10px;font-size:11px" title="Stuck? Ask DAN to walk you through this invoice">🤖 Ask DAN</button>` : ''}
+          ${(row.status === 'awaiting_review' || row.status === 'in_review') ? `<button type="button" class="si-btn ask-dan-btn" data-ask-dan="sales_invoice" data-id="${esc(row.id)}" data-label="${esc('sales invoice for order #' + row.order_id)}" style="padding:5px 10px;font-size:11px" title="Stuck? Ask the Bot to walk you through this invoice">🤖 Ask the Bot</button>` : ''}
           <div class="si-case-meta"><span class="si-amt">${fmtMoney(net)}</span>ex VAT</div>
         </div>
         <div class="si-case-detail">${renderDetail(row)}</div>
@@ -606,7 +606,7 @@
         inner = b('restore', 'Restore to needs review', 'si-btn-primary');
         break;
     }
-    const ask = `<button type="button" class="si-btn ask-dan-btn" data-ask-dan="sales_invoice" data-id="${esc(row.id)}" data-label="${esc('sales invoice for order #' + row.order_id)}" title="Ask DAN to explain this invoice and walk you through it">🤖 Ask DAN</button>`;
+    const ask = `<button type="button" class="si-btn ask-dan-btn" data-ask-dan="sales_invoice" data-id="${esc(row.id)}" data-label="${esc('sales invoice for order #' + row.order_id)}" title="Ask the Bot to explain this invoice and walk you through it">🤖 Ask the Bot</button>`;
     return `<div class="si-actions">${ask}${inner}</div>`;
   }
 

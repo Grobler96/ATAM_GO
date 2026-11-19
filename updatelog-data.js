@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v90', date: '2026-11-16', status: 'live', pr: 79, areas: ['Assistant'],
+    title: 'The "Ask DAN" buttons now say "Ask the Bot" so nobody thinks they message Daniel',
+    summary: 'People were confusing DAN, the assistant, with Daniel. The buttons on Sales invoices, Purchase Order Review and Discrepancies now say Ask the Bot, and the chat panel is called ATAM Bot.',
+    changes: ['The robot buttons on invoices and discrepancies now say "Ask the Bot".', 'The chat panel header says ATAM Bot, and the hints, the typing box and the tooltips say "the Bot" instead of DAN.', 'Nothing else changes. It still answers the same way. When it greets you or describes itself, the wording still comes from the assistant behind it and can still say DAN until that is updated separately.'],
+    watch: 'If you still see the name DAN anywhere on the site, tell me where. A hard refresh (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) shows the new names.'
+  },
+  {
     v: 'v89', date: '2026-11-16', status: 'live', pr: 78, areas: ['Sales invoices', 'Xero'],
     title: 'Soroptimist and the main Atam Workwear shop get their own Xero accounts, and the delivery address is saved too',
     summary: 'Steph said yes to both questions about the "Own account needed" change. Paid orders from the Soroptimist shop and the main Atam Workwear shop now wait in Needs review with the buyer\'s name and email filled in, like AWR, All Weather Roofline and Bill Plant. When Create in Xero is pressed, the delivery address from the order is saved on the new Xero account.',
