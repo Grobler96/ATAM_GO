@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v92', date: '2026-11-19', status: 'built', areas: ['Sales invoices', 'Xero'],
+    v: 'v92', date: '2026-11-19', status: 'live', pr: 81, areas: ['Sales invoices', 'Xero'],
     title: 'The buyer\'s email is now filled in when you create a Xero customer, for every invoice',
     summary: 'Steph noticed that the Create in Xero box had the delivery address filled in but not the email, so she had to type it, and Xero needs it to send the invoice. The email only reached GO overnight, so on the day an order shipped it was still unknown. It now arrives with the hourly order refresh.',
     changes: ['The buyer\'s name and email are now saved every hour with the orders, and shown in the Create in Xero box on every sales invoice, not just the ones marked Own account needed.', 'The box opens by itself when no Xero customer has been chosen yet. Otherwise it stays closed as before.', 'The Own account needed check also works on the first day now. Before, an order invoiced on the day it shipped could miss it, because the buyer\'s email was not known until the next morning.', 'Invoices already waiting get the name and email filled in. Posted invoices are not changed.'],
