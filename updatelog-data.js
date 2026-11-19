@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v95', date: '2026-11-19', status: 'live', pr: 84, areas: ['Overdue orders', 'Automation'],
+    title: 'Overdue Orders page: a Refresh button and a note on each overdue order',
+    summary: 'The Overdue Orders page only shows what GO last pulled from DecoNetwork, which happens once an hour. There is now a Refresh from DecoNetwork button that pulls the latest orders straight away, so the automatic refresh can stay at once an hour and keep the number of automatic runs down. Each overdue order can also carry a short note saying why it is late, shown under the Overdue by bar.',
+    changes: ['New Refresh from DecoNetwork button at the top of the page. It asks DecoNetwork for the latest orders and reloads the cards, which takes up to a minute. Under it the page says when the orders were last pulled. The automatic hourly refresh is unchanged.', 'If the orders were already pulled in the last two minutes the button just reloads what is saved, instead of asking DecoNetwork again. It will not run while you are in the middle of writing a note.', 'Each card has + Add a note (why is it late?). Type a short note (up to 300 characters) and press Save. The note shows under the Overdue by bar with who wrote it and when. Anyone signed in can see it, add one, change it, or clear it by saving it empty.', 'Notes are kept separately, so the hourly refresh from DecoNetwork never wipes them. The page also no longer redraws while a note is being typed.'],
+    watch: 'Press Refresh and check the time under the button moves on. Add a note on one order and check a colleague sees it after a refresh. If the button says it could not refresh, tell me the time.'
+  },
+  {
     v: 'v94', date: '2026-11-19', status: 'live', pr: 83, areas: ['Purchase orders', 'Automation'],
     title: 'ORN carriage lines are no longer counted as goods, and a misread invoice date is corrected',
     summary: 'Two things Steph\'s invoices showed. ORN invoice 876991 was marked Amount variance only because its carriage line has a product-style code (DCP2day) and was counted as goods. And on invoice 876997 the date 16/11/26 was read as 26 Nov 2016. Both are fixed for new invoices and for the Retry Match button.',

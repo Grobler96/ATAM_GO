@@ -138,6 +138,37 @@
   .oc-btn-hide { background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.14); }
   .oc-btn-hide:hover:not(:disabled) { background: rgba(255,255,255,0.14); }
 
+  /* Notes on an overdue order (v95) */
+  .oc-note-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .oc-note {
+    background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.28);
+    border-radius: 8px; padding: 9px 12px; color: #e0f2fe; font-size: 13px; line-height: 1.35;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .oc-note-meta { color: #7dd3fc; font-size: 11px; margin-top: 5px; white-space: normal; opacity: 0.85; }
+  .oc-note-link {
+    align-self: flex-start; background: none; border: none; padding: 2px 0; cursor: pointer;
+    color: #7dd3fc; font-size: 12px; font-weight: 700; text-decoration: underline; text-underline-offset: 2px;
+  }
+  .oc-note-link:hover { color: #bae6fd; }
+  .oc-note-box { width: 100%; min-height: 62px; resize: vertical; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px;
+    background: #0b1220; color: #f8fafc; border: 1px solid rgba(56,189,248,0.5); }
+  .oc-note-row { display: flex; align-items: center; gap: 8px; }
+  .oc-note-row .oc-btn { flex: 0 0 auto; padding: 7px 14px; }
+  .oc-note-count { margin-left: auto; color: #64748b; font-size: 11px; }
+  .oc-btn-save { background: #0284c7; color: #f0f9ff; }
+  .oc-btn-save:hover:not(:disabled) { background: #0369a1; }
+  .oc-note-err { color: #fca5a5; font-size: 12px; }
+  /* Refresh button (v95) */
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .refresh-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .refresh-btn {
+    background: rgba(56,189,248,0.12); color: #bae6fd; border: 1px solid rgba(56,189,248,0.4); border-radius: 10px;
+    padding: 9px 16px; font-size: 13px; font-weight: 800; cursor: pointer; letter-spacing: 0.02em;
+  }
+  .refresh-btn:hover:not(:disabled) { background: rgba(56,189,248,0.22); }
+  .refresh-btn:disabled { opacity: 0.6; cursor: default; }
+  .refresh-info { color: #64748b; font-size: 11px; text-align: right; max-width: 460px; }
   .card-fading { animation: card-fade-out 0.35s ease forwards; }
   @keyframes card-fade-out { to { opacity: 0; transform: scale(0.96); } }
 
@@ -170,7 +201,13 @@
       <img src="atam-go-logo.png?v=4" alt="ATAM GO logo" />
       <p class="header-title">Overdue Orders <span id="dateLabel"></span></p>
     </div>
-    <div class="clock" id="clock">--:--</div>
+    <div class="header-right">
+      <div class="refresh-wrap">
+        <button type="button" class="refresh-btn" id="refreshBtn">&#8635; Refresh from DecoNetwork</button>
+        <div class="refresh-info" id="refreshInfo"></div>
+      </div>
+      <div class="clock" id="clock">--:--</div>
+    </div>
   </div>
 
   <div class="summary-bar">
@@ -236,7 +273,107 @@
     8: 'In Production', 9: 'Awaiting Payment'
   };
 
+  // Notes (v95): one short note per order, saved in order_notes (not in upcoming_orders, so the DecoNetwork refresh never wipes it).
+  let notes = {};
+  let lastSynced = null;   // newest synced_at among the orders on screen = when DecoNetwork was last pulled into GO
+  function fmtStamp(v) {
+    return v ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(v)) : '';
+  }
+  function noteHtml(orderId) {
+    const n = notes[orderId];
+    if (!n) return `<button type="button" class="oc-note-link" data-note="edit" data-order-id="${esc(orderId)}">+ Add a note (why is it late?)</button>`;
+    return `<div class="oc-note">${esc(n.note)}<div class="oc-note-meta">${esc(n.updated_by || '')}${n.updated_by ? ' &middot; ' : ''}${esc(fmtStamp(n.updated_at))}</div></div>
+            <button type="button" class="oc-note-link" data-note="edit" data-order-id="${esc(orderId)}">Edit note</button>`;
+  }
+  function editingNow() { return !!document.querySelector('.oc-note-box'); }
+  async function loadNotes(ids) {
+    notes = {};
+    if (!ids.length) return;
+    try {
+      const { data, error } = await sb.from('order_notes').select('order_id, note, updated_by, updated_at').in('order_id', ids);
+      if (error) throw error;
+      (data || []).forEach(n => { notes[n.order_id] = n; });
+    } catch (e) { console.error('Notes load failed:', e); }
+  }
+  function openNoteEditor(wrap) {
+    const orderId = wrap.dataset.orderId;
+    const cur = notes[orderId] ? notes[orderId].note : '';
+    wrap.innerHTML = `<textarea class="oc-note-box" maxlength="300" placeholder="Why is it late? Keep it short, for example: waiting for the customer to approve artwork">${esc(cur)}</textarea>
+      <div class="oc-note-row">
+        <button type="button" class="oc-btn oc-btn-save" data-note="save" data-order-id="${esc(orderId)}">Save</button>
+        <button type="button" class="oc-btn oc-btn-hide" data-note="cancel" data-order-id="${esc(orderId)}">Cancel</button>
+        <span class="oc-note-count"></span>
+      </div><div class="oc-note-err"></div>`;
+    const box = wrap.querySelector('.oc-note-box');
+    const count = wrap.querySelector('.oc-note-count');
+    const upd = () => { count.textContent = box.value.length + '/300'; };
+    box.addEventListener('input', upd); upd(); box.focus();
+  }
+  async function saveNote(wrap) {
+    const orderId = wrap.dataset.orderId;
+    const box = wrap.querySelector('.oc-note-box');
+    const errEl = wrap.querySelector('.oc-note-err');
+    const btns = wrap.querySelectorAll('.oc-btn');
+    btns.forEach(b => b.disabled = true);
+    try {
+      const { data, error } = await sb.rpc('set_order_note', { p_order_id: String(orderId), p_note: box.value });
+      if (error) throw error;
+      if (data && data.note) notes[orderId] = { order_id: orderId, note: data.note, updated_by: data.updated_by, updated_at: data.updated_at };
+      else delete notes[orderId];
+      wrap.innerHTML = noteHtml(orderId);
+    } catch (e) {
+      console.error('Note save failed:', e);
+      btns.forEach(b => b.disabled = false);
+      errEl.textContent = 'Could not save the note. Check your connection and try again.';
+    }
+  }
+
+  // Refresh from DecoNetwork (v95). The hourly automatic refresh is unchanged; this button pulls the latest orders on demand, so the
+  // page can stay on the hourly setting and keep the number of automatic runs down.
+  const WEBHOOK = (cfg.WEBHOOKS || {}).refreshOrders;
+  function showRefreshInfo() {
+    $('refreshInfo').textContent = lastSynced
+      ? 'Orders last pulled from DecoNetwork at ' + fmtTime(lastSynced) + ' (automatic every hour)'
+      : 'Orders are pulled from DecoNetwork automatically every hour';
+  }
+  async function refreshNow() {
+    const btn = $('refreshBtn');
+    if (!WEBHOOK) { $('refreshInfo').textContent = 'The refresh is not set up yet.'; return; }
+    if (editingNow()) { $('refreshInfo').textContent = 'Finish or cancel the note you are writing first, then refresh.'; return; }
+    // Already pulled in the last 2 minutes: just reload what is saved instead of asking DecoNetwork again.
+    if (lastSynced && Date.now() - new Date(lastSynced).getTime() < 2 * 60 * 1000) {
+      await load();
+      $('refreshInfo').textContent = 'Already up to date (pulled at ' + fmtTime(lastSynced) + ')';
+      return;
+    }
+    btn.disabled = true;
+    const label = btn.innerHTML;
+    btn.textContent = 'Refreshing…';
+    $('refreshInfo').textContent = 'Asking DecoNetwork for the latest orders. This takes up to a minute.';
+    let ok = false;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 110000);
+      const res = await fetch(WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (session ? session.access_token : '') },
+        body: JSON.stringify({ action: 'refreshOrders', source: 'ATAM GO overdue' }),
+        signal: ctl.signal
+      });
+      clearTimeout(timer);
+      ok = res.ok;
+    } catch (e) { console.error('Refresh failed:', e); }
+    await load();
+    if (!ok) $('refreshInfo').textContent = 'Could not refresh from DecoNetwork just now, so this is the latest saved data (pulled at ' + (lastSynced ? fmtTime(lastSynced) : '?') + ').';
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = label; }, 15000);
+    btn.innerHTML = label;
+  }
+  $('refreshBtn').addEventListener('click', refreshNow);
+
   async function load() {
+    // Do not redraw the cards while someone is typing a note (a redraw would lose what they typed).
+    if (editingNow()) return;
     try {
       // upcoming_orders pulls every order regardless of production status —
       // unlike late_or_at_risk_orders (built on decoration_records), it also
@@ -268,7 +405,11 @@
         })
         .sort((a, b) => new Date(a.date_due) - new Date(b.date_due));
 
+      lastSynced = (data || []).reduce((m, r) => (r.synced_at && (!m || r.synced_at > m)) ? r.synced_at : m, null);
+      await loadNotes(overdue.map(r => String(r.order_id)));
+      if (editingNow()) return;
       render(overdue, today);
+      showRefreshInfo();
       $('lastRefreshed').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-GB');
     } catch (e) {
       console.error('Overdue load failed:', e);
@@ -323,6 +464,7 @@
           </div>
 
           <div class="oc-countdown ${overdue.isToday ? 'today' : ''}">${overdue.text}</div>
+          <div class="oc-note-wrap" data-order-id="${esc(r.order_id)}">${noteHtml(String(r.order_id))}</div>
 
           <div class="oc-actions">
             <button class="oc-btn oc-btn-done" data-action="confirmed_done" data-order-id="${esc(r.order_id)}">✔ Confirm Done</button>
@@ -366,6 +508,15 @@
   }
 
   $('cardGrid').addEventListener('click', (e) => {
+    const noteBtn = e.target.closest('[data-note]');
+    if (noteBtn) {
+      const wrap = noteBtn.closest('.oc-note-wrap');
+      const what = noteBtn.dataset.note;
+      if (what === 'edit') openNoteEditor(wrap);
+      else if (what === 'cancel') wrap.innerHTML = noteHtml(wrap.dataset.orderId);
+      else if (what === 'save') saveNote(wrap);
+      return;
+    }
     const btn = e.target.closest('.oc-btn');
     if (!btn) return;
     const card = btn.closest('.order-card');
