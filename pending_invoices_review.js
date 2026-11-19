@@ -78,6 +78,16 @@
     const near = (a, b) => { const diff = Math.abs(a - b); return diff <= 1 || (b !== 0 && diff / Math.abs(b) <= 0.02); };
     return near(inv, poAsIs) && !near(inv, poAsIs + d + carriageVat(row));
   }
+  // A delivery charge the PO's own TAX already covers (19 Nov 2026, v100, Steph: 876997). DecoNetwork can put a delivery charge on a PO that is not in the sub total
+  // but whose VAT IS in the tax figure (sub total 20.33, tax 5.86, total 35.09: the tax is 28.8% of the sub total because it also covers an 8.90 delivery).
+  // Adding the invoice's carriage and its VAT on top of that counted the delivery twice (PO side 37.27 against an invoice of 34.72). When the PO's tax is clearly
+  // more than 20% of its sub total, the charge is worked out from the tax (tax / 0.2 - sub total) and shown as the PO's own delivery.
+  function poOwnCharge(row) {
+    const sub = Number(row.matched_po_sub_total) || 0, tax = Number(row.matched_po_tax) || 0;
+    if (!(sub > 0) || !(tax > 0) || tax / sub <= 0.21) return 0;
+    const extra = Math.round((tax / 0.2 - sub) * 100) / 100;
+    return extra > 0.5 ? extra : 0;
+  }
   // For the editable <input type="date">, which needs YYYY-MM-DD with no time
   // component - extracted_invoice_date is already stored as a plain date, but
   // this guards against it ever arriving as a full timestamp string instead.
@@ -906,14 +916,15 @@
           <li>Separately, flag the PO for correction in <span class="rev-where">DecoNetwork → Business Hub</span> so it's right at the source too. That's a manual step outside this tab.</li>
         </ol>${retryMatchButton}</div>`;
     } else if (row.match_status === 'amount_variance') {
-      const poCombined = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0);
+      const ownChargeV = poOwnCharge(row);
+      const poCombined = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + ownChargeV;
       const deliveryCharge = Number(row.identified_delivery_charge) || 0;
       // Net out the identified delivery/carriage charge before comparing, same as the
       // backend matching logic already does - otherwise this on-screen variance looks
       // wrong (e.g. shows a "£36 over" gap that's actually just carriage) even when the
       // real match underneath was already correct.
       const invCombinedRaw = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
-      const onPo = carriageAlreadyOnPo(row);
+      const onPo = ownChargeV > 0 || carriageAlreadyOnPo(row);
       const carVat = onPo ? 0 : carriageVat(row);
       const invCombined = onPo ? invCombinedRaw : invCombinedRaw - deliveryCharge - carVat;
       const diff = (invCombined - poCombined).toFixed(2);
@@ -964,8 +975,12 @@
     // the comparison box are visibly accounting for it rather than it only showing up
     // buried in a sentence under clean-match cases.
     const deliveryCharge = Number(row.identified_delivery_charge) || 0;
-    const carriageOnPo = carriageAlreadyOnPo(row);
-    const deliveryChargeRow = deliveryCharge > 0
+    const ownCharge = poOwnCharge(row);
+    const carriageOnPo = ownCharge > 0 || carriageAlreadyOnPo(row);
+    const ownChargeRow = ownCharge > 0
+      ? `<div class="rev-ct-row"><span>Delivery on the PO (ex VAT, its VAT is in the Tax)</span><b>${fmtMoney(ownCharge)}</b></div>`
+      : '';
+    const deliveryChargeRow = ownCharge > 0 ? '' : deliveryCharge > 0
       ? (carriageOnPo
           ? `<div class="rev-ct-row"><span>Delivery on the invoice (already on the PO)</span><b>${fmtMoney(deliveryCharge)}</b></div>`
           : `<div class="rev-ct-row"><span>Carriage (identified, not on PO)</span><b>${fmtMoney(deliveryCharge)}</b></div>`)
@@ -980,7 +995,7 @@
     const carriageVatRow = carriageVatAmt > 0
       ? `<div class="rev-ct-row"><span>VAT on carriage</span><b>${fmtMoney(carriageVatAmt)}</b></div>`
       : '';
-    const poTotal = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + (carriageOnPo ? 0 : deliveryCharge) + carriageVatAmt;
+    const poTotal = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + ownCharge + (carriageOnPo ? 0 : deliveryCharge) + carriageVatAmt;
     const invTotal = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
     const poTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(poTotal)}</b></div>`;
     const invTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(invTotal)}</b></div>`;
@@ -1077,6 +1092,7 @@
               <div class="rev-ct-vendor">${escHtml(row.matched_po_vendor || 'No match')}</div>
               <div class="rev-ct-row"><span>Sub-total</span><b>${fmtMoney(row.matched_po_sub_total)}</b></div>
               <div class="rev-ct-row"><span>Tax</span><b>${fmtMoney(row.matched_po_tax)}</b></div>
+              ${ownChargeRow}
               ${deliveryChargeRow}
               ${carriageVatRow}
               ${poTotalRow}
