@@ -50,6 +50,23 @@
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
+  // VAT on carriage (19 Nov 2026, v93). The identified delivery/carriage charge is ex VAT and is NOT on the PO, so the PO side of the comparison must add the
+  // carriage AND the VAT on it. It used to add the carriage after the VAT, so the PO total was short by the VAT on the carriage (Steph: 876991 out by 1.39,
+  // 876997 by 1.72). The rate is the PO's own (tax / sub total), else the invoice's (vat / goods), snapped to 20% when it is within 1% of it (rounding in
+  // DecoNetwork's tax figure would otherwise move the answer by a penny or two).
+  function carriageVatRate(row) {
+    const sub = Number(row.matched_po_sub_total) || 0, tax = Number(row.matched_po_tax) || 0;
+    const goods = Number(row.extracted_goods) || 0, vat = Number(row.extracted_vat) || 0;
+    let rate = 0;
+    if (sub > 0 && tax > 0) rate = tax / sub;
+    else if (goods > 0 && vat > 0) rate = vat / goods;
+    if (Math.abs(rate - 0.2) < 0.01) rate = 0.2;
+    return rate;
+  }
+  function carriageVat(row) {
+    const d = Number(row.identified_delivery_charge) || 0;
+    return d > 0 ? Math.round(d * carriageVatRate(row) * 100) / 100 : 0;
+  }
   // For the editable <input type="date">, which needs YYYY-MM-DD with no time
   // component - extracted_invoice_date is already stored as a plain date, but
   // this guards against it ever arriving as a full timestamp string instead.
@@ -878,10 +895,11 @@
       // wrong (e.g. shows a "£36 over" gap that's actually just carriage) even when the
       // real match underneath was already correct.
       const invCombinedRaw = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
-      const invCombined = invCombinedRaw - deliveryCharge;
+      const carVat = carriageVat(row);
+      const invCombined = invCombinedRaw - deliveryCharge - carVat;
       const diff = (invCombined - poCombined).toFixed(2);
       const deliveryNote = deliveryCharge > 0
-        ? ` (${fmtMoney(deliveryCharge)} identified delivery/carriage charge already netted out of this comparison)`
+        ? ` (${fmtMoney(deliveryCharge)} identified delivery/carriage charge${carVat > 0 ? ' and its ' + fmtMoney(carVat) + ' VAT' : ''} already netted out of this comparison)`
         : '';
       whyHtml = `<div class="rev-why"><div class="rev-why-label">What's wrong</div><p>The invoice total${deliveryNote} (${fmtMoney(invCombined)}) is ${diff >= 0 ? fmtMoney(Math.abs(diff)) + ' more than' : fmtMoney(Math.abs(diff)) + ' less than'} PO ${escHtml(row.matched_po_number)}'s value (${fmtMoney(poCombined)}), outside the agreed ±2%/£1 tolerance. Often a carriage charge, discount, or partial delivery not reflected on the original PO.</p></div>
         <div class="rev-fix"><div class="rev-fix-label">How to fix this</div><ol>
@@ -935,7 +953,11 @@
     // includes the identified carriage charge even though it isn't actually on the
     // PO itself - that's what makes it directly comparable to the invoice total,
     // which already has carriage baked into the Goods figure from extraction.
-    const poTotal = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + deliveryCharge;
+    const carriageVatAmt = carriageVat(row);
+    const carriageVatRow = carriageVatAmt > 0
+      ? `<div class="rev-ct-row"><span>VAT on carriage</span><b>${fmtMoney(carriageVatAmt)}</b></div>`
+      : '';
+    const poTotal = (Number(row.matched_po_sub_total)||0) + (Number(row.matched_po_tax)||0) + deliveryCharge + carriageVatAmt;
     const invTotal = (Number(row.extracted_goods)||0) + (Number(row.extracted_vat)||0);
     const poTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(poTotal)}</b></div>`;
     const invTotalRow = `<div class="rev-ct-row" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:8px;padding-top:8px"><span>Total</span><b>${fmtMoney(invTotal)}</b></div>`;
@@ -1033,6 +1055,7 @@
               <div class="rev-ct-row"><span>Sub-total</span><b>${fmtMoney(row.matched_po_sub_total)}</b></div>
               <div class="rev-ct-row"><span>Tax</span><b>${fmtMoney(row.matched_po_tax)}</b></div>
               ${deliveryChargeRow}
+              ${carriageVatRow}
               ${poTotalRow}
               ${poBreakdownHtml}
             </div>
