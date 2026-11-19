@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v91', date: '2026-11-19', status: 'built', areas: ['Purchase orders'],
+    v: 'v91', date: '2026-11-19', status: 'live', pr: 80, areas: ['Purchase orders'],
     title: 'Purchase Order Review now updates itself, so new invoices appear without a hard refresh',
     summary: 'Steph found that six invoices she had just sent to GO were not on the Needs review list. They were saved, but the page only loaded its list when it was first opened, and the Refresh button at the top did not reload it. A hard refresh (Ctrl+Shift+R) was the only fix. The page now keeps itself up to date.',
     changes: ['Purchase Order Review reloads its lists by itself when you come back to the tab, and every 2 minutes while you are looking at it.', 'It does not reload while a card is open or you are typing, so nothing you are working on is lost.', 'There is a Refresh button on the page itself, with the time it was last updated. The Refresh button at the top of the dashboard now reloads this page too, when you are on it.', 'No invoices were lost or changed. Invoice INV-00410099 from ORN (received 16 Nov 17:33) had been saved and waiting all along.'],
