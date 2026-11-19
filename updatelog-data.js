@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v90', date: '2026-11-16', status: 'built', areas: ['Assistant'],
+    v: 'v90', date: '2026-11-16', status: 'live', pr: 79, areas: ['Assistant'],
     title: 'The "Ask DAN" buttons now say "Ask the Bot" so nobody thinks they message Daniel',
     summary: 'People were confusing DAN, the assistant, with Daniel. The buttons on Sales invoices, Purchase Order Review and Discrepancies now say Ask the Bot, and the chat panel is called ATAM Bot.',
     changes: ['The robot buttons on invoices and discrepancies now say "Ask the Bot".', 'The chat panel header says ATAM Bot, and the hints, the typing box and the tooltips say "the Bot" instead of DAN.', 'Nothing else changes. It still answers the same way. When it greets you or describes itself, the wording still comes from the assistant behind it and can still say DAN until that is updated separately.'],
