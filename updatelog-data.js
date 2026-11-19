@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v92', date: '2026-11-19', status: 'live', pr: 81, areas: ['Sales invoices', 'Xero'],
+    title: 'The buyer\'s email is now filled in when you create a Xero customer, for every invoice',
+    summary: 'Steph noticed that the Create in Xero box had the delivery address filled in but not the email, so she had to type it, and Xero needs it to send the invoice. The email only reached GO overnight, so on the day an order shipped it was still unknown. It now arrives with the hourly order refresh.',
+    changes: ['The buyer\'s name and email are now saved every hour with the orders, and shown in the Create in Xero box on every sales invoice, not just the ones marked Own account needed.', 'The box opens by itself when no Xero customer has been chosen yet. Otherwise it stays closed as before.', 'The Own account needed check also works on the first day now. Before, an order invoiced on the day it shipped could miss it, because the buyer\'s email was not known until the next morning.', 'Invoices already waiting get the name and email filled in. Posted invoices are not changed.'],
+    watch: 'Open an invoice that has no Xero customer, such as a new shop buyer: the name, email and address should all be filled in. If the email is empty for an order that has one in DecoNetwork, tell me the order number.'
+  },
+  {
     v: 'v91', date: '2026-11-19', status: 'live', pr: 80, areas: ['Purchase orders'],
     title: 'Purchase Order Review now updates itself, so new invoices appear without a hard refresh',
     summary: 'Steph found that six invoices she had just sent to GO were not on the Needs review list. They were saved, but the page only loaded its list when it was first opened, and the Refresh button at the top did not reload it. A hard refresh (Ctrl+Shift+R) was the only fix. The page now keeps itself up to date.',

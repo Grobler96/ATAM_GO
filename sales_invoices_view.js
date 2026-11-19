@@ -544,7 +544,7 @@
           <input type="text" data-role="contact-q" placeholder="Search Xero by name" value="${esc(row.customer_name || '')}">
           <button type="button" class="si-btn" data-action="search-contact">Search Xero</button>
         </div>
-        <details class="si-create"${row.buyer_email ? ' open' : ''}>
+        <details class="si-create"${(!hasContact || (Array.isArray(row.review_reasons) && row.review_reasons.indexOf('own_account') >= 0)) ? ' open' : ''}>
           <summary>Not in Xero? Create the account</summary>
           <div class="si-inline">
             <input type="text" data-role="create-name" placeholder="Customer name" value="${esc(row.buyer_name || row.customer_name || '')}">
