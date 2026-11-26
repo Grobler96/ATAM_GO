@@ -120,6 +120,7 @@
     await loadInReview();
     await loadPosted();
     await loadOther();
+    await loadSplit();
     syncTabCounts();
 
     if (openIds.length) {
@@ -1448,10 +1449,147 @@
     });
   }
 
+  // Split POs tab (26 Nov 2026, v101; Steph: group the bills of a PO that is invoiced in parts and tell me when it is all in).
+  // Data: database function split_po_groups() (read only). A group is Complete when the bills (goods less delivery, ex VAT) add up to the
+  // PO sub total within GBP 1 or 2%. One button approves every open bill of a Complete group together, but only when each of them is
+  // clean enough to approve without opening it (needs review, clean or amount match, not low confidence, no date warning). A person
+  // presses it; nothing is approved automatically.
+  let splitGroups = [];
+  async function loadSplit() {
+    try {
+      const sb = await getSb();
+      const { data, error } = await sb.rpc('split_po_groups');
+      if (error) throw error;
+      splitGroups = Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.error('[Review] split POs load failed', e);
+      splitGroups = [];
+    }
+    renderSplit();
+  }
+  function splitOpen(g) { return (g.invoices || []).filter(i => ['awaiting_review', 'in_review', 'approved'].indexOf(i.status) >= 0); }
+  function splitEligible(i) {
+    return i.status === 'awaiting_review' && (i.match_status === 'clean_match' || i.match_status === 'amount_variance') && i.confidence !== 'low' && !i.date_warn;
+  }
+  function splitCanApprove(g) {
+    const open = splitOpen(g);
+    return g.state === 'complete' && open.length > 0 && open.every(splitEligible);
+  }
+  function splitAttention() { return splitGroups.filter(g => g.n_open > 0).length; }
+  const SPLIT_STATUS = { awaiting_review: 'Needs review', in_review: 'In review', approved: 'Approved, waiting to post', posted: 'Posted to Xero' };
+  function renderSplit() {
+    const root = document.getElementById('splitList');
+    if (!root) return;
+    if (!splitGroups.length) {
+      root.innerHTML = '<div class="rev-empty" style="padding:24px 20px">No split POs right now. A PO shows here when its bills arrive in more than one part.</div>';
+      return;
+    }
+    root.innerHTML = splitGroups.map(g => {
+      const stateChip = g.state === 'complete'
+        ? '<span class="rev-badge-mini" style="background:rgba(34,197,94,.15);color:#4ade80">Complete</span>'
+        : g.state === 'over'
+          ? '<span class="rev-badge-mini rev-badge-warn">More than the PO, check</span>'
+          : g.state === 'waiting'
+            ? '<span class="rev-badge-mini" style="background:rgba(245,158,11,.15);color:#fbbf24">Waiting for more: ' + fmtMoney(g.remaining) + ' still to come</span>'
+            : '<span class="rev-badge-mini">PO total not known</span>';
+      const rows = (g.invoices || []).map(i => {
+        const flags = [];
+        if (i.confidence === 'low') flags.push('Low confidence');
+        if (i.date_warn) flags.push('Check the date');
+        if (i.match_status === 'duplicate_suspected') flags.push('Possible duplicate');
+        if (i.match_status === 'vendor_mismatch') flags.push('Supplier not matched');
+        const open = ['awaiting_review', 'in_review', 'approved'].indexOf(i.status) >= 0;
+        return '<div class="rev-ct-row" style="align-items:center;gap:10px">'
+          + '<span style="flex:1">' + escHtml(i.invoice || 'Invoice') + ' <span class="muted" style="font-size:11px">' + escHtml(SPLIT_STATUS[i.status] || i.status) + (flags.length ? ' · ' + escHtml(flags.join(', ')) : '') + '</span></span>'
+          + '<b>' + fmtMoney(i.net) + '</b>'
+          + (open ? '<button type="button" class="rev-btn" style="padding:3px 10px;font-size:11px" data-spaction="open" data-id="' + escHtml(i.id) + '" data-status="' + escHtml(i.status) + '">Open</button>' : '')
+          + '</div>';
+      }).join('');
+      const pct = g.po_sub > 0 ? Math.max(0, Math.min(100, Math.round(100 * g.invoiced_net / g.po_sub))) : 0;
+      const canApprove = splitCanApprove(g);
+      const openN = splitOpen(g).length;
+      const approveBtn = canApprove
+        ? '<button type="button" class="rev-btn primary" data-spaction="approve" data-po="' + escHtml(g.po) + '" style="margin-top:10px">Check and approve all ' + openN + ' together</button>'
+        : (g.state === 'complete' && openN > 0
+            ? '<div class="rev-x-hint" style="margin-top:8px">This PO is complete, but at least one bill needs opening on its own first (low confidence, a date to check, or not a clean enough match). Open them with the buttons above.</div>'
+            : '');
+      return '<div class="rev-case" style="padding:14px 16px">'
+        + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">'
+        + '<div><b>PO ' + escHtml(g.po) + '</b> · ' + escHtml(g.vendor || 'Supplier') + '</div>'
+        + '<div>' + stateChip + '</div></div>'
+        + '<div class="muted" style="font-size:12px;margin:6px 0">' + fmtMoney(g.invoiced_net) + ' invoiced of ' + (g.po_sub > 0 ? fmtMoney(g.po_sub) : 'an unknown amount') + ' on the PO (ex VAT) · ' + g.n + ' bill' + (g.n === 1 ? '' : 's') + '</div>'
+        + '<div style="height:6px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:' + pct + '%;background:' + (g.state === 'complete' ? '#22c55e' : g.state === 'over' ? '#ef4444' : '#f59e0b') + '"></div></div>'
+        + rows + approveBtn + '</div>';
+    }).join('');
+  }
+  async function splitApproveGroup(po, btn) {
+    const g = splitGroups.find(x => String(x.po) === String(po));
+    if (!g || !splitCanApprove(g)) return;
+    const open = splitOpen(g);
+    const sum = open.reduce((s, i) => s + (Number(i.total) || 0), 0);
+    if (!confirm('Approve these ' + open.length + ' bills for PO ' + g.po + ' together?\n\n' + open.map(i => i.invoice + '  ' + fmtMoney(i.total)).join('\n') + '\n\nTotal ' + fmtMoney(sum) + '. They will go to Xero at 5pm like any approved bill. You can undo an approval before then.')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
+    try {
+      const sb = await getSb();
+      const { data: { session } } = await sb.auth.getSession();
+      const reviewedBy = session?.user?.email || 'unknown';
+      const { data: rows, error } = await sb.from('pending_invoices').select('*').in('id', open.map(i => i.id));
+      if (error) throw error;
+      const byId = {};
+      (rows || []).forEach(r => { byId[r.id] = r; });
+      for (const i of open) {
+        const r = byId[i.id];
+        if (!r || r.status !== 'awaiting_review') throw new Error('Invoice ' + i.invoice + ' has changed since this page loaded. Nothing more was approved.');
+        const hasNetVat = r.extracted_goods != null && Number(r.extracted_goods) > 0 && r.extracted_vat != null;
+        const total = Number(r.extracted_total) || (hasNetVat ? Number(r.extracted_goods) + Number(r.extracted_vat) : 0);
+        if (!(total > 0)) throw new Error('Invoice ' + i.invoice + ' has no total. Open it and check it.');
+        const invDate = toDateInputValue(r.extracted_invoice_date) || null;
+        let due = toDateInputValue(r.extracted_due_date) || null;
+        if (!due && invDate) { const dd = new Date(invDate + 'T00:00:00Z'); dd.setUTCDate(dd.getUTCDate() + 30); due = dd.toISOString().slice(0, 10); }
+        const { error: e2 } = await sb.rpc('approve_pending_invoice_v2', {
+          p_id: r.id,
+          p_reviewed_by: reviewedBy,
+          p_final_vendor: r.final_vendor || r.extracted_vendor || '',
+          p_final_nominal_code: '310',
+          p_final_total: total,
+          p_final_po_reference: r.matched_po_number,
+          p_review_notes: 'Approved together as a complete split PO (' + g.po + ')',
+          p_final_goods: hasNetVat ? Number(r.extracted_goods) : null,
+          p_final_vat: hasNetVat ? Number(r.extracted_vat) : null,
+          p_invoice_date: invDate,
+          p_due_date: due
+        });
+        if (e2) throw e2;
+      }
+    } catch (e) {
+      console.error('[Review] approve split PO failed', e);
+      alert('Could not approve all of them: ' + (e && e.message ? e.message : 'check the console') + '\nAnything already approved is in Approved, waiting to post.');
+    }
+    await loadPending();
+  }
+  function splitOpenInvoice(id, status) {
+    const tab = status === 'in_review' ? 'inreview' : status === 'approved' ? 'approved' : 'review';
+    showReviewTab(tab);
+    const el = document.getElementById('rev-' + id);
+    if (el) { el.classList.add('open'); el.scrollIntoView({ block: 'center' }); }
+  }
+  function initSplitTab() {
+    const root = document.getElementById('splitList');
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = '1';
+    root.addEventListener('click', e => {
+      const b = e.target.closest('[data-spaction]');
+      if (!b) return;
+      e.preventDefault();
+      if (b.dataset.spaction === 'open') splitOpenInvoice(b.dataset.id, b.dataset.status);
+      else if (b.dataset.spaction === 'approve') splitApproveGroup(b.dataset.po, b);
+    });
+  }
+
   // Tabs across the top of the page (same look as the Sales Invoices tab): the four
   // lists live on this one page and only one is shown at a time.
   function syncTabCounts() {
-    const counts = { review: allRows.length, inreview: inReviewRows.length, approved: approvedRows.length, rejected: rejectedRows.length, posted: postedTotal, other: otherAttention() };
+    const counts = { review: allRows.length, inreview: inReviewRows.length, approved: approvedRows.length, rejected: rejectedRows.length, posted: postedTotal, split: splitAttention(), other: otherAttention() };
     Object.keys(counts).forEach(k => {
       const el = document.getElementById('revTabN-' + k);
       if (el) el.textContent = counts[k];
@@ -1539,6 +1677,7 @@
   function initWhenVisible() {
     initTabs();
     initOtherTab();
+    initSplitTab();
     loadPending().then(() => { lastLoad = Date.now(); initAutoRefresh(); });
   }
 
