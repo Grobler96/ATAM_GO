@@ -11,6 +11,13 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v102', date: '2026-11-27', status: 'live', pr: 90, areas: ['Purchase orders'],
+    title: 'Split POs tab: no more confusing "needs opening" message when everything is already approved',
+    summary: 'Steph could not find the button on PO 876986 (BTC), which said Complete. There was no button because the last bill had already been approved by her, so there was nothing left to press, but the tab said a bill needed opening first. It now says what is really happening.',
+    changes: ['When a PO is Complete and every bill is already approved, the card now says so in green: nothing left to press, the bills go to Xero at 5pm. When everything is posted it says that instead.', 'The button now counts only the bills still waiting for approval, and says so, for example "Check and approve the bill waiting". Bills that are already approved are mentioned but left alone.', 'A bill set aside in In review stops the button and the card says so.', 'The tab number now counts only POs that still have a bill needing action.'],
+    watch: 'Look at a Complete PO that still has a bill in Needs review: the button should show. If a PO says something that does not match what you see, tell me the PO number.'
+  },
+  {
     v: 'v101', date: '2026-11-26', status: 'live', pr: 89, areas: ['Purchase orders'],
     title: 'New Split POs tab: bills for the same PO grouped, with a Complete check',
     summary: 'Steph asked for a way to see purchase orders that are invoiced in several parts without hunting for them, and to know when the last bill is in. Purchase Order Review now has a Split POs tab. Each PO shows how much of it has been invoiced so far, its bills and where each one is, and it says Complete when the bills add up to the PO.',
