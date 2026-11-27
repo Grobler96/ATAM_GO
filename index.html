@@ -1114,6 +1114,7 @@
           <button type="button" class="rev-tab" data-tab="approved" role="tab">Approved, waiting to post <span class="rev-tab-n" id="revTabN-approved">0</span></button>
           <button type="button" class="rev-tab" data-tab="rejected" role="tab">Rejected <span class="rev-tab-n" id="revTabN-rejected">0</span></button>
           <button type="button" class="rev-tab" data-tab="posted" role="tab">Posted to Xero <span class="rev-tab-n" id="revTabN-posted">0</span></button>
+          <button type="button" class="rev-tab" data-tab="split" role="tab">Split POs <span class="rev-tab-n" id="revTabN-split">0</span></button>
           <button type="button" class="rev-tab" data-tab="other" role="tab">Credit notes and other documents <span class="rev-tab-n" id="revTabN-other">0</span></button>
         </div></div>
 
@@ -1147,6 +1148,12 @@
             Posted to Xero: <span id="revPostedCount" style="color:#94a3b8;font-weight:600">0</span>. Newest first, the latest 50 shown. These have reached Xero and can't be changed or undone here. Bills a person approved here go in as drafts; clean matches the system approved itself go in as Authorised.
           </p>
           <div id="postedList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
+        </div>
+        <div class="rev-pane" data-pane="split" hidden>
+          <p class="muted" style="margin-bottom:14px;font-size:12px">
+            Purchase orders that have been invoiced in more than one part. Each PO shows how much of it has been invoiced so far (ex VAT). When the bills add up to the whole PO it says <b style="color:#4ade80">Complete</b>, and you can check and approve them all together. You can always open a bill and approve it on its own, for example when the rest may take months.
+          </p>
+          <div id="splitList"><div class="rev-empty" style="padding:24px 20px">Loading…</div></div>
         </div>
         <div class="rev-pane" data-pane="other" hidden>
           <p class="muted" style="margin-bottom:14px;font-size:12px">

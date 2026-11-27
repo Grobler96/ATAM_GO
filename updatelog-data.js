@@ -11,6 +11,20 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
+    v: 'v101', date: '2026-11-26', status: 'live', pr: 89, areas: ['Purchase orders'],
+    title: 'New Split POs tab: bills for the same PO grouped, with a Complete check',
+    summary: 'Steph asked for a way to see purchase orders that are invoiced in several parts without hunting for them, and to know when the last bill is in. Purchase Order Review now has a Split POs tab. Each PO shows how much of it has been invoiced so far, its bills and where each one is, and it says Complete when the bills add up to the PO.',
+    changes: ['A Split POs tab next to Posted to Xero. Each split PO shows a bar with how much of the PO (ex VAT) has been invoiced, and whether it is Waiting for more, Complete, or More than the PO.', 'When a PO is Complete and every open bill is clean enough, one button, Check and approve all together, approves them in one go. They go to Xero at 5pm like any approved bill and can be undone before then.', 'A bill with low confidence, a date to check, a possible duplicate or an unmatched supplier is never approved by that button: it has to be opened and checked on its own. Each bill has an Open button.', 'Nothing is approved automatically. Letting GO approve complete POs by itself is a later step, only if Steph and Oliver agree.'],
+    watch: 'Look at a PO that arrives in two parts: the tab should show it as Waiting for more after the first bill and Complete after the last. If a PO that is clearly finished never says Complete, tell me the PO number.'
+  },
+  {
+    v: 'v100', date: '2026-11-19', status: 'live', pr: 89, areas: ['Purchase orders'],
+    title: 'Review screen no longer counts a delivery twice when the PO already has its own delivery charge',
+    summary: 'Steph asked why the VAT looked out on PO 876997. The PO in DecoNetwork has its own delivery charge, and the PO tax already includes the VAT on it, but the Review screen added the invoice carriage and its VAT on top, so the PO side read 37.27 against an invoice of 34.72. The screen now spots this and shows the PO as it really is.',
+    changes: ['When a PO tax is clearly more than 20 percent of its sub total, the screen works out the delivery charge on the PO from the tax and shows it as Delivery on the PO. It is counted once, and the carriage and VAT on carriage rows are not added again.', 'For 876997 the PO side now reads 35.16 against the invoice 34.72, instead of 37.27. The 44p left is real: the PO delivery is 8.90 and the invoice delivery is 8.60.', 'POs without this pattern, and the earlier BTC and ORN cases, show the same figures as before.'],
+    watch: 'Open invoices where the PO has a delivery charge: the two totals should now be close. If a PO total still looks too high or too low, tell me the PO number.'
+  },
+  {
     v: 'v99', date: '2026-11-19', status: 'live', pr: 88, areas: ['Sales invoices', 'Xero'],
     title: 'HH orders are now invoiced once, in full, when everything has shipped',
     summary: 'HH Associates need one full invoice per order, because Bethan uploads each invoice into HH\'s own system and it only accepts an invoice that matches their order. Until now GO made an invoice for whatever had shipped, so one HH order (636431) became two invoices, 3.98 and then 2,084.75. GO now waits and builds a single invoice once the whole order has shipped.',
