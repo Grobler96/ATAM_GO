@@ -11,7 +11,7 @@
 // Planned work goes in ATAM_PLANNED (no version number until it is built).
 window.ATAM_UPDATES = [
   {
-    v: 'v102', date: '2026-11-27', status: 'built', areas: ['Purchase orders'],
+    v: 'v102', date: '2026-11-27', status: 'live', pr: 90, areas: ['Purchase orders'],
     title: 'Split POs tab: no more confusing "needs opening" message when everything is already approved',
     summary: 'Steph could not find the button on PO 876986 (BTC), which said Complete. There was no button because the last bill had already been approved by her, so there was nothing left to press, but the tab said a bill needed opening first. It now says what is really happening.',
     changes: ['When a PO is Complete and every bill is already approved, the card now says so in green: nothing left to press, the bills go to Xero at 5pm. When everything is posted it says that instead.', 'The button now counts only the bills still waiting for approval, and says so, for example "Check and approve the bill waiting". Bills that are already approved are mentioned but left alone.', 'A bill set aside in In review stops the button and the card says so.', 'The tab number now counts only POs that still have a bill needing action.'],
