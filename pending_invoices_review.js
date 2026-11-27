@@ -1487,11 +1487,20 @@
   function splitEligible(i) {
     return i.status === 'awaiting_review' && (i.match_status === 'clean_match' || i.match_status === 'amount_variance') && i.confidence !== 'low' && !i.date_warn;
   }
-  function splitCanApprove(g) {
+  // Only bills still awaiting review need approving. Bills already approved are on their way to Xero, and bills in In review are set aside.
+  function splitParts(g) {
     const open = splitOpen(g);
-    return g.state === 'complete' && open.length > 0 && open.every(splitEligible);
+    return {
+      awaiting: open.filter(i => i.status === 'awaiting_review'),
+      approved: open.filter(i => i.status === 'approved'),
+      inreview: open.filter(i => i.status === 'in_review')
+    };
   }
-  function splitAttention() { return splitGroups.filter(g => g.n_open > 0).length; }
+  function splitCanApprove(g) {
+    const p = splitParts(g);
+    return g.state === 'complete' && p.awaiting.length > 0 && p.inreview.length === 0 && p.awaiting.every(splitEligible);
+  }
+  function splitAttention() { return splitGroups.filter(g => splitOpen(g).some(i => i.status === 'awaiting_review' || i.status === 'in_review')).length; }
   const SPLIT_STATUS = { awaiting_review: 'Needs review', in_review: 'In review', approved: 'Approved, waiting to post', posted: 'Posted to Xero' };
   function renderSplit() {
     const root = document.getElementById('splitList');
@@ -1523,12 +1532,18 @@
       }).join('');
       const pct = g.po_sub > 0 ? Math.max(0, Math.min(100, Math.round(100 * g.invoiced_net / g.po_sub))) : 0;
       const canApprove = splitCanApprove(g);
-      const openN = splitOpen(g).length;
+      const parts = splitParts(g);
       const approveBtn = canApprove
-        ? '<button type="button" class="rev-btn primary" data-spaction="approve" data-po="' + escHtml(g.po) + '" style="margin-top:10px">Check and approve all ' + openN + ' together</button>'
-        : (g.state === 'complete' && openN > 0
+        ? '<button type="button" class="rev-btn primary" data-spaction="approve" data-po="' + escHtml(g.po) + '" style="margin-top:10px">Check and approve ' + (parts.awaiting.length === 1 ? 'the bill' : 'all ' + parts.awaiting.length + ' bills') + ' waiting</button>'
+          + (parts.approved.length ? '<div class="rev-x-hint" style="margin-top:6px">' + parts.approved.length + ' other bill' + (parts.approved.length === 1 ? ' is' : 's are') + ' already approved.</div>' : '')
+        : (g.state !== 'complete' ? ''
+          : parts.inreview.length
+            ? '<div class="rev-x-hint" style="margin-top:8px">This PO is complete, but ' + parts.inreview.length + ' bill' + (parts.inreview.length === 1 ? ' is' : 's are') + ' set aside in In review. Open ' + (parts.inreview.length === 1 ? 'it' : 'them') + ' to carry on.</div>'
+          : parts.awaiting.length
             ? '<div class="rev-x-hint" style="margin-top:8px">This PO is complete, but at least one bill needs opening on its own first (low confidence, a date to check, or not a clean enough match). Open them with the buttons above.</div>'
-            : '');
+          : parts.approved.length
+            ? '<div class="rev-x-hint" style="margin-top:8px;color:#4ade80">This PO is complete and everything is already approved. Nothing left to press: the bills go to Xero at 5pm.</div>'
+            : '<div class="rev-x-hint" style="margin-top:8px;color:#4ade80">This PO is complete and everything has been posted to Xero.</div>');
       return '<div class="rev-case" style="padding:14px 16px">'
         + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">'
         + '<div><b>PO ' + escHtml(g.po) + '</b> · ' + escHtml(g.vendor || 'Supplier') + '</div>'
@@ -1541,7 +1556,7 @@
   async function splitApproveGroup(po, btn) {
     const g = splitGroups.find(x => String(x.po) === String(po));
     if (!g || !splitCanApprove(g)) return;
-    const open = splitOpen(g);
+    const open = splitParts(g).awaiting;
     const sum = open.reduce((s, i) => s + (Number(i.total) || 0), 0);
     if (!confirm('Approve these ' + open.length + ' bills for PO ' + g.po + ' together?\n\n' + open.map(i => i.invoice + '  ' + fmtMoney(i.total)).join('\n') + '\n\nTotal ' + fmtMoney(sum) + '. They will go to Xero at 5pm like any approved bill. You can undo an approval before then.')) return;
     if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
